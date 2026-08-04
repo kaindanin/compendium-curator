@@ -2,11 +2,13 @@
 
 **English** | [Español](README.es.md)
 
-**Compendium Curator** is a Foundry Virtual Tabletop module that allows individual entries to be hidden from the D&D5e Compendium Browser.
+## What is Compendium Curator?
 
-It is designed to prevent duplicate content, remove material that is not used in a campaign, and control which items, spells, features, and other entries players can find.
+Compendium Curator enhances the D&D5e Compendium Browser by allowing Game Masters to hide individual entries from installed compendiums without modifying or duplicating their original content.
 
-The module does not delete or modify the original compendium documents. It only controls their visibility inside the Compendium Browser.
+Create independent profiles for different campaigns, worlds, or settings, and control which items, spells, features, and other entries players can find in the Compendium Browser.
+
+Forget about spending hours creating and organizing custom compendiums just to combine selected content from different sourcebooks. Select what you do not want to display, hide it, and keep the Compendium Browser clean and adapted to each campaign.
 
 ## Features
 
