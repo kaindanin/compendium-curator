@@ -11,6 +11,23 @@ function canCurate() {
 
 }
 
+function localize(key) {
+
+    return game.i18n.localize(
+        `COMPENDIUM_CURATOR.${key}`
+    );
+
+}
+
+function format(key, data) {
+
+    return game.i18n.format(
+        `COMPENDIUM_CURATOR.${key}`,
+        data
+    );
+
+}
+
 export function registerCompendiumBrowserHooks() {
 
     Hooks.on("renderApplicationV2", app => {
@@ -438,7 +455,7 @@ function createMasterCheckbox(app) {
     checkbox.className =
         "cc-checkbox cc-master-checkbox";
 
-    checkbox.title = "Seleccionar todas las entradas visibles";
+    checkbox.title = localize("SelectAllVisible");
     checkbox.checked = false;
 
     checkbox.addEventListener("change", () => {
@@ -529,14 +546,14 @@ function createModeToolbar(app) {
     toolbar.innerHTML = `
         <div class="cc-profile-control">
 
-            <span>Perfil</span>
+            <span>${localize("Profile")}</span>
 
             <select class="cc-profile-select"></select>
 
             <button
                 type="button"
                 class="cc-profile-create"
-                title="Crear perfil"
+                title="${localize("CreateProfile")}"
             >
                 <i class="fa-solid fa-plus"></i>
             </button>
@@ -544,7 +561,7 @@ function createModeToolbar(app) {
             <button
                 type="button"
                 class="cc-profile-public"
-                title="Marcar este perfil como público"
+                title="${localize("MarkPublic")}"
             >
                 <i class="fa-solid fa-globe"></i>
             </button>
@@ -552,7 +569,7 @@ function createModeToolbar(app) {
             <button
                 type="button"
                 class="cc-profile-delete"
-                title="Eliminar perfil"
+                title="${localize("DeleteProfile")}"
             >
                 <i class="fa-solid fa-trash"></i>
             </button>
@@ -561,12 +578,12 @@ function createModeToolbar(app) {
 
         <button type="button" class="cc-curator-button">
             <i class="fa-solid fa-eye-slash"></i>
-            Curador
+            ${localize("Curator")}
         </button>
 
         <button type="button" class="cc-hidden-button">
             <i class="fa-solid fa-eye-slash"></i>
-            Ocultos
+            ${localize("Hidden")}
         </button>
     `;
 
@@ -892,8 +909,8 @@ function refreshProfileSelect(select) {
 
         option.value = profileId;
         option.textContent =
-            profileId === StorageService.getPublicProfileId()
-                ? `${profileId} — Público`
+            profileId === publicProfile
+                ? `${profileId} — ${localize("Public")}`
                 : profileId;
         option.selected = profileId === activeProfile;
 
@@ -921,7 +938,7 @@ function createToolbar(app) {
         <div class="cc-selection-tools">
 
             <span class="cc-selection-count">
-                0 seleccionados
+                ${format("SelectedMany", { count: 0 })}
             </span>
 
         </div>
@@ -930,12 +947,12 @@ function createToolbar(app) {
 
             <button type="button" class="cc-hide">
                 <i class="fa-solid fa-eye-slash"></i>
-                Ocultar
+                ${localize("Hide")}
             </button>
 
             <button type="button" class="cc-show">
                 <i class="fa-solid fa-eye"></i>
-                Mostrar
+                ${localize("Show")}
             </button>
 
         </div>
@@ -996,7 +1013,9 @@ function refreshToolbar(app) {
     const count = CuratorState.getSelection(app).size;
 
     toolbar.querySelector(".cc-selection-count").textContent =
-        `${count} seleccionado${count === 1 ? "" : "s"}`;
+        count === 1
+            ? localize("SelectedOne")
+            : format("SelectedMany", { count });
 
     toolbar.querySelector(".cc-hide").disabled =
         count === 0;
@@ -1020,14 +1039,14 @@ function refreshCuratorButton(button, app) {
         String(app._ccCuratorMode)
     );
 
-    button.innerHTML = app._ccCuratorMode
+    button.innerHTML = app._ccShowHidden
         ? `
-            <i class="fa-solid fa-pen-to-square"></i>
-            Curador activo
+            <i class="fa-solid fa-eye"></i>
+            ${localize("HiddenVisible")}
         `
         : `
             <i class="fa-solid fa-eye-slash"></i>
-            Curador
+            ${localize("Hidden")}
         `;
 
 }

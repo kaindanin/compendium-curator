@@ -1,0 +1,34 @@
+{
+  "COMPENDIUM_CURATOR": {
+    "Profile": "Profile",
+    "Public": "Public",
+
+    "Curator": "Curator",
+    "CuratorActive": "Curator active",
+    "Hidden": "Hidden",
+    "HiddenVisible": "Hidden visible",
+
+    "Hide": "Hide",
+    "Show": "Restore",
+
+    "SelectedOne": "1 selected",
+    "SelectedMany": "{count} selected",
+
+    "SelectAllVisible": "Select all visible entries",
+
+    "CreateProfile": "Create profile",
+    "ProfileName": "Profile name",
+    "DeleteProfile": "Delete profile",
+    "MarkPublic": "Set this profile as public",
+    "IsPublic": "This is the public profile",
+
+    "Create": "Create",
+    "Delete": "Delete",
+    "Cancel": "Cancel",
+
+    "ProfileNameRequired": "You must enter a profile name.",
+    "ProfileNameInvalid": "The name is invalid or a profile with that name already exists.",
+    "ProfileDeleteConfirm": "Delete the profile {profile}? All its rules will be lost.",
+    "ProfileDeleteForbidden": "The only profile and the public profile cannot be deleted."
+  }
+}
