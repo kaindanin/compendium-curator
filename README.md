@@ -125,3 +125,11 @@ Los cambios futuros en la estructura interna de dicho navegador podrían requeri
 ## Autor
 
 **Argulf**
+
+## Apoya el proyecto
+
+Compendium Curator es gratuito y de código abierto.
+
+Si el módulo te resulta útil y quieres apoyar su desarrollo y mantenimiento, puedes invitarme a un café:
+
+[Apoyar el proyecto](https://ko-fi.com/argulf)

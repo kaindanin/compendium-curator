@@ -2,6 +2,7 @@
   "id": "compendium-curator",
   "title": "Compendium Curator",
   "description": "Oculta entradas individuales de los compendios.",
+  "url": "https://github.com/kaindanin/compendium-curator",
   "version": "0.1.0",
 
   "compatibility": {
