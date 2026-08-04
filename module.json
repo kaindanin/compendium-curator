@@ -1,7 +1,7 @@
 {
   "id": "compendium-curator",
   "title": "Compendium Curator",
-  "description": "Oculta entradas individuales de los compendios.",
+  "description": "Hide individual entries from the D&D5e Compendium Browser using configurable profiles and a fixed public profile for players.",
   "url": "https://github.com/kaindanin/compendium-curator",
   "version": "0.1.0",
 
