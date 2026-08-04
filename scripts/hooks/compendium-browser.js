@@ -1,19 +1,97 @@
 import { debug } from "../debug.js";
 import { CuratorState } from "../state/curator-state.js";
 import { StorageService } from "../services/storage-service.js";
+import { STORAGE_CHANGED_HOOK } from "../settings.js";
+
+const openCompendiumBrowsers = new Set();
+
+function canCurate() {
+
+    return game.user.can("SETTINGS_MODIFY");
+
+}
 
 export function registerCompendiumBrowserHooks() {
 
-    Hooks.on("renderApplicationV2", (app) => {
+    Hooks.on("renderApplicationV2", app => {
 
         if (app.constructor.name !== "CompendiumBrowser")
             return;
+
+        openCompendiumBrowsers.add(app);
 
         debug("Compendium Browser renderizado");
 
         onRenderCompendiumBrowser(app);
 
     });
+
+    Hooks.on("closeApplicationV2", app => {
+
+        if (app.constructor.name !== "CompendiumBrowser")
+            return;
+
+        app._ccResultsObserver?.disconnect();
+        app._ccResultsObserver = null;
+
+        openCompendiumBrowsers.delete(app);
+
+        debug("Compendium Browser cerrado");
+
+    });
+
+    Hooks.on(STORAGE_CHANGED_HOOK, () => {
+
+        refreshOpenCompendiumBrowsers();
+
+    });
+
+}
+
+function refreshOpenCompendiumBrowsers() {
+
+    for (const app of openCompendiumBrowsers) {
+
+        if (!app.element?.isConnected) {
+
+            openCompendiumBrowsers.delete(app);
+
+            continue;
+
+        }
+
+        refreshCompendiumBrowser(app);
+
+    }
+
+}
+
+function refreshCompendiumBrowser(app) {
+
+    /*
+     * Los usuarios sin permisos nunca pueden conservar
+     * estados que revelen contenido oculto.
+     */
+    if (!canCurate()) {
+
+        app._ccShowHidden = false;
+        app._ccCuratorMode = false;
+
+        app.element
+            .querySelector(".cc-toolbar-container")
+            ?.remove();
+
+    }
+
+    clearSelection(app);
+
+    if (canCurate())
+        createModeToolbar(app);
+
+    updateCuratorMode(app);
+
+    if (canCurate())
+        refreshToolbar(app);
 
 }
 
@@ -22,14 +100,32 @@ function onRenderCompendiumBrowser(app) {
     app._ccShowHidden ??= false;
     app._ccCuratorMode ??= false;
 
+    /*
+     * Un usuario sin permisos nunca puede revelar ocultos
+     * ni entrar en modo Curador.
+     */
+    if (!canCurate()) {
+
+        app._ccShowHidden = false;
+        app._ccCuratorMode = false;
+
+        app.element
+            .querySelector(".cc-toolbar-container")
+            ?.remove();
+
+    }
+
     clearSelection(app);
 
     observeCompendiumResults(app);
 
-    createModeToolbar(app);
+    if (canCurate())
+        createModeToolbar(app);
 
     updateCuratorMode(app);
-    refreshToolbar(app);
+
+    if (canCurate())
+        refreshToolbar(app);
 
 }
 
@@ -42,6 +138,8 @@ function observeCompendiumResults(app) {
 
     const observer = new MutationObserver(mutations => {
 
+        let itemsChanged = false;
+
         for (const mutation of mutations) {
 
             for (const node of mutation.addedNodes) {
@@ -50,25 +148,62 @@ function observeCompendiumResults(app) {
                     continue;
 
                 /*
-                 * La entrada añadida puede ser directamente un <li>.
+                 * Se ha añadido directamente una entrada.
                  */
-                if (node.matches(".item-list > .item[data-uuid]"))
+                if (node.matches(
+                    ".item-list > .item[data-uuid]"
+                )) {
+
                     updateItem(app, node);
+                    itemsChanged = true;
+
+                }
 
                 /*
-                 * O puede haberse añadido una lista completa que contenga
-                 * varias entradas.
+                 * Se ha añadido un contenedor con varias entradas.
                  */
                 const items = node.querySelectorAll(
                     ".item-list > .item[data-uuid]"
                 );
+
+                if (items.length > 0)
+                    itemsChanged = true;
 
                 for (const item of items)
                     updateItem(app, item);
 
             }
 
+            /*
+             * Si desaparecen entradas al filtrar o cambiar
+             * de categoría, actualizamos el checkbox maestro.
+             */
+            for (const node of mutation.removedNodes) {
+
+                if (!(node instanceof Element))
+                    continue;
+
+                if (
+                    node.matches(
+                        ".item-list > .item[data-uuid]"
+                    ) ||
+                    node.querySelector(
+                        ".item-list > .item[data-uuid]"
+                    )
+                ) {
+                    itemsChanged = true;
+                }
+
+            }
+
         }
+
+        /*
+         * No reaccionamos a los cambios provocados por nuestros
+         * propios checkboxes, botones o barras.
+         */
+        if (!itemsChanged)
+            return;
 
         createMasterCheckbox(app);
         refreshMasterCheckbox(app);
@@ -98,7 +233,63 @@ function updateCuratorMode(app) {
 
 }
 
+function restrictItemTooltip(item) {
+
+    const itemName = item.querySelector(".item-name");
+
+    if (!itemName)
+        return;
+
+    const tooltipSources = [
+        item,
+        item.querySelector(".item-row")
+    ].filter(Boolean);
+
+    for (const source of tooltipSources) {
+
+        for (const attribute of [...source.attributes]) {
+
+            if (!attribute.name.startsWith("data-tooltip"))
+                continue;
+
+            itemName.setAttribute(
+                attribute.name,
+                attribute.value
+            );
+
+            source.removeAttribute(attribute.name);
+
+        }
+
+    }
+
+    /*
+     * Cancela cualquier tooltip pendiente al entrar
+     * en la columna de controles.
+     */
+    const controls = item.querySelector(".item-controls");
+
+    if (
+        controls &&
+        !controls.dataset.ccTooltipGuard
+    ) {
+
+        controls.dataset.ccTooltipGuard = "true";
+
+        controls.addEventListener("pointerenter", () => {
+
+            game.tooltip.clearPending();
+            game.tooltip.deactivate();
+
+        });
+
+    }
+
+}
+
 function updateItem(app, item) {
+
+    restrictItemTooltip(item);
 
     item.querySelector(".cc-checkbox")?.remove();
 
@@ -108,7 +299,7 @@ function updateItem(app, item) {
     item.classList.toggle("cc-hidden-entry", hidden);
     item.hidden = hidden && !app._ccShowHidden;
 
-    if (!app._ccCuratorMode)
+    if (!canCurate() || !app._ccCuratorMode)
         return;
 
     const checkbox = document.createElement("input");
@@ -208,6 +399,9 @@ function getVisibleItems(app) {
 
 function createMasterCheckbox(app) {
 
+    if (!canCurate())
+        return null;
+
     let checkbox = app.element.querySelector(
         ".cc-master-checkbox"
     );
@@ -306,6 +500,9 @@ function refreshMasterCheckbox(app) {
 
 function createModeToolbar(app) {
 
+    if (!canCurate())
+        return null;
+
     let toolbar = app.element.querySelector(".cc-mode-toolbar");
 
     if (toolbar) {
@@ -315,6 +512,7 @@ function createModeToolbar(app) {
         );
 
         refreshProfileButtons(toolbar);
+        refreshPublicProfileButton(toolbar);
 
         return toolbar;
 
@@ -345,6 +543,14 @@ function createModeToolbar(app) {
 
             <button
                 type="button"
+                class="cc-profile-public"
+                title="Marcar este perfil como público"
+            >
+                <i class="fa-solid fa-globe"></i>
+            </button>
+
+            <button
+                type="button"
                 class="cc-profile-delete"
                 title="Eliminar perfil"
             >
@@ -366,6 +572,7 @@ function createModeToolbar(app) {
 
     const curatorButton = toolbar.querySelector(".cc-curator-button");
     const hiddenButton = toolbar.querySelector(".cc-hidden-button");
+    const publicProfileButton = toolbar.querySelector(".cc-profile-public");
 
     curatorButton.addEventListener("click", () => {
 
@@ -385,8 +592,16 @@ function createModeToolbar(app) {
 
         app._ccShowHidden = !app._ccShowHidden;
 
+        /*
+        * Al cambiar la visibilidad, limpiamos la selección
+        * para evitar mantener entradas seleccionadas que ya
+        * no aparecen en pantalla.
+        */
+        clearSelection(app);
+
         refreshHiddenButton(hiddenButton, app);
         updateCuratorMode(app);
+        refreshToolbar(app);
 
     });
 
@@ -404,6 +619,7 @@ function createModeToolbar(app) {
 
     refreshProfileSelect(profileSelect);
     refreshProfileButtons(toolbar);
+    refreshPublicProfileButton(toolbar);
 
     createProfileButton.addEventListener("click", async () => {
 
@@ -456,7 +672,7 @@ function createModeToolbar(app) {
         if (!created) {
 
             ui.notifications.warn(
-                "Ya existe un perfil con ese nombre."
+                "El nombre no es válido o ya existe un perfil con ese nombre."
             );
 
             return;
@@ -464,13 +680,6 @@ function createModeToolbar(app) {
         }
 
         clearSelection(app);
-
-        refreshProfileSelect(profileSelect);
-        refreshProfileButtons(toolbar);
-
-        updateCuratorMode(app);
-        refreshToolbar(app);
-        refreshMasterCheckbox(app);
 
         debug("Perfil creado:", profileName);
 
@@ -524,7 +733,7 @@ function createModeToolbar(app) {
         if (!deleted) {
 
             ui.notifications.warn(
-                "Debe existir al menos un perfil."
+                "No se puede eliminar el último perfil ni el perfil público."
             );
 
             return;
@@ -533,14 +742,27 @@ function createModeToolbar(app) {
 
         clearSelection(app);
 
-        refreshProfileSelect(profileSelect);
-        refreshProfileButtons(toolbar);
-
-        updateCuratorMode(app);
-        refreshToolbar(app);
-        refreshMasterCheckbox(app);
-
         debug("Perfil eliminado:", activeProfile);
+
+    });
+
+    publicProfileButton.addEventListener("click", async () => {
+
+        const activeProfile =
+            StorageService.getActiveProfileId();
+
+        const changed =
+            await StorageService.setPublicProfile(
+                activeProfile
+            );
+
+        if (!changed)
+            return;
+
+        debug(
+            "Perfil público:",
+            activeProfile
+        );
 
     });
 
@@ -554,16 +776,13 @@ function createModeToolbar(app) {
 
             refreshProfileSelect(profileSelect);
             refreshProfileButtons(toolbar);
+            refreshPublicProfileButton(toolbar);
 
             return;
 
         }
 
         clearSelection(app);
-
-        updateCuratorMode(app);
-        refreshToolbar(app);
-        refreshMasterCheckbox(app);
 
         debug(
             "Perfil activo:",
@@ -581,20 +800,78 @@ function createModeToolbar(app) {
 
 }
 
+function refreshPublicProfileButton(toolbar) {
+
+    if (!toolbar)
+        return;
+
+    const button = toolbar.querySelector(
+        ".cc-profile-public"
+    );
+
+    if (!button)
+        return;
+
+    const activeProfile =
+        StorageService.getActiveProfileId();
+
+    const publicProfile =
+        StorageService.getPublicProfileId();
+
+    const isPublic =
+        activeProfile === publicProfile;
+
+    button.disabled = isPublic;
+    button.classList.toggle("active", isPublic);
+
+    button.title = isPublic
+        ? "Este es el perfil público"
+        : "Marcar este perfil como público";
+
+    button.innerHTML = isPublic
+        ? `
+            <i class="fa-solid fa-globe"></i>
+            <i class="fa-solid fa-check"></i>
+        `
+        : `
+            <i class="fa-solid fa-globe"></i>
+        `;
+
+}
+
 function refreshProfileButtons(toolbar) {
 
     if (!toolbar)
         return;
 
-    const profileCount =
-        Object.keys(StorageService.getProfiles()).length;
+    const profiles =
+        StorageService.getProfiles();
+
+    const activeProfile =
+        StorageService.getActiveProfileId();
+
+    const publicProfile =
+        StorageService.getPublicProfileId();
 
     const deleteButton = toolbar.querySelector(
         ".cc-profile-delete"
     );
 
-    if (deleteButton)
-        deleteButton.disabled = profileCount <= 1;
+    if (!deleteButton)
+        return;
+
+    const isOnlyProfile =
+        Object.keys(profiles).length <= 1;
+
+    const isPublicProfile =
+        activeProfile === publicProfile;
+
+    deleteButton.disabled =
+        isOnlyProfile || isPublicProfile;
+
+    deleteButton.title = isPublicProfile
+        ? "No se puede eliminar el perfil público"
+        : "Eliminar perfil";
 
 }
 
@@ -604,8 +881,8 @@ function refreshProfileSelect(select) {
         return;
 
     const profiles = StorageService.getProfiles();
-    const activeProfile =
-        StorageService.getActiveProfileId();
+    const activeProfile = StorageService.getActiveProfileId();
+    const publicProfile = StorageService.getPublicProfileId();
 
     select.replaceChildren();
 
@@ -614,7 +891,10 @@ function refreshProfileSelect(select) {
         const option = document.createElement("option");
 
         option.value = profileId;
-        option.textContent = profileId;
+        option.textContent =
+            profileId === StorageService.getPublicProfileId()
+                ? `${profileId} — Público`
+                : profileId;
         option.selected = profileId === activeProfile;
 
         select.appendChild(option);
@@ -624,6 +904,9 @@ function refreshProfileSelect(select) {
 }
 
 function createToolbar(app) {
+
+    if (!canCurate())
+        return null;
 
     let toolbar = app.element.querySelector(".cc-toolbar");
 
@@ -660,15 +943,15 @@ function createToolbar(app) {
 
     toolbar.querySelector(".cc-hide").addEventListener("click", async () => {
 
-        const selection = CuratorState.getSelection(app);
+        const selection = [
+            ...CuratorState.getSelection(app)
+        ];
 
-        for (const uuid of selection)
-            await StorageService.hide(uuid);
+        await StorageService.hideMany(selection);
 
         clearSelection(app);
-        updateCuratorMode(app);
 
-        debug(game.settings.get("compendium-curator", "storage"));
+        debug("Entradas ocultadas:", selection);
 
     });
 
@@ -681,11 +964,9 @@ function createToolbar(app) {
             ...CuratorState.getSelection(app)
         ];
 
-        for (const uuid of selection)
-            await StorageService.show(uuid);
+        await StorageService.showMany(selection);
 
         clearSelection(app);
-        updateCuratorMode(app);
 
         debug(
             "Entradas restauradas:",

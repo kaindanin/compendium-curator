@@ -94,13 +94,16 @@
     min-width: 130px;
 }
 
-.cc-profile-control {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+.cc-profile-create,
+.cc-profile-delete {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
 }
 
 .cc-profile-create,
+.cc-profile-public,
 .cc-profile-delete {
     flex: 0 0 32px;
     width: 32px;

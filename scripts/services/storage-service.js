@@ -1,5 +1,18 @@
 import { MODULE_ID, STORAGE_SETTING } from "../settings.js";
 
+const RESERVED_PROFILE_NAMES = new Set([
+    "__proto__",
+    "prototype",
+    "constructor"
+]);
+
+function isValidProfileName(name) {
+
+    return Boolean(name) &&
+        !RESERVED_PROFILE_NAMES.has(name.toLowerCase());
+
+}
+
 export class StorageService {
 
     // ==========================
@@ -7,11 +20,127 @@ export class StorageService {
     // ==========================
 
     static _getData() {
-        return game.settings.get(MODULE_ID, STORAGE_SETTING);
+
+        const storage = game.settings.get(
+            MODULE_ID,
+            STORAGE_SETTING
+        );
+
+        return this._normalizeData(storage);
+
     }
 
     static async _saveData(data) {
         await game.settings.set(MODULE_ID, STORAGE_SETTING, data);
+    }
+
+    static _normalizeData(storage) {
+
+        const data = structuredClone(storage ?? {});
+
+        data.version = 2;
+
+        if (
+            !data.profiles ||
+            typeof data.profiles !== "object" ||
+            Array.isArray(data.profiles)
+        ) {
+            data.profiles = {};
+        }
+
+        /*
+        * Elimina posibles nombres reservados procedentes
+        * de versiones anteriores o datos manipulados.
+        */
+        for (const profileId of Object.keys(data.profiles)) {
+
+            if (
+                RESERVED_PROFILE_NAMES.has(
+                    profileId.toLowerCase()
+                )
+            ) {
+                delete data.profiles[profileId];
+            }
+
+        }
+
+        for (
+            const [profileId, profile]
+            of Object.entries(data.profiles)
+        ) {
+
+            if (
+                !profile ||
+                typeof profile !== "object" ||
+                Array.isArray(profile)
+            ) {
+
+                data.profiles[profileId] = {
+                    rules: [],
+                    filters: {}
+                };
+
+                continue;
+
+            }
+
+            if (!Array.isArray(profile.rules))
+                profile.rules = [];
+
+            if (
+                !profile.filters ||
+                typeof profile.filters !== "object" ||
+                Array.isArray(profile.filters)
+            ) {
+                profile.filters = {};
+            }
+
+        }
+
+        if (Object.keys(data.profiles).length === 0) {
+
+            data.profiles.default = {
+                rules: [],
+                filters: {}
+            };
+
+        }
+
+        if (
+            !data.publicProfile ||
+            !data.profiles[data.publicProfile]
+        ) {
+            data.publicProfile = data.activeProfile;
+        }
+
+        return data;
+
+    }
+
+    static async initialize() {
+
+        const current = game.settings.get(
+            MODULE_ID,
+            STORAGE_SETTING
+        );
+
+        const normalized =
+            this._normalizeData(current);
+
+        /*
+        * Solo guardamos si realmente se ha corregido algo.
+        */
+        if (
+            JSON.stringify(current) ===
+            JSON.stringify(normalized)
+        ) {
+            return false;
+        }
+
+        await this._saveData(normalized);
+
+        return true;
+
     }
 
     // ==========================
@@ -21,8 +150,9 @@ export class StorageService {
     static getProfile() {
 
         const storage = this._getData();
+        const profileId = this.getVisibleProfileId();
 
-        return storage.profiles[storage.activeProfile];
+        return storage.profiles[profileId];
 
     }
 
@@ -44,6 +174,44 @@ export class StorageService {
 
     }
 
+    static getPublicProfileId() {
+
+        return this._getData().publicProfile;
+
+    }
+
+    static getVisibleProfileId() {
+
+        const data = this._getData();
+
+        /*
+        * Los usuarios autorizados trabajan con el perfil activo.
+        * Los jugadores siempre consultan el perfil público.
+        */
+        return game.user.can("SETTINGS_MODIFY")
+            ? data.activeProfile
+            : data.publicProfile;
+
+    }
+
+    static async setPublicProfile(profileId) {
+
+        const data = this._getData();
+
+        if (!data.profiles[profileId])
+            return false;
+
+        if (data.publicProfile === profileId)
+            return false;
+
+        data.publicProfile = profileId;
+
+        await this._saveData(data);
+
+        return true;
+
+    }
+
     static async setActiveProfile(profileId) {
 
         const data = this._getData();
@@ -61,9 +229,9 @@ export class StorageService {
 
     static async createProfile(profileId) {
 
-        const name = profileId.trim();
+        const name = String(profileId).trim();
 
-        if (!name)
+        if (!isValidProfileName(name))
             return false;
 
         const data = this._getData();
@@ -98,6 +266,9 @@ export class StorageService {
         if (!data.profiles[profileId])
             return false;
 
+        if (data.publicProfile === profileId)
+            return false;
+
         delete data.profiles[profileId];
 
         if (data.activeProfile === profileId)
@@ -117,16 +288,41 @@ export class StorageService {
 
     }
 
-    static async addRule(rule) {
+    static async hideMany(uuids) {
 
         const data = this._getData();
+        const rules =
+            data.profiles[data.activeProfile].rules;
 
-        const rules = data.profiles[data.activeProfile].rules;
+        let changed = false;
 
-        if (rules.some(r => r.uuid === rule.uuid))
+        for (const uuid of uuids) {
+
+            const existingRule =
+                rules.find(rule => rule.uuid === uuid);
+
+            if (existingRule) {
+
+                if (!existingRule.hidden) {
+                    existingRule.hidden = true;
+                    changed = true;
+                }
+
+                continue;
+
+            }
+
+            rules.push({
+                uuid,
+                hidden: true
+            });
+
+            changed = true;
+
+        }
+
+        if (!changed)
             return false;
-
-        rules.push(rule);
 
         await this._saveData(data);
 
@@ -134,31 +330,37 @@ export class StorageService {
 
     }
 
-    static async removeRule(uuid) {
+    static async showMany(uuids) {
 
         const data = this._getData();
+        const profile =
+            data.profiles[data.activeProfile];
 
-        data.profiles[data.activeProfile].rules =
-            data.profiles[data.activeProfile].rules.filter(r => r.uuid !== uuid);
+        const selectedUuids = new Set(uuids);
+        const previousLength = profile.rules.length;
+
+        profile.rules = profile.rules.filter(
+            rule => !selectedUuids.has(rule.uuid)
+        );
+
+        if (profile.rules.length === previousLength)
+            return false;
 
         await this._saveData(data);
+
+        return true;
 
     }
 
     static async hide(uuid) {
 
-        return this.addRule({
-
-            uuid,
-            hidden: true
-
-        });
+        return this.hideMany([uuid]);
 
     }
 
     static async show(uuid) {
 
-        return this.removeRule(uuid);
+        return this.showMany([uuid]);
 
     }
 
