@@ -643,12 +643,12 @@ function createModeToolbar(app) {
         const result =
             await foundry.applications.api.DialogV2.input({
                 window: {
-                    title: "Crear perfil"
+                    title: localize("CreateProfile")
                 },
 
                 content: `
                     <div class="form-group">
-                        <label>Nombre del perfil</label>
+                        <label>${localize("ProfileName")}</label>
 
                         <input
                             type="text"
@@ -660,7 +660,7 @@ function createModeToolbar(app) {
                 `,
 
                 ok: {
-                    label: "Crear"
+                    label: localize("Create")
                 },
 
                 rejectClose: false,
@@ -676,7 +676,7 @@ function createModeToolbar(app) {
         if (!profileName) {
 
             ui.notifications.warn(
-                "Debes introducir un nombre para el perfil."
+                localize("ProfileNameRequired")
             );
 
             return;
@@ -689,7 +689,7 @@ function createModeToolbar(app) {
         if (!created) {
 
             ui.notifications.warn(
-                "El nombre no es válido o ya existe un perfil con ese nombre."
+                localize("ProfileNameInvalid")
             );
 
             return;
@@ -724,17 +724,20 @@ function createModeToolbar(app) {
         const confirmed =
             await foundry.applications.api.DialogV2.confirm({
                 window: {
-                    title: "Eliminar perfil"
+                    title: localize("DeleteProfile")
                 },
 
-                content,
+                content: `<p>${format(
+                    "ProfileDeleteConfirm",
+                    { profile: activeProfile }
+                )}</p>`,
 
                 yes: {
-                    label: "Eliminar"
+                    label: localize("Delete")
                 },
 
                 no: {
-                    label: "Cancelar"
+                    label: localize("Cancel")
                 },
 
                 rejectClose: false,
@@ -750,7 +753,7 @@ function createModeToolbar(app) {
         if (!deleted) {
 
             ui.notifications.warn(
-                "No se puede eliminar el último perfil ni el perfil público."
+                localize("ProfileDeleteForbidden")
             );
 
             return;
@@ -842,8 +845,8 @@ function refreshPublicProfileButton(toolbar) {
     button.classList.toggle("active", isPublic);
 
     button.title = isPublic
-        ? "Este es el perfil público"
-        : "Marcar este perfil como público";
+        ? localize("IsPublic")
+        : localize("MarkPublic");
 
     button.innerHTML = isPublic
         ? `
@@ -887,8 +890,8 @@ function refreshProfileButtons(toolbar) {
         isOnlyProfile || isPublicProfile;
 
     deleteButton.title = isPublicProfile
-        ? "No se puede eliminar el perfil público"
-        : "Eliminar perfil";
+        ? localize("ProfileDeleteForbidden")
+        : localize("DeleteProfile");
 
 }
 
@@ -1034,19 +1037,14 @@ function refreshCuratorButton(button, app) {
         app._ccCuratorMode
     );
 
-    button.setAttribute(
-        "aria-pressed",
-        String(app._ccCuratorMode)
-    );
-
-    button.innerHTML = app._ccShowHidden
+    button.innerHTML = app._ccCuratorMode
         ? `
-            <i class="fa-solid fa-eye"></i>
-            ${localize("HiddenVisible")}
+            <i class="fa-solid fa-pen-to-square"></i>
+            ${localize("CuratorActive")}
         `
         : `
             <i class="fa-solid fa-eye-slash"></i>
-            ${localize("Hidden")}
+            ${localize("Curator")}
         `;
 
 }
@@ -1058,19 +1056,14 @@ function refreshHiddenButton(button, app) {
         app._ccShowHidden
     );
 
-    button.setAttribute(
-        "aria-pressed",
-        String(app._ccShowHidden)
-    );
-
     button.innerHTML = app._ccShowHidden
         ? `
             <i class="fa-solid fa-eye"></i>
-            Ocultos visibles
+            ${localize("HiddenVisible")}
         `
         : `
             <i class="fa-solid fa-eye-slash"></i>
-            Ocultos
+            ${localize("Hidden")}
         `;
 
 }
