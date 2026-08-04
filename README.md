@@ -1,135 +1,138 @@
 # Compendium Curator
 
-**Compendium Curator** es un módulo para Foundry Virtual Tabletop que permite ocultar entradas individuales del Navegador de Compendios de D&D5e.
+**English** | [Español](README.es.md)
 
-Está pensado para evitar duplicados, retirar contenido que no se utiliza en una campaña y controlar qué objetos, conjuros, rasgos y demás entradas pueden encontrar los jugadores.
+**Compendium Curator** is a Foundry Virtual Tabletop module that allows individual entries to be hidden from the D&D5e Compendium Browser.
 
-El módulo no elimina ni modifica los documentos originales de los compendios. Solo controla su visibilidad dentro del Navegador de Compendios.
+It is designed to prevent duplicate content, remove material that is not used in a campaign, and control which items, spells, features, and other entries players can find.
 
-## Funciones
+The module does not delete or modify the original compendium documents. It only controls their visibility inside the Compendium Browser.
 
-* Ocultar entradas individuales del Navegador de Compendios.
-* Restaurar entradas ocultas.
-* Seleccionar varias entradas mediante casillas.
-* Seleccionar todas las entradas visibles mediante una casilla general.
-* Mostrar temporalmente las entradas ocultas.
-* Identificar visualmente las entradas ocultas.
-* Crear y eliminar perfiles de configuración.
-* Mantener listas de entradas ocultas independientes para cada perfil.
-* Elegir un perfil público fijo para los jugadores.
-* Permitir que el GM cambie de perfil de trabajo sin alterar lo que ven los jugadores.
-* Sincronizar los cambios automáticamente entre los clientes conectados.
-* Limitar los controles de administración a usuarios con permiso para modificar los ajustes del mundo.
-* Mantener los datos guardados entre sesiones.
-* Limitar la previsualización de cada entrada a su nombre para que no interfiera con los controles.
+## Features
 
-## Requisitos
+* Hide individual entries from the Compendium Browser.
+* Restore hidden entries.
+* Select multiple entries using checkboxes.
+* Select all visible entries with a master checkbox.
+* Temporarily display hidden entries.
+* Visually identify hidden entries.
+* Create and delete configuration profiles.
+* Maintain independent hidden-entry lists for each profile.
+* Choose a fixed public profile for players.
+* Allow the GM to change editing profiles without altering what players see.
+* Automatically synchronize changes between connected clients.
+* Restrict administration controls to users who can modify world settings.
+* Preserve configuration data between sessions.
+* Restrict entry previews to their names so they do not interfere with module controls.
+* Interface available in English and Spanish.
 
-* Foundry Virtual Tabletop 14 o superior.
-* Sistema D&D5e 5.3.0 o superior.
+## Requirements
 
-## Instalación manual
+* Foundry Virtual Tabletop 14 or later.
+* D&D5e system 5.3.0 or later.
 
-1. Descarga o copia la carpeta del módulo.
+## Manual Installation
 
-2. Colócala dentro de la carpeta de módulos de Foundry:
+1. Download or copy the module folder.
+
+2. Place it inside the Foundry modules directory:
 
    ```text
    Data/modules/compendium-curator
    ```
 
-3. Reinicia Foundry Virtual Tabletop.
+3. Restart Foundry Virtual Tabletop.
 
-4. Activa **Compendium Curator** desde la configuración de módulos del mundo.
+4. Enable **Compendium Curator** from the world's module settings.
 
-## Uso
+## Usage
 
-Abre el Navegador de Compendios de D&D5e.
+Open the D&D5e Compendium Browser.
 
-En la parte superior aparecerán los controles de Compendium Curator para los usuarios con permiso para modificar los ajustes del mundo.
+Compendium Curator controls will appear at the top for users who have permission to modify world settings.
 
-### Modo Curador
+### Curator Mode
 
-Pulsa **Curador** para mostrar las casillas de selección de las entradas.
+Click **Curator** to display selection checkboxes beside the entries.
 
-Una vez seleccionadas, utiliza:
+After selecting entries, use:
 
-* **Ocultar** para retirarlas del navegador.
-* **Mostrar** para restaurarlas.
+* **Hide** to remove them from the browser.
+* **Restore** to make them visible again.
 
-La casilla situada en la cabecera de la columna permite seleccionar o deseleccionar todas las entradas visibles.
+The checkbox in the column header selects or deselects all currently visible entries.
 
-### Entradas ocultas
+### Hidden Entries
 
-Pulsa **Ocultos** para mostrar temporalmente las entradas que están ocultas.
+Click **Hidden** to temporarily display entries that are currently hidden.
 
-Estas entradas aparecerán atenuadas. Al desactivar la opción volverán a desaparecer del navegador.
+Hidden entries appear faded. Disabling the option removes them from the browser again.
 
-### Perfiles
+### Profiles
 
-Cada perfil mantiene su propia lista de entradas ocultas.
+Each profile maintains its own list of hidden entries.
 
-El selector de perfiles permite cambiar el perfil que está editando el GM.
+The profile selector changes the profile currently being edited by the GM.
 
-Los botones situados junto al selector permiten:
+The buttons beside the selector allow the GM to:
 
-* Crear un perfil.
-* Marcar el perfil activo como público.
-* Eliminar un perfil.
+* Create a profile.
+* Mark the active profile as public.
+* Delete a profile.
 
-El perfil público aparece identificado en el selector mediante la etiqueta **Público**.
+The public profile is identified in the selector by the **Public** label.
 
-### Perfil público
+### Public Profile
 
-Los jugadores siempre utilizan el perfil marcado como público.
+Players always use the profile marked as public.
 
-El GM puede cambiar a otro perfil para preparar contenido, hacer pruebas o configurar una campaña diferente sin modificar lo que ven los jugadores.
+The GM can switch to another profile to prepare content, perform tests, or configure a different campaign without changing what players can see.
 
-Cuando se marca otro perfil como público, los navegadores abiertos de los jugadores se actualizan automáticamente.
+When another profile is marked as public, open player browsers are updated automatically.
 
-El perfil público no puede eliminarse hasta que se marque otro perfil como público.
+The public profile cannot be deleted until another profile has been marked as public.
 
-## Permisos
+## Permissions
 
-Los usuarios con permiso para modificar los ajustes del mundo pueden:
+Users with permission to modify world settings can:
 
-* Activar el modo Curador.
-* Mostrar entradas ocultas.
-* Ocultar y restaurar entradas.
-* Crear, cambiar y eliminar perfiles.
-* Elegir el perfil público.
+* Enable Curator Mode.
+* Display hidden entries.
+* Hide and restore entries.
+* Create, switch, and delete profiles.
+* Choose the public profile.
 
-Los demás jugadores no ven los controles del módulo y utilizan siempre las reglas del perfil público.
+Other players do not see the module controls and always use the rules from the public profile.
 
-## Almacenamiento
+## Storage
 
-La configuración se guarda como un ajuste del mundo de Foundry.
+Configuration is stored as a Foundry world setting.
 
-Cada mundo mantiene de forma independiente:
+Each world independently maintains:
 
-* Sus perfiles.
-* El perfil activo del GM.
-* El perfil público.
-* Las entradas ocultas de cada perfil.
+* Its profiles.
+* The GM's active profile.
+* The public profile.
+* The hidden entries belonging to each profile.
 
-## Compatibilidad
+## Compatibility
 
-Compendium Curator modifica la interfaz del Navegador de Compendios de D&D5e.
+Compendium Curator modifies the D&D5e Compendium Browser interface.
 
-Los cambios futuros en la estructura interna de dicho navegador podrían requerir una actualización del módulo.
+Future changes to the browser's internal structure may require an update to the module.
 
-## Versión
+## Version
 
 **0.1.0**
 
-## Autor
+## Author
 
 **Argulf**
 
-## Apoya el proyecto
+## Support the Project
 
-Compendium Curator es gratuito y de código abierto.
+Compendium Curator is free and open-source.
 
-Si el módulo te resulta útil y quieres apoyar su desarrollo y mantenimiento, puedes invitarme a un café:
+If you find the module useful and would like to support its development and maintenance, you can buy me a coffee:
 
-[Apoyar el proyecto](https://ko-fi.com/argulf)
+[Support the project on Ko-fi](https://ko-fi.com/argulf)
