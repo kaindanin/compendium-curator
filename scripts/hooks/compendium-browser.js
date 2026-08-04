@@ -308,8 +308,17 @@ function createModeToolbar(app) {
 
     let toolbar = app.element.querySelector(".cc-mode-toolbar");
 
-    if (toolbar)
+    if (toolbar) {
+
+        refreshProfileSelect(
+            toolbar.querySelector(".cc-profile-select")
+        );
+
+        refreshProfileButtons(toolbar);
+
         return toolbar;
+
+    }
 
     const container = getToolbarContainer(app);
 
@@ -320,6 +329,30 @@ function createModeToolbar(app) {
     toolbar.className = "cc-mode-toolbar";
 
     toolbar.innerHTML = `
+        <div class="cc-profile-control">
+
+            <span>Perfil</span>
+
+            <select class="cc-profile-select"></select>
+
+            <button
+                type="button"
+                class="cc-profile-create"
+                title="Crear perfil"
+            >
+                <i class="fa-solid fa-plus"></i>
+            </button>
+
+            <button
+                type="button"
+                class="cc-profile-delete"
+                title="Eliminar perfil"
+            >
+                <i class="fa-solid fa-trash"></i>
+            </button>
+
+        </div>
+
         <button type="button" class="cc-curator-button">
             <i class="fa-solid fa-eye-slash"></i>
             Curador
@@ -357,12 +390,236 @@ function createModeToolbar(app) {
 
     });
 
+    const profileSelect = toolbar.querySelector(
+        ".cc-profile-select"
+    );
+
+    const createProfileButton = toolbar.querySelector(
+        ".cc-profile-create"
+    );
+
+    const deleteProfileButton = toolbar.querySelector(
+        ".cc-profile-delete"
+    );
+
+    refreshProfileSelect(profileSelect);
+    refreshProfileButtons(toolbar);
+
+    createProfileButton.addEventListener("click", async () => {
+
+        const result =
+            await foundry.applications.api.DialogV2.input({
+                window: {
+                    title: "Crear perfil"
+                },
+
+                content: `
+                    <div class="form-group">
+                        <label>Nombre del perfil</label>
+
+                        <input
+                            type="text"
+                            name="profileName"
+                            autocomplete="off"
+                            autofocus
+                        >
+                    </div>
+                `,
+
+                ok: {
+                    label: "Crear"
+                },
+
+                rejectClose: false,
+                modal: true
+            });
+
+        if (!result)
+            return;
+
+        const profileName =
+            String(result.profileName ?? "").trim();
+
+        if (!profileName) {
+
+            ui.notifications.warn(
+                "Debes introducir un nombre para el perfil."
+            );
+
+            return;
+
+        }
+
+        const created =
+            await StorageService.createProfile(profileName);
+
+        if (!created) {
+
+            ui.notifications.warn(
+                "Ya existe un perfil con ese nombre."
+            );
+
+            return;
+
+        }
+
+        clearSelection(app);
+
+        refreshProfileSelect(profileSelect);
+        refreshProfileButtons(toolbar);
+
+        updateCuratorMode(app);
+        refreshToolbar(app);
+        refreshMasterCheckbox(app);
+
+        debug("Perfil creado:", profileName);
+
+    });
+
+    deleteProfileButton.addEventListener("click", async () => {
+
+        const activeProfile =
+            StorageService.getActiveProfileId();
+
+        const content = document.createElement("div");
+        const paragraph = document.createElement("p");
+        const profileName = document.createElement("strong");
+
+        profileName.textContent = activeProfile;
+
+        paragraph.append(
+            "¿Eliminar el perfil ",
+            profileName,
+            "? Todas sus reglas se perderán."
+        );
+
+        content.appendChild(paragraph);
+
+        const confirmed =
+            await foundry.applications.api.DialogV2.confirm({
+                window: {
+                    title: "Eliminar perfil"
+                },
+
+                content,
+
+                yes: {
+                    label: "Eliminar"
+                },
+
+                no: {
+                    label: "Cancelar"
+                },
+
+                rejectClose: false,
+                modal: true
+            });
+
+        if (!confirmed)
+            return;
+
+        const deleted =
+            await StorageService.deleteProfile(activeProfile);
+
+        if (!deleted) {
+
+            ui.notifications.warn(
+                "Debe existir al menos un perfil."
+            );
+
+            return;
+
+        }
+
+        clearSelection(app);
+
+        refreshProfileSelect(profileSelect);
+        refreshProfileButtons(toolbar);
+
+        updateCuratorMode(app);
+        refreshToolbar(app);
+        refreshMasterCheckbox(app);
+
+        debug("Perfil eliminado:", activeProfile);
+
+    });
+
+    profileSelect.addEventListener("change", async () => {
+
+        const changed = await StorageService.setActiveProfile(
+            profileSelect.value
+        );
+
+        if (!changed) {
+
+            refreshProfileSelect(profileSelect);
+            refreshProfileButtons(toolbar);
+
+            return;
+
+        }
+
+        clearSelection(app);
+
+        updateCuratorMode(app);
+        refreshToolbar(app);
+        refreshMasterCheckbox(app);
+
+        debug(
+            "Perfil activo:",
+            StorageService.getActiveProfileId()
+        );
+
+    });
+
     refreshCuratorButton(curatorButton, app);
     refreshHiddenButton(hiddenButton, app);
 
     container.appendChild(toolbar);
 
     return toolbar;
+
+}
+
+function refreshProfileButtons(toolbar) {
+
+    if (!toolbar)
+        return;
+
+    const profileCount =
+        Object.keys(StorageService.getProfiles()).length;
+
+    const deleteButton = toolbar.querySelector(
+        ".cc-profile-delete"
+    );
+
+    if (deleteButton)
+        deleteButton.disabled = profileCount <= 1;
+
+}
+
+function refreshProfileSelect(select) {
+
+    if (!select)
+        return;
+
+    const profiles = StorageService.getProfiles();
+    const activeProfile =
+        StorageService.getActiveProfileId();
+
+    select.replaceChildren();
+
+    for (const profileId of Object.keys(profiles)) {
+
+        const option = document.createElement("option");
+
+        option.value = profileId;
+        option.textContent = profileId;
+        option.selected = profileId === activeProfile;
+
+        select.appendChild(option);
+
+    }
 
 }
 

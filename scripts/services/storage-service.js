@@ -32,6 +32,83 @@ export class StorageService {
 
     }
 
+    static getProfiles() {
+
+        return this._getData().profiles;
+
+    }
+
+    static getActiveProfileId() {
+
+        return this._getData().activeProfile;
+
+    }
+
+    static async setActiveProfile(profileId) {
+
+        const data = this._getData();
+
+        if (!data.profiles[profileId])
+            return false;
+
+        data.activeProfile = profileId;
+
+        await this._saveData(data);
+
+        return true;
+
+    }
+
+    static async createProfile(profileId) {
+
+        const name = profileId.trim();
+
+        if (!name)
+            return false;
+
+        const data = this._getData();
+
+        if (data.profiles[name])
+            return false;
+
+        data.profiles[name] = {
+            rules: [],
+            filters: {}
+        };
+
+        data.activeProfile = name;
+
+        await this._saveData(data);
+
+        return true;
+
+    }
+
+    static async deleteProfile(profileId) {
+
+        const data = this._getData();
+        const profileIds = Object.keys(data.profiles);
+
+        /*
+        * Siempre debe existir al menos un perfil.
+        */
+        if (profileIds.length <= 1)
+            return false;
+
+        if (!data.profiles[profileId])
+            return false;
+
+        delete data.profiles[profileId];
+
+        if (data.activeProfile === profileId)
+            data.activeProfile = Object.keys(data.profiles)[0];
+
+        await this._saveData(data);
+
+        return true;
+
+    }
+
     static isHidden(uuid) {
 
         return this.getProfileRules().some(rule =>
