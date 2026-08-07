@@ -116,6 +116,9 @@ function onRenderCompendiumBrowser(app) {
 
     app._ccShowHidden ??= false;
     app._ccCuratorMode ??= false;
+    app._ccResultsFullyLoaded = false;
+    app._ccLoadingAllResults ??= false;
+    app._ccLoadAllPromise ??= null;
 
     /*
      * Un usuario sin permisos nunca puede revelar ocultos
@@ -213,6 +216,13 @@ function observeCompendiumResults(app) {
 
             }
 
+        }
+
+        if (
+            itemsChanged &&
+            !app._ccLoadingAllResults
+        ) {
+            app._ccResultsFullyLoaded = false;
         }
 
         /*
@@ -401,6 +411,164 @@ function getToolbarContainer(app) {
 
 }
 
+function waitForNextResultsBatch(
+    itemList,
+    previousCount,
+    timeout = 1000
+) {
+
+    return new Promise(resolve => {
+
+        let timer;
+
+        const finish = loaded => {
+
+            observer.disconnect();
+            clearTimeout(timer);
+
+            resolve(loaded);
+
+        };
+
+        const observer = new MutationObserver(() => {
+
+            const currentCount =
+                itemList.querySelectorAll(
+                    ":scope > .item[data-uuid]"
+                ).length;
+
+            if (currentCount > previousCount)
+                finish(true);
+
+        });
+
+        observer.observe(itemList, {
+            childList: true
+        });
+
+        timer = setTimeout(
+            () => finish(false),
+            timeout
+        );
+
+    });
+
+}
+
+async function ensureAllResultsLoaded(app) {
+
+    if (app._ccResultsFullyLoaded)
+        return true;
+
+    if (app._ccLoadAllPromise)
+        return app._ccLoadAllPromise;
+
+    const promise = (async () => {
+
+        const results =
+            app.element.querySelector(
+                '[data-application-part="results"]'
+            );
+
+        const itemList =
+            results?.querySelector(".item-list");
+
+        if (!results || !itemList)
+            return false;
+
+        const originalScrollTop =
+            results.scrollTop;
+
+        app._ccLoadingAllResults = true;
+
+        refreshMasterCheckbox(app);
+
+        try {
+
+            while (
+                results.isConnected &&
+                itemList.isConnected
+            ) {
+
+                const previousCount =
+                    itemList.querySelectorAll(
+                        ":scope > .item[data-uuid]"
+                    ).length;
+
+                const batchPromise =
+                    waitForNextResultsBatch(
+                        itemList,
+                        previousCount
+                    );
+
+                /*
+                 * D&D5e carga el siguiente lote al alcanzar
+                 * el final del contenedor de resultados.
+                 */
+                results.scrollTop =
+                    results.scrollHeight;
+
+                results.dispatchEvent(
+                    new Event("scroll")
+                );
+
+                /*
+                 * Restauramos inmediatamente la posición
+                 * para que el usuario no sea enviado al final.
+                 */
+                results.scrollTop =
+                    originalScrollTop;
+
+                const loadedBatch =
+                    await batchPromise;
+
+                if (!loadedBatch) {
+
+                    app._ccResultsFullyLoaded = true;
+
+                    debug(
+                        "Todos los resultados cargados:",
+                        previousCount
+                    );
+
+                    return true;
+
+                }
+
+            }
+
+            return false;
+
+        }
+        finally {
+
+            if (results.isConnected)
+                results.scrollTop = originalScrollTop;
+
+            app._ccLoadingAllResults = false;
+
+            refreshMasterCheckbox(app);
+
+        }
+
+    })();
+
+    app._ccLoadAllPromise = promise;
+
+    try {
+
+        return await promise;
+
+    }
+    finally {
+
+        if (app._ccLoadAllPromise === promise)
+            app._ccLoadAllPromise = null;
+
+    }
+
+}
+
 function getVisibleItems(app) {
 
     return Array.from(
@@ -458,7 +626,25 @@ function createMasterCheckbox(app) {
     checkbox.title = localize("SelectAllVisible");
     checkbox.checked = false;
 
-    checkbox.addEventListener("change", () => {
+    checkbox.addEventListener("change", async () => {
+
+        const selectAll = checkbox.checked;
+
+        if (selectAll) {
+
+            const loaded =
+                await ensureAllResultsLoaded(app);
+
+            if (!loaded) {
+
+                checkbox.checked = false;
+                checkbox.indeterminate = false;
+
+                return;
+
+            }
+
+        }
 
         const selection =
             CuratorState.getSelection(app);
@@ -472,9 +658,9 @@ function createMasterCheckbox(app) {
             const itemCheckbox =
                 item.querySelector(".cc-checkbox");
 
-            itemCheckbox.checked = checkbox.checked;
+            itemCheckbox.checked = selectAll;
 
-            if (checkbox.checked)
+            if (selectAll)
                 selection.add(uuid);
             else
                 selection.delete(uuid);
@@ -502,6 +688,16 @@ function refreshMasterCheckbox(app) {
 
     if (!checkbox)
         return;
+
+    if (app._ccLoadingAllResults) {
+
+        checkbox.disabled = true;
+        checkbox.checked = false;
+        checkbox.indeterminate = true;
+
+        return;
+
+    }
 
     const items = getVisibleItems(app);
 

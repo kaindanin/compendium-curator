@@ -254,6 +254,15 @@ export class StorageService {
 
     }
 
+    static getProfileHiddenCount(profileId) {
+
+        const profile =
+            this._getData().profiles[profileId];
+
+        return profile?.hiddenUuids.length ?? 0;
+
+    }
+
     static getProfileExportData(profileId) {
 
         const profile =
@@ -514,6 +523,25 @@ export class StorageService {
             return false;
 
         profile.name = name;
+
+        await this._saveData(data);
+
+        return true;
+
+    }
+
+    static async clearProfile(profileId) {
+
+        const data = this._getData();
+        const profile = data.profiles[profileId];
+
+        if (!profile)
+            return false;
+
+        if (profile.hiddenUuids.length === 0)
+            return false;
+
+        profile.hiddenUuids = [];
 
         await this._saveData(data);
 
