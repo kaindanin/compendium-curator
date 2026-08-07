@@ -404,6 +404,89 @@ export class StorageService {
 
     }
 
+    static async importProfile(importData, profileName) {
+
+        if (
+            !importData ||
+            typeof importData !== "object" ||
+            Array.isArray(importData) ||
+            importData.type !== "compendium-curator-profile" ||
+            importData.version !== 1
+        ) {
+            return false;
+        }
+
+        const importedProfile = importData.profile;
+
+        if (
+            !importedProfile ||
+            typeof importedProfile !== "object" ||
+            Array.isArray(importedProfile) ||
+            !Array.isArray(importedProfile.hiddenUuids)
+        ) {
+            return false;
+        }
+
+        const name = String(profileName).trim();
+
+        if (!isValidProfileName(name))
+            return false;
+
+        const data = this._getData();
+
+        if (this._profileNameExists(data, name))
+            return false;
+
+        const hiddenUuids = [];
+
+        for (const uuid of importedProfile.hiddenUuids) {
+
+            if (
+                typeof uuid !== "string" ||
+                !uuid.trim()
+            ) {
+                return false;
+            }
+
+            hiddenUuids.push(uuid.trim());
+
+        }
+
+        const uniqueHiddenUuids =
+            [...new Set(hiddenUuids)];
+
+        let filters = {};
+
+        if (
+            importedProfile.filters &&
+            typeof importedProfile.filters === "object" &&
+            !Array.isArray(importedProfile.filters)
+        ) {
+            filters =
+                structuredClone(importedProfile.filters);
+        }
+
+        let profileId;
+
+        do {
+            profileId = foundry.utils.randomID();
+        }
+        while (data.profiles[profileId]);
+
+        data.profiles[profileId] = {
+            name,
+            hiddenUuids: uniqueHiddenUuids,
+            filters
+        };
+
+        data.activeProfile = profileId;
+
+        await this._saveData(data);
+
+        return true;
+
+    }
+
     static async renameProfile(profileId, profileName) {
 
         const name = String(profileName).trim();

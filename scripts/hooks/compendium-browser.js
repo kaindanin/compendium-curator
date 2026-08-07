@@ -584,6 +584,14 @@ function createModeToolbar(app) {
 
             <button
                 type="button"
+                class="cc-profile-import"
+                title="${localize("ImportProfile")}"
+            >
+                <i class="fa-solid fa-file-import"></i>
+            </button>
+
+            <button
+                type="button"
                 class="cc-profile-public"
                 title="${localize("MarkPublic")}"
             >
@@ -664,6 +672,10 @@ function createModeToolbar(app) {
 
     const exportProfileButton = toolbar.querySelector(
         ".cc-profile-export"
+    );
+
+    const importProfileButton = toolbar.querySelector(
+        ".cc-profile-import"
     );
 
     const deleteProfileButton = toolbar.querySelector(
@@ -937,6 +949,138 @@ function createModeToolbar(app) {
             activeProfile,
             profileName
         );
+
+    });
+
+    importProfileButton.addEventListener("click", async () => {
+
+        const fileInput =
+            document.createElement("input");
+
+        fileInput.type = "file";
+        fileInput.accept = ".json,application/json";
+
+        fileInput.addEventListener("change", async () => {
+
+            const file = fileInput.files?.[0];
+
+            if (!file)
+                return;
+
+            let importData;
+
+            try {
+
+                const text = await file.text();
+                importData = JSON.parse(text);
+
+            }
+            catch {
+
+                ui.notifications.error(
+                    localize("ProfileImportInvalid")
+                );
+
+                return;
+
+            }
+
+            if (
+                !importData ||
+                importData.type !== "compendium-curator-profile" ||
+                importData.version !== 1 ||
+                !importData.profile ||
+                typeof importData.profile.name !== "string"
+            ) {
+
+                ui.notifications.error(
+                    localize("ProfileImportInvalid")
+                );
+
+                return;
+
+            }
+
+            const field =
+                document.createElement("div");
+
+            field.className = "form-group";
+
+            const label =
+                document.createElement("label");
+
+            label.textContent =
+                localize("ProfileName");
+
+            const input =
+                document.createElement("input");
+
+            input.type = "text";
+            input.name = "profileName";
+            input.autocomplete = "off";
+            input.autofocus = true;
+            input.value = importData.profile.name;
+
+            field.append(label, input);
+
+            const result =
+                await foundry.applications.api.DialogV2.input({
+                    window: {
+                        title: localize("ImportProfile")
+                    },
+
+                    content: field.outerHTML,
+
+                    ok: {
+                        label: localize("Import")
+                    },
+
+                    rejectClose: false,
+                    modal: true
+                });
+
+            if (!result)
+                return;
+
+            const profileName =
+                String(result.profileName ?? "").trim();
+
+            if (!profileName) {
+
+                ui.notifications.warn(
+                    localize("ProfileNameRequired")
+                );
+
+                return;
+
+            }
+
+            const imported =
+                await StorageService.importProfile(
+                    importData,
+                    profileName
+                );
+
+            if (!imported) {
+
+                ui.notifications.warn(
+                    localize("ProfileNameInvalid")
+                );
+
+                return;
+
+            }
+
+            clearSelection(app);
+
+            debug(
+                "Perfil importado:",
+                profileName
+            );
+
+        });
+
+        fileInput.click();
 
     });
 

@@ -27,6 +27,9 @@
     "MarkPublic": "Set this profile as public",
     "IsPublic": "This is the public profile",
     "ExportProfile": "Export profile",
+    "ImportProfile": "Import profile",
+    "Import": "Import",
+    "ProfileImportInvalid": "The file does not contain a valid Compendium Curator profile.",
 
     "Create": "Create",
     "Delete": "Delete",
