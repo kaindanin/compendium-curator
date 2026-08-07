@@ -4,6 +4,7 @@ import { StorageService } from "../services/storage-service.js";
 import { STORAGE_CHANGED_HOOK } from "../settings.js";
 
 const openCompendiumBrowsers = new Set();
+const duplicateIdentityCache = new Map();
 
 function canCurate() {
 
@@ -116,6 +117,13 @@ function onRenderCompendiumBrowser(app) {
 
     app._ccShowHidden ??= false;
     app._ccCuratorMode ??= false;
+
+    app._ccDuplicatesOnly ??= false;
+    app._ccDuplicatesReady ??= false;
+    app._ccDuplicateUuids ??= new Set();
+    app._ccDuplicateGeneration ??= 0;
+    app._ccDuplicateRefreshTimer ??= null;
+
     app._ccResultsFullyLoaded = false;
     app._ccLoadingAllResults ??= false;
     app._ccLoadAllPromise ??= null;
@@ -222,7 +230,12 @@ function observeCompendiumResults(app) {
             itemsChanged &&
             !app._ccLoadingAllResults
         ) {
+
             app._ccResultsFullyLoaded = false;
+
+            if (app._ccDuplicatesOnly)
+                scheduleDuplicateRefresh(app);
+
         }
 
         /*
@@ -323,8 +336,22 @@ function updateItem(app, item) {
     const uuid = item.dataset.uuid;
     const hidden = StorageService.isHidden(uuid);
 
-    item.classList.toggle("cc-hidden-entry", hidden);
-    item.hidden = hidden && !app._ccShowHidden;
+    item.classList.toggle(
+        "cc-hidden-entry",
+        hidden
+    );
+
+    const hiddenByProfile =
+        hidden && !app._ccShowHidden;
+
+    const hiddenByDuplicates =
+        app._ccDuplicatesOnly &&
+        app._ccDuplicatesReady &&
+        !app._ccDuplicateUuids.has(uuid);
+
+    item.hidden =
+        hiddenByProfile ||
+        hiddenByDuplicates;
 
     if (!canCurate() || !app._ccCuratorMode)
         return;
@@ -408,6 +435,220 @@ function getToolbarContainer(app) {
     );
 
     return container;
+
+}
+
+function normalizeDuplicateName(name) {
+
+    return String(name ?? "")
+        .normalize("NFKC")
+        .trim()
+        .replace(/\s+/g, " ")
+        .toLocaleLowerCase("en");
+
+}
+
+async function getDuplicateIdentity(uuid) {
+
+    if (duplicateIdentityCache.has(uuid))
+        return duplicateIdentityCache.get(uuid);
+
+    const document = await fromUuid(uuid);
+
+    if (!document) {
+
+        duplicateIdentityCache.set(uuid, null);
+
+        return null;
+
+    }
+
+    const originalName =
+        document.flags?.babele?.originalName ??
+        document.name;
+
+    const normalizedName =
+        normalizeDuplicateName(originalName);
+
+    if (!normalizedName) {
+
+        duplicateIdentityCache.set(uuid, null);
+
+        return null;
+
+    }
+
+    /*
+     * El tipo evita considerar duplicados documentos
+     * distintos que casualmente tengan el mismo nombre.
+     */
+    const identity = [
+        document.documentName,
+        document.type ?? "",
+        normalizedName
+    ].join("|");
+
+    duplicateIdentityCache.set(uuid, identity);
+
+    return identity;
+
+}
+
+async function calculateDuplicateUuids(app) {
+
+    const items = Array.from(
+        app.element.querySelectorAll(
+            ".item-list > .item[data-uuid]"
+        )
+    );
+
+    /*
+     * Solo participan en el cálculo las entradas que el
+     * usuario podría ver según el estado de "Mostrar ocultos".
+     */
+    const candidates = items.filter(item => {
+
+        if (app._ccShowHidden)
+            return true;
+
+        return !StorageService.isHidden(
+            item.dataset.uuid
+        );
+
+    });
+
+    const groups = new Map();
+
+    /*
+     * Procesamos por bloques para no lanzar cientos o miles
+     * de lecturas de compendio simultáneamente.
+     */
+    const batchSize = 50;
+
+    for (
+        let index = 0;
+        index < candidates.length;
+        index += batchSize
+    ) {
+
+        const batch =
+            candidates.slice(
+                index,
+                index + batchSize
+            );
+
+        const identities =
+            await Promise.all(
+                batch.map(async item => ({
+                    uuid: item.dataset.uuid,
+                    identity:
+                        await getDuplicateIdentity(
+                            item.dataset.uuid
+                        )
+                }))
+            );
+
+        for (const { uuid, identity } of identities) {
+
+            if (!identity)
+                continue;
+
+            let group = groups.get(identity);
+
+            if (!group) {
+
+                group = [];
+                groups.set(identity, group);
+
+            }
+
+            group.push(uuid);
+
+        }
+
+    }
+
+    const duplicateUuids = new Set();
+
+    for (const group of groups.values()) {
+
+        if (group.length < 2)
+            continue;
+
+        for (const uuid of group)
+            duplicateUuids.add(uuid);
+
+    }
+
+    return duplicateUuids;
+
+}
+
+async function refreshDuplicateFilter(app) {
+
+    if (!app._ccDuplicatesOnly)
+        return false;
+
+    const generation =
+        (app._ccDuplicateGeneration ?? 0) + 1;
+
+    app._ccDuplicateGeneration = generation;
+
+    app._ccDuplicatesReady = false;
+    app._ccDuplicateUuids = new Set();
+
+    updateCuratorMode(app);
+    refreshDuplicatesCheckbox(app);
+
+    const loaded =
+        await ensureAllResultsLoaded(app);
+
+    if (
+        !loaded ||
+        !app._ccDuplicatesOnly ||
+        app._ccDuplicateGeneration !== generation
+    ) {
+        return false;
+    }
+
+    const duplicateUuids =
+        await calculateDuplicateUuids(app);
+
+    if (
+        !app._ccDuplicatesOnly ||
+        app._ccDuplicateGeneration !== generation
+    ) {
+        return false;
+    }
+
+    app._ccDuplicateUuids = duplicateUuids;
+    app._ccDuplicatesReady = true;
+
+    clearSelection(app);
+
+    updateCuratorMode(app);
+    refreshDuplicatesCheckbox(app);
+    refreshToolbar(app);
+
+    return true;
+
+}
+
+function scheduleDuplicateRefresh(app) {
+
+    clearTimeout(
+        app._ccDuplicateRefreshTimer
+    );
+
+    if (!app._ccDuplicatesOnly)
+        return;
+
+    app._ccDuplicateRefreshTimer =
+        setTimeout(() => {
+
+            void refreshDuplicateFilter(app);
+
+        }, 100);
 
 }
 
@@ -726,6 +967,7 @@ function createModeToolbar(app) {
 
         refreshProfileButtons(toolbar);
         refreshPublicProfileButton(toolbar);
+        refreshDuplicatesCheckbox(app);
 
         return toolbar;
 
@@ -813,10 +1055,19 @@ function createModeToolbar(app) {
             <i class="fa-solid fa-eye-slash"></i>
             ${localize("Hidden")}
         </button>
+
+        <label class="cc-duplicates-filter">
+            <input
+                type="checkbox"
+                class="cc-duplicates-checkbox"
+            >
+            <span>${localize("DuplicatesOnly")}</span>
+        </label>
     `;
 
     const curatorButton = toolbar.querySelector(".cc-curator-button");
     const hiddenButton = toolbar.querySelector(".cc-hidden-button");
+    const duplicatesCheckbox = toolbar.querySelector(".cc-duplicates-checkbox");
     const publicProfileButton = toolbar.querySelector(".cc-profile-public");
 
     curatorButton.addEventListener("click", () => {
@@ -849,6 +1100,39 @@ function createModeToolbar(app) {
         refreshToolbar(app);
 
     });
+
+    duplicatesCheckbox.addEventListener(
+        "change",
+        async () => {
+
+            app._ccDuplicatesOnly =
+                duplicatesCheckbox.checked;
+
+            clearSelection(app);
+
+            if (!app._ccDuplicatesOnly) {
+
+                /*
+                * Invalida cualquier cálculo que pudiera
+                * seguir ejecutándose.
+                */
+                app._ccDuplicateGeneration++;
+
+                app._ccDuplicatesReady = false;
+                app._ccDuplicateUuids = new Set();
+
+                updateCuratorMode(app);
+                refreshDuplicatesCheckbox(app);
+                refreshToolbar(app);
+
+                return;
+
+            }
+
+            await refreshDuplicateFilter(app);
+
+        }
+    );
 
     const profileSelect = toolbar.querySelector(
         ".cc-profile-select"
@@ -1390,6 +1674,7 @@ function createModeToolbar(app) {
 
     refreshCuratorButton(curatorButton, app);
     refreshHiddenButton(hiddenButton, app);
+    refreshDuplicatesCheckbox(app);
 
     container.appendChild(toolbar);
 
@@ -1648,5 +1933,30 @@ function refreshHiddenButton(button, app) {
             <i class="fa-solid fa-eye-slash"></i>
             ${localize("Hidden")}
         `;
+
+}
+
+function refreshDuplicatesCheckbox(app) {
+
+    const checkbox =
+        app.element.querySelector(
+            ".cc-duplicates-checkbox"
+        );
+
+    if (!checkbox)
+        return;
+
+    checkbox.checked =
+        app._ccDuplicatesOnly;
+
+    const calculating =
+        app._ccDuplicatesOnly &&
+        !app._ccDuplicatesReady;
+
+    checkbox.indeterminate =
+        calculating;
+
+    checkbox.disabled =
+        calculating;
 
 }

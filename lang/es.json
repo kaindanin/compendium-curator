@@ -10,6 +10,7 @@
 
     "Hide": "Ocultar",
     "Show": "Mostrar",
+    "DuplicatesOnly": "Solo duplicados",
 
     "SelectedOne": "1 seleccionado",
     "SelectedMany": "{count} seleccionados",
