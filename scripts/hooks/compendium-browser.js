@@ -111,6 +111,13 @@ function refreshCompendiumBrowser(app) {
     if (canCurate())
         refreshToolbar(app);
 
+    if (
+        canCurate() &&
+        app._ccDuplicatesOnly
+    ) {
+        scheduleDuplicateRefresh(app);
+    }
+
 }
 
 function onRenderCompendiumBrowser(app) {
@@ -1084,7 +1091,7 @@ function createModeToolbar(app) {
 
     });
 
-    hiddenButton.addEventListener("click", () => {
+    hiddenButton.addEventListener("click", async () => {
 
         app._ccShowHidden = !app._ccShowHidden;
 
@@ -1096,8 +1103,18 @@ function createModeToolbar(app) {
         clearSelection(app);
 
         refreshHiddenButton(hiddenButton, app);
-        updateCuratorMode(app);
-        refreshToolbar(app);
+
+        if (app._ccDuplicatesOnly) {
+
+            await refreshDuplicateFilter(app);
+
+        }
+        else {
+
+            updateCuratorMode(app);
+            refreshToolbar(app);
+
+        }
 
     });
 
