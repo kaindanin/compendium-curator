@@ -13,12 +13,13 @@ export function registerSettings() {
             type: Object,
 
             default: {
-                version: 2,
+                version: 3,
                 activeProfile: "default",
                 publicProfile: "default",
 
                 profiles: {
                     default: {
+                        name: "default",
                         rules: [],
                         filters: {}
                     }

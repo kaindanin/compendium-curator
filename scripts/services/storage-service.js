@@ -34,11 +34,24 @@ export class StorageService {
         await game.settings.set(MODULE_ID, STORAGE_SETTING, data);
     }
 
+    static _profileNameExists(data, name, excludeProfileId = null) {
+
+        const normalizedName =
+            name.toLocaleLowerCase();
+
+        return Object.entries(data.profiles).some(
+            ([profileId, profile]) =>
+                profileId !== excludeProfileId &&
+                profile.name?.toLocaleLowerCase() === normalizedName
+        );
+
+    }
+
     static _normalizeData(storage) {
 
         const data = structuredClone(storage ?? {});
 
-        data.version = 2;
+        data.version = 3;
 
         if (
             !data.profiles ||
@@ -76,12 +89,23 @@ export class StorageService {
             ) {
 
                 data.profiles[profileId] = {
+                    name: profileId,
                     rules: [],
                     filters: {}
                 };
 
                 continue;
 
+            }
+
+            if (
+                typeof profile.name !== "string" ||
+                !profile.name.trim()
+            ) {
+                profile.name = profileId;
+            }
+            else {
+                profile.name = profile.name.trim();
             }
 
             if (!Array.isArray(profile.rules))
@@ -100,6 +124,7 @@ export class StorageService {
         if (Object.keys(data.profiles).length === 0) {
 
             data.profiles.default = {
+                name: "default",
                 rules: [],
                 filters: {}
             };
@@ -168,6 +193,15 @@ export class StorageService {
 
     }
 
+    static getProfileName(profileId) {
+
+        const profile =
+            this._getData().profiles[profileId];
+
+        return profile?.name ?? profileId;
+
+    }
+
     static getActiveProfileId() {
 
         return this._getData().activeProfile;
@@ -227,24 +261,66 @@ export class StorageService {
 
     }
 
-    static async createProfile(profileId) {
+    static async createProfile(profileName) {
 
-        const name = String(profileId).trim();
+        const name = String(profileName).trim();
 
         if (!isValidProfileName(name))
             return false;
 
         const data = this._getData();
 
-        if (data.profiles[name])
+        if (this._profileNameExists(data, name))
             return false;
 
-        data.profiles[name] = {
+        let profileId;
+
+        do {
+            profileId = foundry.utils.randomID();
+        }
+        while (data.profiles[profileId]);
+
+        data.profiles[profileId] = {
+            name,
             rules: [],
             filters: {}
         };
 
-        data.activeProfile = name;
+        data.activeProfile = profileId;
+
+        await this._saveData(data);
+
+        return true;
+
+    }
+
+    static async renameProfile(profileId, profileName) {
+
+        const name = String(profileName).trim();
+
+        if (!isValidProfileName(name))
+            return false;
+
+        const data = this._getData();
+        const profile = data.profiles[profileId];
+
+        if (!profile)
+            return false;
+
+        if (
+            this._profileNameExists(
+                data,
+                name,
+                profileId
+            )
+        ) {
+            return false;
+        }
+
+        if (profile.name === name)
+            return false;
+
+        profile.name = name;
 
         await this._saveData(data);
 

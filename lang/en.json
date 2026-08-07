@@ -19,6 +19,8 @@
     "CreateProfile": "Create profile",
     "ProfileName": "Profile name",
     "DeleteProfile": "Delete profile",
+    "RenameProfile": "Rename profile",
+    "Rename": "Rename",
     "MarkPublic": "Set this profile as public",
     "IsPublic": "This is the public profile",
 

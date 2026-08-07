@@ -560,6 +560,14 @@ function createModeToolbar(app) {
 
             <button
                 type="button"
+                class="cc-profile-rename"
+                title="${localize("RenameProfile")}"
+            >
+                <i class="fa-solid fa-pen"></i>
+            </button>
+
+            <button
+                type="button"
                 class="cc-profile-public"
                 title="${localize("MarkPublic")}"
             >
@@ -628,6 +636,10 @@ function createModeToolbar(app) {
 
     const createProfileButton = toolbar.querySelector(
         ".cc-profile-create"
+    );
+
+    const renameProfileButton = toolbar.querySelector(
+        ".cc-profile-rename"
     );
 
     const deleteProfileButton = toolbar.querySelector(
@@ -702,16 +714,99 @@ function createModeToolbar(app) {
 
     });
 
-    deleteProfileButton.addEventListener("click", async () => {
+    renameProfileButton.addEventListener("click", async () => {
 
         const activeProfile =
             StorageService.getActiveProfileId();
 
+        const activeProfileName =
+            StorageService.getProfileName(activeProfile);
+
+        const field = document.createElement("div");
+        field.className = "form-group";
+
+        const label = document.createElement("label");
+        label.textContent = localize("ProfileName");
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.name = "profileName";
+        input.autocomplete = "off";
+        input.autofocus = true;
+        input.value = activeProfileName;
+
+        field.append(label, input);
+
+        const result =
+            await foundry.applications.api.DialogV2.input({
+                window: {
+                    title: localize("RenameProfile")
+                },
+
+                content: field.outerHTML,
+
+                ok: {
+                    label: localize("Rename")
+                },
+
+                rejectClose: false,
+                modal: true
+            });
+
+        if (!result)
+            return;
+
+        const profileName =
+            String(result.profileName ?? "").trim();
+
+        if (!profileName) {
+
+            ui.notifications.warn(
+                localize("ProfileNameRequired")
+            );
+
+            return;
+
+        }
+
+        if (profileName === activeProfileName)
+            return;
+
+        const renamed =
+            await StorageService.renameProfile(
+                activeProfile,
+                profileName
+            );
+
+        if (!renamed) {
+
+            ui.notifications.warn(
+                localize("ProfileNameInvalid")
+            );
+
+            return;
+
+        }
+
+        clearSelection(app);
+
+        debug(
+            "Perfil renombrado:",
+            activeProfile,
+            profileName
+        );
+
+    });
+
+    deleteProfileButton.addEventListener("click", async () => {
+
+        const activeProfile = StorageService.getActiveProfileId();
+        const activeProfileName = StorageService.getProfileName(activeProfile);
         const content = document.createElement("div");
         const paragraph = document.createElement("p");
         const profileName = document.createElement("strong");
 
-        profileName.textContent = activeProfile;
+        profileName.textContent = activeProfileName;
 
         paragraph.append(
             "¿Eliminar el perfil ",
@@ -729,7 +824,7 @@ function createModeToolbar(app) {
 
                 content: `<p>${format(
                     "ProfileDeleteConfirm",
-                    { profile: activeProfile }
+                    { profile: activeProfileName }
                 )}</p>`,
 
                 yes: {
@@ -910,12 +1005,18 @@ function refreshProfileSelect(select) {
 
         const option = document.createElement("option");
 
+        const profileName =
+            StorageService.getProfileName(profileId);
+
         option.value = profileId;
+
         option.textContent =
             profileId === publicProfile
-                ? `${profileId} — ${localize("Public")}`
-                : profileId;
-        option.selected = profileId === activeProfile;
+                ? `${profileName} — ${localize("Public")}`
+                : profileName;
+
+        option.selected =
+            profileId === activeProfile;
 
         select.appendChild(option);
 
