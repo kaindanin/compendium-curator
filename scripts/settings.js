@@ -20,7 +20,7 @@ export function registerSettings() {
                 profiles: {
                     default: {
                         name: "default",
-                        rules: [],
+                        hiddenUuids: [],
                         filters: {}
                     }
                 }

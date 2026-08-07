@@ -90,7 +90,7 @@ export class StorageService {
 
                 data.profiles[profileId] = {
                     name: profileId,
-                    rules: [],
+                    hiddenUuids: [],
                     filters: {}
                 };
 
@@ -108,8 +108,51 @@ export class StorageService {
                 profile.name = profile.name.trim();
             }
 
-            if (!Array.isArray(profile.rules))
-                profile.rules = [];
+            const hiddenUuids = new Set();
+
+            if (Array.isArray(profile.hiddenUuids)) {
+
+                for (const uuid of profile.hiddenUuids) {
+
+                    if (
+                        typeof uuid === "string" &&
+                        uuid
+                    ) {
+                        hiddenUuids.add(uuid);
+                    }
+
+                }
+
+            }
+
+            /*
+            * Migra automáticamente el formato antiguo:
+            *
+            * { uuid: "...", hidden: true }
+            *
+            * a una lista simple de UUID.
+            */
+            if (Array.isArray(profile.rules)) {
+
+                for (const rule of profile.rules) {
+
+                    if (
+                        rule &&
+                        typeof rule === "object" &&
+                        rule.hidden === true &&
+                        typeof rule.uuid === "string" &&
+                        rule.uuid
+                    ) {
+                        hiddenUuids.add(rule.uuid);
+                    }
+
+                }
+
+            }
+
+            profile.hiddenUuids = [...hiddenUuids];
+
+            delete profile.rules;
 
             if (
                 !profile.filters ||
@@ -125,10 +168,19 @@ export class StorageService {
 
             data.profiles.default = {
                 name: "default",
-                rules: [],
+                hiddenUuids: [],
                 filters: {}
             };
 
+        }
+
+        const profileIds = Object.keys(data.profiles);
+
+        if (
+            !data.activeProfile ||
+            !data.profiles[data.activeProfile]
+        ) {
+            data.activeProfile = profileIds[0];
         }
 
         if (
@@ -181,9 +233,9 @@ export class StorageService {
 
     }
 
-    static getProfileRules() {
+    static getHiddenUuids() {
 
-        return this.getProfile().rules;
+        return this.getProfile().hiddenUuids;
 
     }
 
@@ -216,7 +268,7 @@ export class StorageService {
 
             profile: {
                 name: profile.name,
-                rules: structuredClone(profile.rules),
+                hiddenUuids: structuredClone(profile.hiddenUuids),
                 filters: structuredClone(profile.filters)
             }
         };
@@ -303,7 +355,7 @@ export class StorageService {
 
         data.profiles[profileId] = {
             name,
-            rules: [],
+            hiddenUuids: [],
             filters: {}
         };
 
@@ -340,7 +392,7 @@ export class StorageService {
 
         data.profiles[newProfileId] = {
             name,
-            rules: structuredClone(sourceProfile.rules),
+            hiddenUuids: structuredClone(sourceProfile.hiddenUuids),
             filters: structuredClone(sourceProfile.filters)
         };
 
@@ -416,40 +468,28 @@ export class StorageService {
 
     static isHidden(uuid) {
 
-        return this.getProfileRules().some(rule =>
-            rule.uuid === uuid && rule.hidden === true
-        );
+        return this.getHiddenUuids().includes(uuid);
 
     }
 
     static async hideMany(uuids) {
 
         const data = this._getData();
-        const rules =
-            data.profiles[data.activeProfile].rules;
+        const profile =
+            data.profiles[data.activeProfile];
+
+        const existingUuids =
+            new Set(profile.hiddenUuids);
 
         let changed = false;
 
         for (const uuid of uuids) {
 
-            const existingRule =
-                rules.find(rule => rule.uuid === uuid);
-
-            if (existingRule) {
-
-                if (!existingRule.hidden) {
-                    existingRule.hidden = true;
-                    changed = true;
-                }
-
+            if (existingUuids.has(uuid))
                 continue;
 
-            }
-
-            rules.push({
-                uuid,
-                hidden: true
-            });
+            profile.hiddenUuids.push(uuid);
+            existingUuids.add(uuid);
 
             changed = true;
 
@@ -470,15 +510,23 @@ export class StorageService {
         const profile =
             data.profiles[data.activeProfile];
 
-        const selectedUuids = new Set(uuids);
-        const previousLength = profile.rules.length;
+        const selectedUuids =
+            new Set(uuids);
 
-        profile.rules = profile.rules.filter(
-            rule => !selectedUuids.has(rule.uuid)
-        );
+        const previousLength =
+            profile.hiddenUuids.length;
 
-        if (profile.rules.length === previousLength)
+        profile.hiddenUuids =
+            profile.hiddenUuids.filter(
+                uuid => !selectedUuids.has(uuid)
+            );
+
+        if (
+            profile.hiddenUuids.length ===
+            previousLength
+        ) {
             return false;
+        }
 
         await this._saveData(data);
 
