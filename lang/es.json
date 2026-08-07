@@ -21,6 +21,9 @@
     "DeleteProfile": "Eliminar perfil",
     "RenameProfile": "Renombrar perfil",
     "Rename": "Renombrar",
+    "DuplicateProfile": "Duplicar perfil",
+    "Duplicate": "Duplicar",
+    "ProfileCopyName": "Copia de {profile}",
     "MarkPublic": "Marcar este perfil como público",
     "IsPublic": "Este es el perfil público",
 

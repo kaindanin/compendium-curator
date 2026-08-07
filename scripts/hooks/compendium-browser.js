@@ -568,6 +568,14 @@ function createModeToolbar(app) {
 
             <button
                 type="button"
+                class="cc-profile-duplicate"
+                title="${localize("DuplicateProfile")}"
+            >
+                <i class="fa-solid fa-copy"></i>
+            </button>
+
+            <button
+                type="button"
                 class="cc-profile-public"
                 title="${localize("MarkPublic")}"
             >
@@ -640,6 +648,10 @@ function createModeToolbar(app) {
 
     const renameProfileButton = toolbar.querySelector(
         ".cc-profile-rename"
+    );
+
+    const duplicateProfileButton = toolbar.querySelector(
+        ".cc-profile-duplicate"
     );
 
     const deleteProfileButton = toolbar.querySelector(
@@ -792,6 +804,92 @@ function createModeToolbar(app) {
 
         debug(
             "Perfil renombrado:",
+            activeProfile,
+            profileName
+        );
+
+    });
+
+    duplicateProfileButton.addEventListener("click", async () => {
+
+        const activeProfile =
+            StorageService.getActiveProfileId();
+
+        const activeProfileName =
+            StorageService.getProfileName(activeProfile);
+
+        const suggestedName = format(
+            "ProfileCopyName",
+            { profile: activeProfileName }
+        );
+
+        const field = document.createElement("div");
+        field.className = "form-group";
+
+        const label = document.createElement("label");
+        label.textContent = localize("ProfileName");
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.name = "profileName";
+        input.autocomplete = "off";
+        input.autofocus = true;
+        input.value = suggestedName;
+
+        field.append(label, input);
+
+        const result =
+            await foundry.applications.api.DialogV2.input({
+                window: {
+                    title: localize("DuplicateProfile")
+                },
+
+                content: field.outerHTML,
+
+                ok: {
+                    label: localize("Duplicate")
+                },
+
+                rejectClose: false,
+                modal: true
+            });
+
+        if (!result)
+            return;
+
+        const profileName =
+            String(result.profileName ?? "").trim();
+
+        if (!profileName) {
+
+            ui.notifications.warn(
+                localize("ProfileNameRequired")
+            );
+
+            return;
+
+        }
+
+        const duplicated =
+            await StorageService.duplicateProfile(
+                activeProfile,
+                profileName
+            );
+
+        if (!duplicated) {
+
+            ui.notifications.warn(
+                localize("ProfileNameInvalid")
+            );
+
+            return;
+
+        }
+
+        clearSelection(app);
+
+        debug(
+            "Perfil duplicado:",
             activeProfile,
             profileName
         );

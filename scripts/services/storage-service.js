@@ -294,6 +294,43 @@ export class StorageService {
 
     }
 
+    static async duplicateProfile(profileId, profileName) {
+
+        const name = String(profileName).trim();
+
+        if (!isValidProfileName(name))
+            return false;
+
+        const data = this._getData();
+        const sourceProfile = data.profiles[profileId];
+
+        if (!sourceProfile)
+            return false;
+
+        if (this._profileNameExists(data, name))
+            return false;
+
+        let newProfileId;
+
+        do {
+            newProfileId = foundry.utils.randomID();
+        }
+        while (data.profiles[newProfileId]);
+
+        data.profiles[newProfileId] = {
+            name,
+            rules: structuredClone(sourceProfile.rules),
+            filters: structuredClone(sourceProfile.filters)
+        };
+
+        data.activeProfile = newProfileId;
+
+        await this._saveData(data);
+
+        return true;
+
+    }
+
     static async renameProfile(profileId, profileName) {
 
         const name = String(profileName).trim();
