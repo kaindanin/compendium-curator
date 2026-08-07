@@ -576,6 +576,14 @@ function createModeToolbar(app) {
 
             <button
                 type="button"
+                class="cc-profile-export"
+                title="${localize("ExportProfile")}"
+            >
+                <i class="fa-solid fa-file-export"></i>
+            </button>
+
+            <button
+                type="button"
                 class="cc-profile-public"
                 title="${localize("MarkPublic")}"
             >
@@ -652,6 +660,10 @@ function createModeToolbar(app) {
 
     const duplicateProfileButton = toolbar.querySelector(
         ".cc-profile-duplicate"
+    );
+
+    const exportProfileButton = toolbar.querySelector(
+        ".cc-profile-export"
     );
 
     const deleteProfileButton = toolbar.querySelector(
@@ -890,6 +902,38 @@ function createModeToolbar(app) {
 
         debug(
             "Perfil duplicado:",
+            activeProfile,
+            profileName
+        );
+
+    });
+
+    exportProfileButton.addEventListener("click", () => {
+
+        const activeProfile =
+            StorageService.getActiveProfileId();
+
+        const profileName =
+            StorageService.getProfileName(activeProfile);
+
+        const exportData =
+            StorageService.getProfileExportData(activeProfile);
+
+        if (!exportData)
+            return;
+
+        const safeName = profileName
+            .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "-")
+            .trim() || "profile";
+
+        foundry.utils.saveDataToFile(
+            JSON.stringify(exportData, null, 2),
+            "application/json",
+            `compendium-curator-${safeName}.json`
+        );
+
+        debug(
+            "Perfil exportado:",
             activeProfile,
             profileName
         );

@@ -26,6 +26,7 @@
     "ProfileCopyName": "Copia de {profile}",
     "MarkPublic": "Marcar este perfil como público",
     "IsPublic": "Este es el perfil público",
+    "ExportProfile": "Exportar perfil",
 
     "Create": "Crear",
     "Delete": "Eliminar",

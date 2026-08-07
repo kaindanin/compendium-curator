@@ -202,6 +202,27 @@ export class StorageService {
 
     }
 
+    static getProfileExportData(profileId) {
+
+        const profile =
+            this._getData().profiles[profileId];
+
+        if (!profile)
+            return null;
+
+        return {
+            type: "compendium-curator-profile",
+            version: 1,
+
+            profile: {
+                name: profile.name,
+                rules: structuredClone(profile.rules),
+                filters: structuredClone(profile.filters)
+            }
+        };
+
+    }
+
     static getActiveProfileId() {
 
         return this._getData().activeProfile;
