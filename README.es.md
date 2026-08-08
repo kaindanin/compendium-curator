@@ -26,6 +26,10 @@ Olvídate de invertir horas creando y organizando compendios personalizados solo
 * Limitar los controles de administración a usuarios con permiso para modificar los ajustes del mundo.
 * Mantener los datos guardados entre sesiones.
 * Limitar la previsualización de cada entrada a su nombre para que no interfiera con los controles.
+* Renombrar y duplicar perfiles.
+* Exportar e importar perfiles.
+* Mostrar únicamente las entradas duplicadas dentro de los resultados actuales del navegador.
+* Mostrar indicadores de carga durante operaciones largas.
 
 ## Requisitos
 
@@ -61,13 +65,21 @@ Una vez seleccionadas, utiliza:
 * **Ocultar** para retirarlas del navegador.
 * **Mostrar** para restaurarlas.
 
-La casilla situada en la cabecera de la columna permite seleccionar o deseleccionar todas las entradas visibles.
+La casilla situada en la cabecera de la columna permite seleccionar o deseleccionar todas las entradas que cumplen los filtros actuales del navegador, cargando automáticamente los resultados adicionales cuando sea necesario.
 
 ### Entradas ocultas
 
 Pulsa **Ocultos** para mostrar temporalmente las entradas que están ocultas.
 
 Estas entradas aparecerán atenuadas. Al desactivar la opción volverán a desaparecer del navegador.
+
+### Duplicados
+
+Activa **Solo duplicados** para mostrar únicamente las entradas cuyo nombre original coincide con otra entrada dentro de los resultados actuales del Navegador de Compendios.
+
+El filtro respeta la categoría, búsqueda, fuentes y demás filtros activos del navegador.
+
+Si **Ocultos** está desactivado, las entradas ocultas no participan en la detección de duplicados. Al activarlo, también se tienen en cuenta y aparecen atenuadas como de costumbre.
 
 ### Perfiles
 
@@ -78,6 +90,10 @@ El selector de perfiles permite cambiar el perfil que está editando el GM.
 Los botones situados junto al selector permiten:
 
 * Crear un perfil.
+* Renombrar un perfil.
+* Duplicar un perfil.
+* Exportar un perfil a un archivo.
+* Importar un perfil desde un archivo.
 * Marcar el perfil activo como público.
 * Eliminar un perfil.
 
@@ -124,7 +140,7 @@ Los cambios futuros en la estructura interna de dicho navegador podrían requeri
 
 ## Versión
 
-**0.1.0**
+**0.2.0**
 
 ## Autor
 

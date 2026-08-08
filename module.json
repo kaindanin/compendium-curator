@@ -4,8 +4,8 @@
   "description": "Enhance the D&D5e Compendium Browser by hiding individual entries and creating independent profiles for different campaigns and settings.",
   "url": "https://github.com/kaindanin/compendium-curator",
   "manifest": "https://raw.githubusercontent.com/kaindanin/compendium-curator/main/module.json",
-  "download": "https://github.com/kaindanin/compendium-curator/releases/download/v0.1.0/compendium-curator.zip",
-  "version": "0.1.0",
+  "download": "https://github.com/kaindanin/compendium-curator/releases/download/v0.2.0/compendium-curator.zip",
+  "version": "0.2.0",
 
   "compatibility": {
     "minimum": "14",

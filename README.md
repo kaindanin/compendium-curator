@@ -27,6 +27,10 @@ Forget about spending hours creating and organizing custom compendiums just to c
 * Preserve configuration data between sessions.
 * Restrict entry previews to their names so they do not interfere with module controls.
 * Interface available in English and Spanish.
+* Rename and duplicate profiles.
+* Export and import profiles.
+* Show only duplicate entries within the current browser results.
+* Display loading indicators during long operations.
 
 ## Requirements
 
@@ -62,13 +66,21 @@ After selecting entries, use:
 * **Hide** to remove them from the browser.
 * **Restore** to make them visible again.
 
-The checkbox in the column header selects or deselects all currently visible entries.
+The checkbox in the column header selects or deselects all entries matching the browser's current filters, automatically loading additional results when necessary.
 
 ### Hidden Entries
 
 Click **Hidden** to temporarily display entries that are currently hidden.
 
 Hidden entries appear faded. Disabling the option removes them from the browser again.
+
+### Duplicates
+
+Enable **Duplicates only** to display only entries whose original name matches another entry within the current Compendium Browser results.
+
+The filter respects the current category, search, sources, and other active browser filters.
+
+When **Hidden** is disabled, hidden entries do not participate in duplicate detection. Enabling it includes hidden entries as well, and they appear faded as usual.
 
 ### Profiles
 
@@ -79,6 +91,10 @@ The profile selector changes the profile currently being edited by the GM.
 The buttons beside the selector allow the GM to:
 
 * Create a profile.
+* Rename a profile.
+* Duplicate a profile.
+* Export a profile to a file.
+* Import a profile from a file.
 * Mark the active profile as public.
 * Delete a profile.
 
@@ -125,7 +141,7 @@ Future changes to the browser's internal structure may require an update to the 
 
 ## Version
 
-**0.1.0**
+**0.2.0**
 
 ## Author
 
