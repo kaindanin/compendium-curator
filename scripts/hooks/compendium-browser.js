@@ -145,6 +145,21 @@ function onRenderCompendiumBrowser(app) {
     app._ccCalculatingDuplicates ??= false;
     app._ccSelectingAll ??= false;
 
+    /*
+    * Un render completo puede haber cambiado los resultados
+    * del navegador. Si el filtro de duplicados sigue activo,
+    * invalidamos inmediatamente el cálculo anterior.
+    */
+    if (app._ccDuplicatesOnly) {
+
+        app._ccDuplicateGeneration++;
+
+        app._ccDuplicatesReady = false;
+        app._ccDuplicateUuids = new Set();
+        app._ccCalculatingDuplicates = true;
+
+    }
+
     app._ccResultsFullyLoaded = false;
     app._ccLoadingAllResults ??= false;
     app._ccLoadAllPromise ??= null;
@@ -175,6 +190,19 @@ function onRenderCompendiumBrowser(app) {
 
     if (canCurate())
         refreshToolbar(app);
+
+    if (
+        canCurate() &&
+        app._ccDuplicatesOnly
+    ) {
+
+        refreshDuplicatesCheckbox(app);
+        refreshMasterCheckbox(app);
+        refreshLoadingIndicator(app);
+
+        scheduleDuplicateRefresh(app);
+
+    }
 
 }
 
