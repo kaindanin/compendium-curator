@@ -110,3 +110,35 @@
     height: 32px;
     padding: 0;
 }
+
+.cc-duplicates-filter {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.cc-duplicates-filter.disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+.cc-duplicates-checkbox:disabled,
+.cc-master-checkbox:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+.cc-loading-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    margin-left: 4px;
+
+    white-space: nowrap;
+    opacity: .8;
+}
+
+.cc-loading-indicator[hidden] {
+    display: none;
+}

@@ -31,6 +31,9 @@
     "ImportProfile": "Import profile",
     "Import": "Import",
     "ProfileImportInvalid": "The file does not contain a valid Compendium Curator profile.",
+    "LoadingResults": "Loading results...",
+    "CalculatingDuplicates": "Calculating duplicates...",
+    "UpdatingSelection": "Updating selection...",
 
     "Create": "Create",
     "Delete": "Delete",

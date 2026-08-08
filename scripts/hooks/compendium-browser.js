@@ -120,6 +120,18 @@ function refreshCompendiumBrowser(app) {
 
 }
 
+function waitForPaint() {
+
+    return new Promise(resolve => {
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(resolve);
+        });
+
+    });
+
+}
+
 function onRenderCompendiumBrowser(app) {
 
     app._ccShowHidden ??= false;
@@ -130,6 +142,8 @@ function onRenderCompendiumBrowser(app) {
     app._ccDuplicateUuids ??= new Set();
     app._ccDuplicateGeneration ??= 0;
     app._ccDuplicateRefreshTimer ??= null;
+    app._ccCalculatingDuplicates ??= false;
+    app._ccSelectingAll ??= false;
 
     app._ccResultsFullyLoaded = false;
     app._ccLoadingAllResults ??= false;
@@ -600,12 +614,16 @@ async function refreshDuplicateFilter(app) {
         (app._ccDuplicateGeneration ?? 0) + 1;
 
     app._ccDuplicateGeneration = generation;
-
+    app._ccCalculatingDuplicates = true;
     app._ccDuplicatesReady = false;
     app._ccDuplicateUuids = new Set();
 
     updateCuratorMode(app);
     refreshDuplicatesCheckbox(app);
+    refreshMasterCheckbox(app);
+    refreshLoadingIndicator(app);
+
+    await waitForPaint();
 
     const loaded =
         await ensureAllResultsLoaded(app);
@@ -630,12 +648,14 @@ async function refreshDuplicateFilter(app) {
 
     app._ccDuplicateUuids = duplicateUuids;
     app._ccDuplicatesReady = true;
+    app._ccCalculatingDuplicates = false;
 
     clearSelection(app);
 
     updateCuratorMode(app);
     refreshDuplicatesCheckbox(app);
     refreshToolbar(app);
+    refreshLoadingIndicator(app);
 
     return true;
 
@@ -730,6 +750,16 @@ async function ensureAllResultsLoaded(app) {
         app._ccLoadingAllResults = true;
 
         refreshMasterCheckbox(app);
+        refreshDuplicatesCheckbox(app);
+        refreshLoadingIndicator(app);
+
+        /*
+        * Permitimos que el navegador pinte el estado
+        * de carga antes de empezar a cargar lotes.
+        */
+        await new Promise(resolve =>
+            requestAnimationFrame(resolve)
+        );
 
         try {
 
@@ -796,6 +826,8 @@ async function ensureAllResultsLoaded(app) {
             app._ccLoadingAllResults = false;
 
             refreshMasterCheckbox(app);
+            refreshDuplicatesCheckbox(app);
+            refreshLoadingIndicator(app);
 
         }
 
@@ -878,45 +910,68 @@ function createMasterCheckbox(app) {
 
         const selectAll = checkbox.checked;
 
-        if (selectAll) {
+        app._ccSelectingAll = true;
 
-            const loaded =
-                await ensureAllResultsLoaded(app);
+        refreshMasterCheckbox(app);
+        refreshDuplicatesCheckbox(app);
+        refreshLoadingIndicator(app);
 
-            if (!loaded) {
+        /*
+        * Garantiza que el usuario vea el spinner y los
+        * controles deshabilitados antes del trabajo pesado.
+        */
+        await waitForPaint();
 
-                checkbox.checked = false;
-                checkbox.indeterminate = false;
+        try {
 
-                return;
+            if (selectAll) {
+
+                const loaded =
+                    await ensureAllResultsLoaded(app);
+
+                if (!loaded) {
+
+                    checkbox.checked = false;
+
+                    return;
+
+                }
 
             }
 
+            const selection =
+                CuratorState.getSelection(app);
+
+            const items = getVisibleItems(app);
+
+            for (const item of items) {
+
+                const uuid = item.dataset.uuid;
+
+                const itemCheckbox =
+                    item.querySelector(".cc-checkbox");
+
+                itemCheckbox.checked = selectAll;
+
+                if (selectAll)
+                    selection.add(uuid);
+                else
+                    selection.delete(uuid);
+
+            }
+
+            refreshToolbar(app);
+
         }
+        finally {
 
-        const selection =
-            CuratorState.getSelection(app);
+            app._ccSelectingAll = false;
 
-        const items = getVisibleItems(app);
-
-        for (const item of items) {
-
-            const uuid = item.dataset.uuid;
-
-            const itemCheckbox =
-                item.querySelector(".cc-checkbox");
-
-            itemCheckbox.checked = selectAll;
-
-            if (selectAll)
-                selection.add(uuid);
-            else
-                selection.delete(uuid);
+            refreshMasterCheckbox(app);
+            refreshDuplicatesCheckbox(app);
+            refreshLoadingIndicator(app);
 
         }
-
-        refreshToolbar(app);
-        refreshMasterCheckbox(app);
 
     });
 
@@ -937,11 +992,16 @@ function refreshMasterCheckbox(app) {
     if (!checkbox)
         return;
 
-    if (app._ccLoadingAllResults) {
+    const busy =
+        app._ccLoadingAllResults ||
+        app._ccCalculatingDuplicates ||
+        app._ccSelectingAll;
+
+    checkbox.indeterminate = false;
+
+    if (busy) {
 
         checkbox.disabled = true;
-        checkbox.checked = false;
-        checkbox.indeterminate = true;
 
         return;
 
@@ -1070,6 +1130,11 @@ function createModeToolbar(app) {
             >
             <span>${localize("DuplicatesOnly")}</span>
         </label>
+
+        <span class="cc-loading-indicator" hidden>
+            <i class="fa-solid fa-spinner fa-spin"></i>
+            <span class="cc-loading-text"></span>
+        </span>
     `;
 
     const curatorButton = toolbar.querySelector(".cc-curator-button");
@@ -1137,10 +1202,12 @@ function createModeToolbar(app) {
 
                 app._ccDuplicatesReady = false;
                 app._ccDuplicateUuids = new Set();
+                app._ccCalculatingDuplicates = false;
 
                 updateCuratorMode(app);
                 refreshDuplicatesCheckbox(app);
                 refreshToolbar(app);
+                refreshLoadingIndicator(app);
 
                 return;
 
@@ -1966,14 +2033,50 @@ function refreshDuplicatesCheckbox(app) {
     checkbox.checked =
         app._ccDuplicatesOnly;
 
-    const calculating =
-        app._ccDuplicatesOnly &&
-        !app._ccDuplicatesReady;
+    const busy =
+        app._ccLoadingAllResults ||
+        app._ccCalculatingDuplicates ||
+        app._ccSelectingAll;
 
-    checkbox.indeterminate =
-        calculating;
+    checkbox.indeterminate = false;
+    checkbox.disabled = busy;
 
-    checkbox.disabled =
-        calculating;
+    checkbox
+        .closest(".cc-duplicates-filter")
+        ?.classList.toggle(
+            "disabled",
+            busy
+        );
+
+}
+
+function refreshLoadingIndicator(app) {
+
+    const indicator =
+        app.element.querySelector(
+            ".cc-loading-indicator"
+        );
+
+    if (!indicator)
+        return;
+
+    const text =
+        indicator.querySelector(
+            ".cc-loading-text"
+        );
+
+    let key = null;
+
+    if (app._ccLoadingAllResults)
+        key = "LoadingResults";
+    else if (app._ccCalculatingDuplicates)
+        key = "CalculatingDuplicates";
+    else if (app._ccSelectingAll)
+        key = "UpdatingSelection";
+
+    indicator.hidden = !key;
+
+    if (key)
+        text.textContent = localize(key);
 
 }
