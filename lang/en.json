@@ -17,6 +17,8 @@
     "ApplyDuplicatePriority": "Apply priority",
     "DuplicatePriorityTitle": "Source priority",
     "DuplicatePriorityHint": "Order sources from the one you prefer to keep to the lowest priority.",
+    "TranslationConflicts": "Translations",
+    "TranslationConflictsActive": "Different translations",
     "MoveUp": "Move up",
     "MoveDown": "Move down",
     "Save": "Save",

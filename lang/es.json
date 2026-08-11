@@ -17,6 +17,8 @@
     "ApplyDuplicatePriority": "Aplicar prioridad",
     "DuplicatePriorityTitle": "Prioridad de fuentes",
     "DuplicatePriorityHint": "Ordena las fuentes desde la que prefieres conservar hasta la de menor prioridad.",
+    "TranslationConflicts": "Traducciones",
+    "TranslationConflictsActive": "Traducciones diferentes",
     "MoveUp": "Subir",
     "MoveDown": "Bajar",
     "Save": "Guardar",

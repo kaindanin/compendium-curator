@@ -6,6 +6,7 @@ import { MODULE_ID, DUPLICATE_PRIORITY_SETTING, STORAGE_CHANGED_HOOK } from "../
 const openCompendiumBrowsers = new Set();
 const duplicateIdentityCache = new Map();
 const duplicateTranslationCache = new Map();
+const duplicateTranslatedNameCache = new Map();
 
 function canCurate() {
 
@@ -141,6 +142,8 @@ function onRenderCompendiumBrowser(app) {
     app._ccDuplicatesOnly ??= false;
     app._ccDuplicatesReady ??= false;
     app._ccDuplicateUuids ??= new Set();
+    app._ccTranslationConflictsOnly ??= false;
+    app._ccTranslationConflictUuids ??= new Set();
     app._ccDuplicateGeneration ??= 0;
     app._ccDuplicateRefreshTimer ??= null;
     app._ccCalculatingDuplicates ??= false;
@@ -400,9 +403,16 @@ function updateItem(app, item) {
         app._ccDuplicatesReady &&
         !app._ccDuplicateUuids.has(uuid);
 
+    const hiddenByTranslationConflict =
+        app._ccDuplicatesOnly &&
+        app._ccTranslationConflictsOnly &&
+        app._ccDuplicatesReady &&
+        !app._ccTranslationConflictUuids.has(uuid);
+
     item.hidden =
         hiddenByProfile ||
-        hiddenByDuplicates;
+        hiddenByDuplicates ||
+        hiddenByTranslationConflict;
 
     if (!canCurate() || !app._ccCuratorMode)
         return;
@@ -503,7 +513,8 @@ async function getDuplicateIdentity(uuid) {
 
     if (
         duplicateIdentityCache.has(uuid) &&
-        duplicateTranslationCache.has(uuid)
+        duplicateTranslationCache.has(uuid) &&
+        duplicateTranslatedNameCache.has(uuid)
     ) {
         return duplicateIdentityCache.get(uuid);
     }
@@ -513,15 +524,8 @@ async function getDuplicateIdentity(uuid) {
     if (!document) {
 
         duplicateIdentityCache.set(uuid, null);
-
-        return null;
-
-    }
-
-    if (!document) {
-
-        duplicateIdentityCache.set(uuid, null);
         duplicateTranslationCache.set(uuid, false);
+        duplicateTranslatedNameCache.set(uuid, null);
 
         return null;
 
@@ -539,6 +543,13 @@ async function getDuplicateIdentity(uuid) {
     duplicateTranslationCache.set(
         uuid,
         hasTranslation
+    );
+
+    duplicateTranslatedNameCache.set(
+        uuid,
+        hasTranslation
+            ? normalizeDuplicateName(document.name)
+            : null
     );
 
     const normalizedName =
@@ -655,6 +666,82 @@ async function calculateDuplicateUuids(app) {
     }
 
     return duplicateUuids;
+
+}
+
+function calculateTranslationConflictUuids(app) {
+
+    const groups = new Map();
+
+    const items = app.element.querySelectorAll(
+        ".item-list > .item[data-uuid]"
+    );
+
+    for (const item of items) {
+
+        const uuid = item.dataset.uuid;
+
+        if (!app._ccDuplicateUuids.has(uuid))
+            continue;
+
+        const identity =
+            duplicateIdentityCache.get(uuid);
+
+        if (!identity)
+            continue;
+
+        let group = groups.get(identity);
+
+        if (!group) {
+
+            group = [];
+            groups.set(identity, group);
+
+        }
+
+        group.push(uuid);
+
+    }
+
+    const conflictUuids = new Set();
+
+    for (const group of groups.values()) {
+
+        const translatedNames = new Set();
+
+        for (const uuid of group) {
+
+            if (
+                duplicateTranslationCache.get(uuid)
+                !== true
+            ) {
+                continue;
+            }
+
+            const translatedName =
+                duplicateTranslatedNameCache.get(uuid);
+
+            if (translatedName)
+                translatedNames.add(
+                    translatedName
+                );
+
+        }
+
+        /*
+         * Una copia original sin traducir no genera
+         * conflicto. Deben existir al menos dos
+         * traducciones diferentes.
+         */
+        if (translatedNames.size < 2)
+            continue;
+
+        for (const uuid of group)
+            conflictUuids.add(uuid);
+
+    }
+
+    return conflictUuids;
 
 }
 
@@ -956,6 +1043,7 @@ async function refreshDuplicateFilter(app) {
     app._ccCalculatingDuplicates = true;
     app._ccDuplicatesReady = false;
     app._ccDuplicateUuids = new Set();
+    app._ccTranslationConflictUuids = new Set();
 
     updateCuratorMode(app);
     refreshDuplicatesButton(app);
@@ -986,6 +1074,7 @@ async function refreshDuplicateFilter(app) {
     }
 
     app._ccDuplicateUuids = duplicateUuids;
+    app._ccTranslationConflictUuids = calculateTranslationConflictUuids(app);
     app._ccDuplicatesReady = true;
     app._ccCalculatingDuplicates = false;
 
@@ -1884,11 +1973,23 @@ async function applyDuplicatePriority(app) {
             app.element.querySelectorAll(
                 ".item-list > .item[data-uuid]"
             )
-        ).filter(item =>
-            app._ccDuplicateUuids.has(
-                item.dataset.uuid
-            )
-        );
+        ).filter(item => {
+
+            const uuid = item.dataset.uuid;
+
+            if (!app._ccDuplicateUuids.has(uuid))
+                return false;
+
+            if (
+                app._ccTranslationConflictsOnly &&
+                !app._ccTranslationConflictUuids.has(uuid)
+            ) {
+                return false;
+            }
+
+            return true;
+
+        });
 
         const groups = new Map();
 
@@ -2225,6 +2326,8 @@ function createModeToolbar(app) {
 
                 app._ccDuplicatesReady = false;
                 app._ccDuplicateUuids = new Set();
+                app._ccTranslationConflictsOnly = false;
+                app._ccTranslationConflictUuids = new Set();
                 app._ccCalculatingDuplicates = false;
 
                 restoreDuplicateItemOrder(app, true);
@@ -2978,6 +3081,14 @@ function createToolbar(app) {
                 ${localize("ApplyDuplicatePriority")}
             </button>
 
+            <button
+                type="button"
+                class="cc-duplicate-translations"
+            >
+                <i class="fa-solid fa-language"></i>
+                ${localize("TranslationConflicts")}
+            </button>
+
         </div>
 
         <div class="cc-toolbar-buttons">
@@ -3005,6 +3116,11 @@ function createToolbar(app) {
             ".cc-duplicate-apply-priority"
         );
 
+    const duplicateTranslationsButton =
+        toolbar.querySelector(
+            ".cc-duplicate-translations"
+        );
+
     duplicatePriorityButton.addEventListener(
         "click",
         () => {
@@ -3016,6 +3132,29 @@ function createToolbar(app) {
         "click",
         () => {
             void applyDuplicatePriority(app);
+        }
+    );
+
+    duplicateTranslationsButton.addEventListener(
+        "click",
+        () => {
+
+            if (
+                !app._ccDuplicatesOnly ||
+                !app._ccDuplicatesReady
+            ) {
+                return;
+            }
+
+            app._ccTranslationConflictsOnly =
+                !app._ccTranslationConflictsOnly;
+
+            clearSelection(app);
+
+            updateCuratorMode(app);
+            refreshDuplicateActions(app);
+            refreshToolbar(app);
+
         }
     );
 
@@ -3218,25 +3357,53 @@ function refreshDuplicateActions(app) {
             ".cc-duplicate-apply-priority"
         );
 
-    if (!priorityButton || !applyButton)
+    const translationsButton =
+        app.element.querySelector(
+            ".cc-duplicate-translations"
+        );
+
+    if (
+        !priorityButton ||
+        !applyButton ||
+        !translationsButton
+    ) {
         return;
+    }
 
     const visible =
         app._ccDuplicatesOnly;
 
     priorityButton.hidden = !visible;
     applyButton.hidden = !visible;
+    translationsButton.hidden = !visible;
 
     const busy =
         app._ccLoadingAllResults ||
         app._ccCalculatingDuplicates ||
         app._ccSelectingAll;
 
-    priorityButton.disabled =
+    const disabled =
         busy || !app._ccDuplicatesReady;
 
-    applyButton.disabled =
-        busy || !app._ccDuplicatesReady;
+    priorityButton.disabled = disabled;
+    applyButton.disabled = disabled;
+    translationsButton.disabled = disabled;
+
+    translationsButton.classList.toggle(
+        "active",
+        app._ccTranslationConflictsOnly
+    );
+
+    translationsButton.innerHTML =
+        app._ccTranslationConflictsOnly
+            ? `
+                <i class="fa-solid fa-language"></i>
+                ${localize("TranslationConflictsActive")}
+            `
+            : `
+                <i class="fa-solid fa-language"></i>
+                ${localize("TranslationConflicts")}
+            `;
 
 }
 
