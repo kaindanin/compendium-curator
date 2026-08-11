@@ -5,6 +5,7 @@ import { STORAGE_CHANGED_HOOK } from "../settings.js";
 
 const openCompendiumBrowsers = new Set();
 const duplicateIdentityCache = new Map();
+const duplicateTranslationCache = new Map();
 
 function canCurate() {
 
@@ -144,6 +145,7 @@ function onRenderCompendiumBrowser(app) {
     app._ccDuplicateRefreshTimer ??= null;
     app._ccCalculatingDuplicates ??= false;
     app._ccSelectingAll ??= false;
+    app._ccDuplicateOriginalOrder = new Map();
 
     /*
     * Un render completo puede haber cambiado los resultados
@@ -499,8 +501,12 @@ function normalizeDuplicateName(name) {
 
 async function getDuplicateIdentity(uuid) {
 
-    if (duplicateIdentityCache.has(uuid))
+    if (
+        duplicateIdentityCache.has(uuid) &&
+        duplicateTranslationCache.has(uuid)
+    ) {
         return duplicateIdentityCache.get(uuid);
+    }
 
     const document = await fromUuid(uuid);
 
@@ -512,9 +518,28 @@ async function getDuplicateIdentity(uuid) {
 
     }
 
+    if (!document) {
+
+        duplicateIdentityCache.set(uuid, null);
+        duplicateTranslationCache.set(uuid, false);
+
+        return null;
+
+    }
+
     const originalName =
         document.flags?.babele?.originalName ??
         document.name;
+
+    const hasTranslation =
+        Boolean(document.flags?.babele?.originalName) &&
+        normalizeDuplicateName(document.name) !==
+            normalizeDuplicateName(originalName);
+
+    duplicateTranslationCache.set(
+        uuid,
+        hasTranslation
+    );
 
     const normalizedName =
         normalizeDuplicateName(originalName);
@@ -633,10 +658,296 @@ async function calculateDuplicateUuids(app) {
 
 }
 
+function rememberDuplicateItemOrder(app) {
+
+    const order =
+        app._ccDuplicateOriginalOrder ??= new Map();
+
+    const lists =
+        app.element.querySelectorAll(".item-list");
+
+    for (const list of lists) {
+
+        const items = Array.from(
+            list.querySelectorAll(
+                ":scope > .item[data-uuid]"
+            )
+        );
+
+        for (
+            let index = 0;
+            index < items.length;
+            index++
+        ) {
+
+            const uuid = items[index].dataset.uuid;
+
+            if (!order.has(uuid))
+                order.set(uuid, index);
+
+        }
+
+    }
+
+}
+
+function restoreDuplicateItemOrder(
+    app,
+    clear = false
+) {
+
+    const order =
+        app._ccDuplicateOriginalOrder;
+
+    if (!order?.size) {
+
+        if (clear)
+            app._ccDuplicateOriginalOrder = new Map();
+
+        return;
+
+    }
+
+    app._ccResultsObserver?.disconnect();
+
+    try {
+
+        const lists =
+            app.element.querySelectorAll(".item-list");
+
+        for (const list of lists) {
+
+            const items = Array.from(
+                list.querySelectorAll(
+                    ":scope > .item[data-uuid]"
+                )
+            );
+
+            items.sort((a, b) => {
+
+                const aOrder =
+                    order.get(a.dataset.uuid);
+
+                const bOrder =
+                    order.get(b.dataset.uuid);
+
+                if (
+                    aOrder === undefined &&
+                    bOrder === undefined
+                ) {
+                    return 0;
+                }
+
+                if (aOrder === undefined)
+                    return 1;
+
+                if (bOrder === undefined)
+                    return -1;
+
+                return aOrder - bOrder;
+
+            });
+
+            for (const item of items)
+                list.appendChild(item);
+
+        }
+
+    }
+    finally {
+
+        if (clear)
+            app._ccDuplicateOriginalOrder = new Map();
+
+        observeCompendiumResults(app);
+
+    }
+
+}
+
+function groupDuplicateItems(app) {
+
+    if (
+        !app._ccDuplicatesOnly ||
+        !app._ccDuplicatesReady
+    ) {
+        return;
+    }
+
+    rememberDuplicateItemOrder(app);
+
+    const lists =
+        app.element.querySelectorAll(".item-list");
+
+    app._ccResultsObserver?.disconnect();
+
+    try {
+
+        for (const list of lists) {
+
+            /*
+             * En este punto la lista está todavía en el
+             * orden alfabético original de Foundry.
+             */
+            const items = Array.from(
+                list.querySelectorAll(
+                    ":scope > .item[data-uuid]"
+                )
+            );
+
+            const groups = new Map();
+
+            for (const item of items) {
+
+                const uuid = item.dataset.uuid;
+
+                if (!app._ccDuplicateUuids.has(uuid))
+                    continue;
+
+                const identity =
+                    duplicateIdentityCache.get(uuid);
+
+                if (!identity)
+                    continue;
+
+                let group = groups.get(identity);
+
+                if (!group) {
+
+                    group = [];
+                    groups.set(identity, group);
+
+                }
+
+                group.push(item);
+
+            }
+
+            /*
+             * Relaciona cada entrada duplicada con
+             * el grupo al que pertenece.
+             */
+            const itemGroups = new Map();
+            const groupData = new Map();
+
+            for (
+                const [identity, group]
+                of groups
+            ) {
+
+                if (group.length < 2)
+                    continue;
+
+                /*
+                 * Las traducciones van primero.
+                 * Dentro de cada bloque conservamos
+                 * el orden alfabético de Foundry.
+                 */
+                const translated =
+                    group.filter(item =>
+                        duplicateTranslationCache.get(
+                            item.dataset.uuid
+                        ) === true
+                    );
+
+                const untranslated =
+                    group.filter(item =>
+                        duplicateTranslationCache.get(
+                            item.dataset.uuid
+                        ) !== true
+                    );
+
+                const orderedGroup = [
+                    ...translated,
+                    ...untranslated
+                ];
+
+                /*
+                 * Si existe alguna traducción, la primera
+                 * traducción en el orden alfabético normal
+                 * determina dónde aparecerá todo el grupo.
+                 *
+                 * Si no existe ninguna, usamos la primera
+                 * copia original.
+                 */
+                const anchor =
+                    translated[0] ??
+                    group[0];
+
+                groupData.set(identity, {
+                    anchor,
+                    items: orderedGroup
+                });
+
+                for (const item of group)
+                    itemGroups.set(item, identity);
+
+            }
+
+            const finalOrder = [];
+            const emittedGroups = new Set();
+
+            /*
+             * Reconstruimos el orden general.
+             *
+             * Las copias que aparecían antes que la
+             * traducción se omiten temporalmente.
+             * Cuando alcanzamos la traducción principal,
+             * insertamos todo el grupo junto.
+             */
+            for (const item of items) {
+
+                const identity =
+                    itemGroups.get(item);
+
+                if (!identity) {
+
+                    finalOrder.push(item);
+
+                    continue;
+
+                }
+
+                if (emittedGroups.has(identity))
+                    continue;
+
+                const data =
+                    groupData.get(identity);
+
+                if (!data)
+                    continue;
+
+                if (item !== data.anchor)
+                    continue;
+
+                finalOrder.push(
+                    ...data.items
+                );
+
+                emittedGroups.add(identity);
+
+            }
+
+            for (const item of finalOrder)
+                list.appendChild(item);
+
+        }
+
+    }
+    finally {
+
+        observeCompendiumResults(app);
+
+    }
+
+}
+
 async function refreshDuplicateFilter(app) {
 
     if (!app._ccDuplicatesOnly)
         return false;
+
+    restoreDuplicateItemOrder(app);
 
     const generation =
         (app._ccDuplicateGeneration ?? 0) + 1;
@@ -681,6 +992,7 @@ async function refreshDuplicateFilter(app) {
     clearSelection(app);
 
     updateCuratorMode(app);
+    groupDuplicateItems(app);
     refreshDuplicatesCheckbox(app);
     refreshToolbar(app);
     refreshLoadingIndicator(app);
@@ -1232,6 +1544,7 @@ function createModeToolbar(app) {
                 app._ccDuplicateUuids = new Set();
                 app._ccCalculatingDuplicates = false;
 
+                restoreDuplicateItemOrder(app, true);
                 updateCuratorMode(app);
                 refreshDuplicatesCheckbox(app);
                 refreshToolbar(app);
