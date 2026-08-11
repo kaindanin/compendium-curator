@@ -1847,6 +1847,176 @@ async function openDuplicatePriorityDialog(app) {
 
 }
 
+async function applyDuplicatePriority(app) {
+
+    if (
+        !app._ccDuplicatesOnly ||
+        !app._ccDuplicatesReady
+    ) {
+        return;
+    }
+
+    app._ccSelectingAll = true;
+
+    refreshMasterCheckbox(app);
+    refreshDuplicatesCheckbox(app);
+    refreshDuplicateActions(app);
+    refreshLoadingIndicator(app);
+
+    await waitForPaint();
+
+    try {
+
+        const priority =
+            getDuplicatePrioritySources();
+
+        const priorityIndex =
+            new Map(
+                priority.map(
+                    (source, index) => [
+                        source.id,
+                        index
+                    ]
+                )
+            );
+
+        const items = Array.from(
+            app.element.querySelectorAll(
+                ".item-list > .item[data-uuid]"
+            )
+        ).filter(item =>
+            app._ccDuplicateUuids.has(
+                item.dataset.uuid
+            )
+        );
+
+        const groups = new Map();
+
+        for (const item of items) {
+
+            const uuid =
+                item.dataset.uuid;
+
+            const identity =
+                duplicateIdentityCache.get(uuid);
+
+            if (!identity)
+                continue;
+
+            let group =
+                groups.get(identity);
+
+            if (!group) {
+
+                group = [];
+                groups.set(identity, group);
+
+            }
+
+            group.push(item);
+
+        }
+
+        const selection =
+            CuratorState.getSelection(app);
+
+        /*
+         * Aplicar prioridad sustituye la selección
+         * actual. Después el usuario puede corregirla
+         * manualmente.
+         */
+        selection.clear();
+
+        for (const group of groups.values()) {
+
+            if (group.length < 2)
+                continue;
+
+            let keepItem = null;
+            let keepPriority = Infinity;
+
+            for (const item of group) {
+
+                const source =
+                    getDuplicateSourceInfo(
+                        item.dataset.uuid
+                    );
+
+                const sourcePriority =
+                    priorityIndex.get(
+                        source?.id
+                    ) ?? Infinity;
+
+                /*
+                 * En caso de empate conservamos la
+                 * primera entrada del grupo.
+                 */
+                if (
+                    keepItem === null ||
+                    sourcePriority < keepPriority
+                ) {
+
+                    keepItem = item;
+                    keepPriority =
+                        sourcePriority;
+
+                }
+
+            }
+
+            for (const item of group) {
+
+                if (item === keepItem)
+                    continue;
+
+                selection.add(
+                    item.dataset.uuid
+                );
+
+            }
+
+        }
+
+        /*
+         * Necesitamos mostrar los checkboxes para
+         * que el usuario pueda revisar el resultado.
+         */
+        if (!app._ccCuratorMode)
+            app._ccCuratorMode = true;
+
+        const curatorButton =
+            app.element.querySelector(
+                ".cc-curator-button"
+            );
+
+        if (curatorButton)
+            refreshCuratorButton(
+                curatorButton,
+                app
+            );
+
+        updateCuratorMode(app);
+        refreshToolbar(app);
+
+        debug(
+            "Prioridad aplicada. Seleccionados:",
+            [...selection]
+        );
+
+    }
+    finally {
+
+        app._ccSelectingAll = false;
+
+        refreshMasterCheckbox(app);
+        refreshDuplicatesCheckbox(app);
+        refreshDuplicateActions(app);
+        refreshLoadingIndicator(app);
+
+    }
+
+}
+
 function createModeToolbar(app) {
 
     if (!canCurate())
@@ -1988,12 +2158,20 @@ function createModeToolbar(app) {
     const hiddenButton = toolbar.querySelector(".cc-hidden-button");
     const duplicatesCheckbox = toolbar.querySelector(".cc-duplicates-checkbox");
     const duplicatePriorityButton = toolbar.querySelector(".cc-duplicate-priority");
+    const duplicateApplyPriorityButton = toolbar.querySelector(".cc-duplicate-apply-priority");
     const publicProfileButton = toolbar.querySelector(".cc-profile-public");
 
     duplicatePriorityButton.addEventListener(
         "click",
         () => {
             void openDuplicatePriorityDialog(app);
+        }
+    );
+
+    duplicateApplyPriorityButton.addEventListener(
+        "click",
+        () => {
+            void applyDuplicatePriority(app);
         }
     );
 
