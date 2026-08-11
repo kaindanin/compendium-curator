@@ -2054,61 +2054,84 @@ function createModeToolbar(app) {
 
             <select class="cc-profile-select"></select>
 
-            <button
-                type="button"
-                class="cc-profile-create"
-                title="${localize("CreateProfile")}"
-            >
-                <i class="fa-solid fa-plus"></i>
-            </button>
+            <div class="cc-profile-menu-wrapper">
 
-            <button
-                type="button"
-                class="cc-profile-rename"
-                title="${localize("RenameProfile")}"
-            >
-                <i class="fa-solid fa-pen"></i>
-            </button>
+                <button
+                    type="button"
+                    class="cc-profile-menu-toggle"
+                    title="${localize("Profile")}"
+                >
+                    <i class="fa-solid fa-gear"></i>
+                </button>
 
-            <button
-                type="button"
-                class="cc-profile-duplicate"
-                title="${localize("DuplicateProfile")}"
-            >
-                <i class="fa-solid fa-copy"></i>
-            </button>
+                <div
+                    class="cc-profile-menu"
+                    hidden
+                >
 
-            <button
-                type="button"
-                class="cc-profile-export"
-                title="${localize("ExportProfile")}"
-            >
-                <i class="fa-solid fa-file-export"></i>
-            </button>
+                    <button
+                        type="button"
+                        class="cc-profile-create"
+                    >
+                        <i class="fa-solid fa-plus"></i>
+                        <span>${localize("CreateProfile")}</span>
+                    </button>
 
-            <button
-                type="button"
-                class="cc-profile-import"
-                title="${localize("ImportProfile")}"
-            >
-                <i class="fa-solid fa-file-import"></i>
-            </button>
+                    <button
+                        type="button"
+                        class="cc-profile-rename"
+                    >
+                        <i class="fa-solid fa-pen"></i>
+                        <span>${localize("RenameProfile")}</span>
+                    </button>
 
-            <button
-                type="button"
-                class="cc-profile-public"
-                title="${localize("MarkPublic")}"
-            >
-                <i class="fa-solid fa-globe"></i>
-            </button>
+                    <button
+                        type="button"
+                        class="cc-profile-duplicate"
+                    >
+                        <i class="fa-solid fa-copy"></i>
+                        <span>${localize("DuplicateProfile")}</span>
+                    </button>
 
-            <button
-                type="button"
-                class="cc-profile-delete"
-                title="${localize("DeleteProfile")}"
-            >
-                <i class="fa-solid fa-trash"></i>
-            </button>
+                    <div class="cc-profile-menu-separator"></div>
+
+                    <button
+                        type="button"
+                        class="cc-profile-export"
+                    >
+                        <i class="fa-solid fa-file-export"></i>
+                        <span>${localize("ExportProfile")}</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        class="cc-profile-import"
+                    >
+                        <i class="fa-solid fa-file-import"></i>
+                        <span>${localize("ImportProfile")}</span>
+                    </button>
+
+                    <div class="cc-profile-menu-separator"></div>
+
+                    <button
+                        type="button"
+                        class="cc-profile-public"
+                    >
+                        <i class="fa-solid fa-globe"></i>
+                        <span>${localize("MarkPublic")}</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        class="cc-profile-delete"
+                    >
+                        <i class="fa-solid fa-trash"></i>
+                        <span>${localize("DeleteProfile")}</span>
+                    </button>
+
+                </div>
+
+            </div>
 
         </div>
 
@@ -2257,6 +2280,14 @@ function createModeToolbar(app) {
         ".cc-profile-select"
     );
 
+    const profileMenuToggle = toolbar.querySelector(
+        ".cc-profile-menu-toggle"
+    );
+
+    const profileMenu = toolbar.querySelector(
+        ".cc-profile-menu"
+    );
+
     const createProfileButton = toolbar.querySelector(
         ".cc-profile-create"
     );
@@ -2284,6 +2315,26 @@ function createModeToolbar(app) {
     refreshProfileSelect(profileSelect);
     refreshProfileButtons(toolbar);
     refreshPublicProfileButton(toolbar);
+
+    profileMenuToggle.addEventListener(
+        "click",
+        () => {
+
+            profileMenu.hidden =
+                !profileMenu.hidden;
+
+        }
+    );
+
+    profileMenu.addEventListener(
+        "click",
+        event => {
+
+            if (event.target.closest("button"))
+                profileMenu.hidden = true;
+
+        }
+    );
 
     createProfileButton.addEventListener("click", async () => {
 
@@ -2833,10 +2884,12 @@ function refreshPublicProfileButton(toolbar) {
     button.innerHTML = isPublic
         ? `
             <i class="fa-solid fa-globe"></i>
+            <span>${localize("Public")}</span>
             <i class="fa-solid fa-check"></i>
         `
         : `
             <i class="fa-solid fa-globe"></i>
+            <span>${localize("MarkPublic")}</span>
         `;
 
 }
