@@ -13,6 +13,11 @@
     "DuplicatesOnly": "Solo duplicados",
     "DuplicatePriority": "Prioridad",
     "ApplyDuplicatePriority": "Aplicar prioridad",
+    "DuplicatePriorityTitle": "Prioridad de fuentes",
+    "DuplicatePriorityHint": "Ordena las fuentes desde la que prefieres conservar hasta la de menor prioridad.",
+    "MoveUp": "Subir",
+    "MoveDown": "Bajar",
+    "Save": "Guardar",
 
     "SelectedOne": "1 seleccionado",
     "SelectedMany": "{count} seleccionados",

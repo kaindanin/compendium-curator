@@ -13,6 +13,11 @@
     "DuplicatesOnly": "Duplicates only",
     "DuplicatePriority": "Priority",
     "ApplyDuplicatePriority": "Apply priority",
+    "DuplicatePriorityTitle": "Source priority",
+    "DuplicatePriorityHint": "Order sources from the one you prefer to keep to the lowest priority.",
+    "MoveUp": "Move up",
+    "MoveDown": "Move down",
+    "Save": "Save",
 
     "SelectedOne": "1 selected",
     "SelectedMany": "{count} selected",

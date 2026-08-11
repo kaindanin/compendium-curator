@@ -1,5 +1,6 @@
 export const MODULE_ID = "compendium-curator";
 export const STORAGE_SETTING = "storage";
+export const DUPLICATE_PRIORITY_SETTING = "duplicatePriority";
 export const STORAGE_CHANGED_HOOK = `${MODULE_ID}.storageChanged`;
 
 export function registerSettings() {
@@ -33,6 +34,20 @@ export function registerSettings() {
                     storage
                 );
 
+            }
+        }
+    );
+
+    game.settings.register(
+        MODULE_ID,
+        DUPLICATE_PRIORITY_SETTING,
+        {
+            scope: "world",
+            config: false,
+            type: Object,
+
+            default: {
+                sources: []
             }
         }
     );

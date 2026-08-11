@@ -1,7 +1,7 @@
 import { debug } from "../debug.js";
 import { CuratorState } from "../state/curator-state.js";
 import { StorageService } from "../services/storage-service.js";
-import { STORAGE_CHANGED_HOOK } from "../settings.js";
+import { MODULE_ID, DUPLICATE_PRIORITY_SETTING, STORAGE_CHANGED_HOOK } from "../settings.js";
 
 const openCompendiumBrowsers = new Set();
 const duplicateIdentityCache = new Map();
@@ -1360,6 +1360,493 @@ function refreshMasterCheckbox(app) {
 
 }
 
+function getDuplicateSourceInfo(uuid) {
+
+    const parts =
+        String(uuid ?? "").split(".");
+
+    if (
+        parts[0] !== "Compendium" ||
+        parts.length < 4
+    ) {
+        return null;
+    }
+
+    const packageId = parts[1];
+    const packId = `${parts[1]}.${parts[2]}`;
+
+    const pack =
+        game.packs.get(packId);
+
+    let title;
+
+    /*
+     * Los compendios incluidos directamente en
+     * D&D5e corresponden principalmente al contenido SRD.
+     */
+    if (packageId === game.system.id) {
+
+        const packName = parts[2];
+
+        const systemPack =
+            (game.system.toObject().packs ?? [])
+                .find(pack =>
+                    pack.name === packName
+                );
+
+        const sourceBook =
+            systemPack?.flags?.dnd5e?.sourceBook;
+
+        if (sourceBook === "SRD 5.1") {
+
+            return {
+                id: `${game.system.id}:srd51`,
+                title: "SRD 5.1"
+            };
+
+        }
+
+        if (sourceBook === "SRD 5.2") {
+
+            return {
+                id: `${game.system.id}:srd52`,
+                title: "SRD 5.2"
+            };
+
+        }
+
+        title = game.system.title;
+
+    }
+    else {
+
+        title =
+            game.modules.get(packageId)?.title ??
+            pack?.title ??
+            packageId;
+
+    }
+
+    return {
+        id: packageId,
+        title
+    };
+
+}
+
+function getDuplicatePrioritySources() {
+
+    const sources = new Map();
+
+    /*
+     * Sistema actual.
+     * En D&D5e representa los compendios incluidos
+     * directamente con el sistema.
+     */
+    const systemPacks =
+        game.system.toObject().packs ?? [];
+
+    const srdVersions = new Set(
+        systemPacks
+            .map(pack =>
+                pack.flags?.dnd5e?.sourceBook
+            )
+            .filter(Boolean)
+    );
+
+    if (srdVersions.has("SRD 5.1")) {
+
+        sources.set(
+            `${game.system.id}:srd51`,
+            {
+                id: `${game.system.id}:srd51`,
+                title: "SRD 5.1"
+            }
+        );
+
+    }
+
+    if (srdVersions.has("SRD 5.2")) {
+
+        sources.set(
+            `${game.system.id}:srd52`,
+            {
+                id: `${game.system.id}:srd52`,
+                title: "SRD 5.2"
+            }
+        );
+
+    }
+
+    /*
+     * Todos los módulos instalados/disponibles que
+     * declaran al menos un compendio.
+     *
+     * No depende de qué categoría o filtro esté
+     * abierto actualmente en el navegador.
+     */
+    for (const module of game.modules.values()) {
+
+        const moduleData =
+            module.toObject();
+
+        const packs =
+            moduleData.packs ?? [];
+
+        if (packs.length === 0)
+            continue;
+
+        sources.set(
+            module.id,
+            {
+                id: module.id,
+                title: module.title
+            }
+        );
+
+    }
+
+    const setting =
+        game.settings.get(
+            MODULE_ID,
+            DUPLICATE_PRIORITY_SETTING
+        );
+
+    const savedPriority =
+        Array.isArray(setting?.sources)
+            ? setting.sources
+            : [];
+
+    const ordered = [];
+
+    /*
+     * Primero respetamos la prioridad ya guardada.
+     */
+    for (const sourceId of savedPriority) {
+
+        const source =
+            sources.get(sourceId);
+
+        if (!source)
+            continue;
+
+        ordered.push(source);
+        sources.delete(sourceId);
+
+    }
+
+    /*
+     * Los módulos nuevos que todavía no estén
+     * guardados se añaden al final alfabéticamente.
+     */
+    const remaining =
+        Array.from(sources.values())
+            .sort((a, b) =>
+                a.title.localeCompare(
+                    b.title,
+                    game.i18n.lang,
+                    {
+                        sensitivity: "base"
+                    }
+                )
+            );
+
+    return [
+        ...ordered,
+        ...remaining
+    ];
+
+}
+
+async function openDuplicatePriorityDialog(app) {
+
+    if (
+        !app._ccDuplicatesOnly ||
+        !app._ccDuplicatesReady
+    ) {
+        return;
+    }
+
+    const sources =
+        getDuplicatePrioritySources();
+
+    if (sources.length === 0)
+        return;
+
+    const content =
+    document.createElement("div");
+
+    const wrapper =
+        document.createElement("div");
+
+    wrapper.className =
+        "cc-duplicate-priority-dialog";
+
+    const hint =
+        document.createElement("p");
+
+    hint.textContent =
+        localize("DuplicatePriorityHint");
+
+    wrapper.appendChild(hint);
+
+    const list =
+        document.createElement("div");
+
+    list.className =
+        "cc-duplicate-priority-list";
+
+    for (const source of sources) {
+
+        const row =
+            document.createElement("div");
+
+        row.className =
+            "cc-duplicate-priority-source";
+
+        row.dataset.sourceId =
+            source.id;
+
+        const position =
+            document.createElement("span");
+
+        position.className =
+            "cc-duplicate-priority-position";
+
+        const name =
+            document.createElement("span");
+
+        name.className =
+            "cc-duplicate-priority-name";
+
+        name.textContent =
+            source.title;
+
+        const controls =
+            document.createElement("span");
+
+        controls.className =
+            "cc-duplicate-priority-controls";
+
+        const up =
+            document.createElement("button");
+
+        up.type = "button";
+        up.className =
+            "cc-duplicate-priority-up";
+
+        up.title =
+            localize("MoveUp");
+
+        up.innerHTML =
+            '<i class="fa-solid fa-arrow-up"></i>';
+
+        const down =
+            document.createElement("button");
+
+        down.type = "button";
+        down.className =
+            "cc-duplicate-priority-down";
+
+        down.title =
+            localize("MoveDown");
+
+        down.innerHTML =
+            '<i class="fa-solid fa-arrow-down"></i>';
+
+        controls.append(
+            up,
+            down
+        );
+
+        row.append(
+            position,
+            name,
+            controls
+        );
+
+        list.appendChild(row);
+
+    }
+
+    wrapper.appendChild(list);
+    content.appendChild(wrapper);
+
+    const result =
+        await foundry.applications.api.DialogV2.wait({
+
+            window: {
+                title:
+                    localize(
+                        "DuplicatePriorityTitle"
+                    )
+            },
+
+            content,
+
+            buttons: [
+                {
+                    action: "save",
+                    label: localize("Save"),
+                    icon:
+                        "fa-solid fa-floppy-disk",
+                    default: true,
+
+                    callback: (
+                        _event,
+                        _button,
+                        dialog
+                    ) => {
+
+                        return Array.from(
+                            dialog.window.content
+                                .querySelectorAll(
+                                    ".cc-duplicate-priority-source"
+                                )
+                        ).map(row =>
+                            row.dataset.sourceId
+                        );
+
+                    }
+                },
+                {
+                    action: "cancel",
+                    label: localize("Cancel"),
+                    icon: "fa-solid fa-xmark"
+                }
+            ],
+
+            render: (_event, dialog) => {
+
+                const dialogList =
+                    dialog.window.content
+                        .querySelector(
+                            ".cc-duplicate-priority-list"
+                        );
+
+                if (!dialogList)
+                    return;
+
+                const refreshRows = () => {
+
+                    const rows =
+                        Array.from(
+                            dialogList.children
+                        );
+
+                    for (
+                        let index = 0;
+                        index < rows.length;
+                        index++
+                    ) {
+
+                        const row = rows[index];
+
+                        row.querySelector(
+                            ".cc-duplicate-priority-position"
+                        ).textContent =
+                            `${index + 1}.`;
+
+                        row.querySelector(
+                            ".cc-duplicate-priority-up"
+                        ).disabled =
+                            index === 0;
+
+                        row.querySelector(
+                            ".cc-duplicate-priority-down"
+                        ).disabled =
+                            index ===
+                            rows.length - 1;
+
+                    }
+
+                };
+
+                dialogList.addEventListener(
+                    "click",
+                    event => {
+
+                        const button =
+                            event.target.closest(
+                                "button"
+                            );
+
+                        if (!button)
+                            return;
+
+                        const row =
+                            button.closest(
+                                ".cc-duplicate-priority-source"
+                            );
+
+                        if (!row)
+                            return;
+
+                        if (
+                            button.classList.contains(
+                                "cc-duplicate-priority-up"
+                            )
+                        ) {
+
+                            const previous =
+                                row.previousElementSibling;
+
+                            if (previous)
+                                dialogList.insertBefore(
+                                    row,
+                                    previous
+                                );
+
+                        }
+                        else if (
+                            button.classList.contains(
+                                "cc-duplicate-priority-down"
+                            )
+                        ) {
+
+                            const next =
+                                row.nextElementSibling;
+
+                            if (next)
+                                dialogList.insertBefore(
+                                    next,
+                                    row
+                                );
+
+                        }
+
+                        refreshRows();
+
+                    }
+                );
+
+                refreshRows();
+
+            },
+
+            rejectClose: false,
+            modal: true
+
+        });
+
+    if (!Array.isArray(result))
+        return;
+
+    await game.settings.set(
+        MODULE_ID,
+        DUPLICATE_PRIORITY_SETTING,
+        {
+            sources: result
+        }
+    );
+
+    debug(
+        "Prioridad de duplicados guardada:",
+        result
+    );
+
+}
+
 function createModeToolbar(app) {
 
     if (!canCurate())
@@ -1500,7 +1987,15 @@ function createModeToolbar(app) {
     const curatorButton = toolbar.querySelector(".cc-curator-button");
     const hiddenButton = toolbar.querySelector(".cc-hidden-button");
     const duplicatesCheckbox = toolbar.querySelector(".cc-duplicates-checkbox");
+    const duplicatePriorityButton = toolbar.querySelector(".cc-duplicate-priority");
     const publicProfileButton = toolbar.querySelector(".cc-profile-public");
+
+    duplicatePriorityButton.addEventListener(
+        "click",
+        () => {
+            void openDuplicatePriorityDialog(app);
+        }
+    );
 
     curatorButton.addEventListener("click", () => {
 

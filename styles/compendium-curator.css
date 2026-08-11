@@ -142,3 +142,55 @@
 .cc-loading-indicator[hidden] {
     display: none;
 }
+
+.cc-duplicate-priority-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cc-duplicate-priority-dialog > p {
+    margin: 0;
+}
+
+.cc-duplicate-priority-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 55vh;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.cc-duplicate-priority-source {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+}
+
+.cc-duplicate-priority-position {
+    flex: 0 0 26px;
+    text-align: right;
+}
+
+.cc-duplicate-priority-name {
+    flex: 1;
+    min-width: 0;
+}
+
+.cc-duplicate-priority-controls {
+    display: flex;
+    gap: 2px;
+    flex: 0 0 auto;
+}
+
+.cc-duplicate-priority-controls button {
+    width: 28px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
