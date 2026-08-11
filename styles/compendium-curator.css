@@ -155,21 +155,15 @@
     background: var(--color-border-light-primary);
 }
 
-.cc-duplicates-filter {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.cc-duplicates-filter.disabled {
-    opacity: .45;
-    cursor: not-allowed;
-}
-
-.cc-duplicates-checkbox:disabled,
 .cc-master-checkbox:disabled {
     opacity: .45;
     cursor: not-allowed;
+}
+
+.cc-mode-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .cc-loading-indicator {
@@ -237,4 +231,14 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+}
+
+.cc-duplicate-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cc-duplicate-tools[hidden] {
+    display: none;
 }

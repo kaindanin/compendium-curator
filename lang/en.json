@@ -11,6 +11,8 @@
     "Hide": "Hide",
     "Show": "Restore",
     "DuplicatesOnly": "Duplicates only",
+    "Duplicates": "Duplicates",
+    "DuplicatesActive": "Duplicates active",
     "DuplicatePriority": "Priority",
     "ApplyDuplicatePriority": "Apply priority",
     "DuplicatePriorityTitle": "Source priority",

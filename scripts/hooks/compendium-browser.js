@@ -198,7 +198,7 @@ function onRenderCompendiumBrowser(app) {
         app._ccDuplicatesOnly
     ) {
 
-        refreshDuplicatesCheckbox(app);
+        refreshDuplicatesButton(app);
         refreshMasterCheckbox(app);
         refreshLoadingIndicator(app);
 
@@ -958,7 +958,7 @@ async function refreshDuplicateFilter(app) {
     app._ccDuplicateUuids = new Set();
 
     updateCuratorMode(app);
-    refreshDuplicatesCheckbox(app);
+    refreshDuplicatesButton(app);
     refreshMasterCheckbox(app);
     refreshLoadingIndicator(app);
 
@@ -993,7 +993,7 @@ async function refreshDuplicateFilter(app) {
 
     updateCuratorMode(app);
     groupDuplicateItems(app);
-    refreshDuplicatesCheckbox(app);
+    refreshDuplicatesButton(app);
     refreshDuplicateActions(app);
     refreshToolbar(app);
     refreshLoadingIndicator(app);
@@ -1091,7 +1091,7 @@ async function ensureAllResultsLoaded(app) {
         app._ccLoadingAllResults = true;
 
         refreshMasterCheckbox(app);
-        refreshDuplicatesCheckbox(app);
+        refreshDuplicatesButton(app);
         refreshLoadingIndicator(app);
 
         /*
@@ -1167,7 +1167,7 @@ async function ensureAllResultsLoaded(app) {
             app._ccLoadingAllResults = false;
 
             refreshMasterCheckbox(app);
-            refreshDuplicatesCheckbox(app);
+            refreshDuplicatesButton(app);
             refreshLoadingIndicator(app);
 
         }
@@ -1254,7 +1254,7 @@ function createMasterCheckbox(app) {
         app._ccSelectingAll = true;
 
         refreshMasterCheckbox(app);
-        refreshDuplicatesCheckbox(app);
+        refreshDuplicatesButton(app);
         refreshLoadingIndicator(app);
 
         /*
@@ -1309,7 +1309,7 @@ function createMasterCheckbox(app) {
             app._ccSelectingAll = false;
 
             refreshMasterCheckbox(app);
-            refreshDuplicatesCheckbox(app);
+            refreshDuplicatesButton(app);
             refreshLoadingIndicator(app);
 
         }
@@ -1859,7 +1859,7 @@ async function applyDuplicatePriority(app) {
     app._ccSelectingAll = true;
 
     refreshMasterCheckbox(app);
-    refreshDuplicatesCheckbox(app);
+    refreshDuplicatesButton(app);
     refreshDuplicateActions(app);
     refreshLoadingIndicator(app);
 
@@ -2009,7 +2009,7 @@ async function applyDuplicatePriority(app) {
         app._ccSelectingAll = false;
 
         refreshMasterCheckbox(app);
-        refreshDuplicatesCheckbox(app);
+        refreshDuplicatesButton(app);
         refreshDuplicateActions(app);
         refreshLoadingIndicator(app);
 
@@ -2032,7 +2032,7 @@ function createModeToolbar(app) {
 
         refreshProfileButtons(toolbar);
         refreshPublicProfileButton(toolbar);
-        refreshDuplicatesCheckbox(app);
+        refreshDuplicatesButton(app);
         refreshDuplicateActions(app);
 
         return toolbar;
@@ -2135,41 +2135,24 @@ function createModeToolbar(app) {
 
         </div>
 
-        <button type="button" class="cc-curator-button">
-            <i class="fa-solid fa-eye-slash"></i>
-            ${localize("Curator")}
-        </button>
+        <div class="cc-mode-controls">
 
-        <button type="button" class="cc-hidden-button">
-            <i class="fa-solid fa-eye-slash"></i>
-            ${localize("Hidden")}
-        </button>
+            <button type="button" class="cc-curator-button">
+                <i class="fa-solid fa-eye-slash"></i>
+                ${localize("Curator")}
+            </button>
 
-        <label class="cc-duplicates-filter">
-            <input
-                type="checkbox"
-                class="cc-duplicates-checkbox"
-            >
-            <span>${localize("DuplicatesOnly")}</span>
-        </label>
+            <button type="button" class="cc-hidden-button">
+                <i class="fa-solid fa-eye-slash"></i>
+                ${localize("Hidden")}
+            </button>
 
-        <button
-            type="button"
-            class="cc-duplicate-priority"
-            hidden
-        >
-            <i class="fa-solid fa-arrow-down-wide-short"></i>
-            ${localize("DuplicatePriority")}
-        </button>
+            <button type="button" class="cc-duplicates-button">
+                <i class="fa-solid fa-copy"></i>
+                ${localize("Duplicates")}
+            </button>
 
-        <button
-            type="button"
-            class="cc-duplicate-apply-priority"
-            hidden
-        >
-            <i class="fa-solid fa-check-double"></i>
-            ${localize("ApplyDuplicatePriority")}
-        </button>
+        </div>
 
         <span class="cc-loading-indicator" hidden>
             <i class="fa-solid fa-spinner fa-spin"></i>
@@ -2179,24 +2162,8 @@ function createModeToolbar(app) {
 
     const curatorButton = toolbar.querySelector(".cc-curator-button");
     const hiddenButton = toolbar.querySelector(".cc-hidden-button");
-    const duplicatesCheckbox = toolbar.querySelector(".cc-duplicates-checkbox");
-    const duplicatePriorityButton = toolbar.querySelector(".cc-duplicate-priority");
-    const duplicateApplyPriorityButton = toolbar.querySelector(".cc-duplicate-apply-priority");
+    const duplicatesButton = toolbar.querySelector(".cc-duplicates-button");
     const publicProfileButton = toolbar.querySelector(".cc-profile-public");
-
-    duplicatePriorityButton.addEventListener(
-        "click",
-        () => {
-            void openDuplicatePriorityDialog(app);
-        }
-    );
-
-    duplicateApplyPriorityButton.addEventListener(
-        "click",
-        () => {
-            void applyDuplicatePriority(app);
-        }
-    );
 
     curatorButton.addEventListener("click", () => {
 
@@ -2239,12 +2206,12 @@ function createModeToolbar(app) {
 
     });
 
-    duplicatesCheckbox.addEventListener(
-        "change",
+    duplicatesButton.addEventListener(
+        "click",
         async () => {
 
             app._ccDuplicatesOnly =
-                duplicatesCheckbox.checked;
+                !app._ccDuplicatesOnly;
 
             clearSelection(app);
 
@@ -2261,8 +2228,9 @@ function createModeToolbar(app) {
                 app._ccCalculatingDuplicates = false;
 
                 restoreDuplicateItemOrder(app, true);
+
                 updateCuratorMode(app);
-                refreshDuplicatesCheckbox(app);
+                refreshDuplicatesButton(app);
                 refreshDuplicateActions(app);
                 refreshToolbar(app);
                 refreshLoadingIndicator(app);
@@ -2270,6 +2238,8 @@ function createModeToolbar(app) {
                 return;
 
             }
+
+            refreshDuplicatesButton(app);
 
             await refreshDuplicateFilter(app);
 
@@ -2844,7 +2814,7 @@ function createModeToolbar(app) {
 
     refreshCuratorButton(curatorButton, app);
     refreshHiddenButton(hiddenButton, app);
-    refreshDuplicatesCheckbox(app);
+    refreshDuplicatesButton(app);
     refreshDuplicateActions(app);
 
     container.appendChild(toolbar);
@@ -2987,6 +2957,29 @@ function createToolbar(app) {
 
         </div>
 
+        <div
+            class="cc-duplicate-tools"
+            hidden
+        >
+
+            <button
+                type="button"
+                class="cc-duplicate-priority"
+            >
+                <i class="fa-solid fa-arrow-down-wide-short"></i>
+                ${localize("DuplicatePriority")}
+            </button>
+
+            <button
+                type="button"
+                class="cc-duplicate-apply-priority"
+            >
+                <i class="fa-solid fa-check-double"></i>
+                ${localize("ApplyDuplicatePriority")}
+            </button>
+
+        </div>
+
         <div class="cc-toolbar-buttons">
 
             <button type="button" class="cc-hide">
@@ -3001,6 +2994,30 @@ function createToolbar(app) {
 
         </div>
     `;
+
+    const duplicatePriorityButton =
+        toolbar.querySelector(
+            ".cc-duplicate-priority"
+        );
+
+    const duplicateApplyPriorityButton =
+        toolbar.querySelector(
+            ".cc-duplicate-apply-priority"
+        );
+
+    duplicatePriorityButton.addEventListener(
+        "click",
+        () => {
+            void openDuplicatePriorityDialog(app);
+        }
+    );
+
+    duplicateApplyPriorityButton.addEventListener(
+        "click",
+        () => {
+            void applyDuplicatePriority(app);
+        }
+    );
 
     toolbar.querySelector(".cc-hide").addEventListener("click", async () => {
 
@@ -3054,12 +3071,33 @@ function refreshToolbar(app) {
     if (!toolbar)
         return;
 
-    const count = CuratorState.getSelection(app).size;
+    const count =
+        CuratorState.getSelection(app).size;
 
-    toolbar.querySelector(".cc-selection-count").textContent =
+    const selectionTools =
+        toolbar.querySelector(
+            ".cc-selection-tools"
+        );
+
+    const duplicateTools =
+        toolbar.querySelector(
+            ".cc-duplicate-tools"
+        );
+
+    const toolbarButtons =
+        toolbar.querySelector(
+            ".cc-toolbar-buttons"
+        );
+
+    toolbar.querySelector(
+        ".cc-selection-count"
+    ).textContent =
         count === 1
             ? localize("SelectedOne")
-            : format("SelectedMany", { count });
+            : format(
+                "SelectedMany",
+                { count }
+            );
 
     toolbar.querySelector(".cc-hide").disabled =
         count === 0;
@@ -3067,7 +3105,31 @@ function refreshToolbar(app) {
     toolbar.querySelector(".cc-show").disabled =
         count === 0;
 
-    toolbar.hidden = !app._ccCuratorMode;
+    /*
+     * Selección y Ocultar/Mostrar pertenecen
+     * al modo Curador.
+     */
+    selectionTools.hidden =
+        !app._ccCuratorMode;
+
+    toolbarButtons.hidden =
+        !app._ccCuratorMode;
+
+    /*
+     * Prioridad pertenece al modo Duplicados.
+     */
+    duplicateTools.hidden =
+        !app._ccDuplicatesOnly;
+
+    /*
+     * La segunda fila solo existe cuando hay
+     * alguna herramienta contextual que mostrar.
+     */
+    toolbar.hidden =
+        !app._ccCuratorMode &&
+        !app._ccDuplicatesOnly;
+
+    refreshDuplicateActions(app);
 
 }
 
@@ -3109,33 +3171,38 @@ function refreshHiddenButton(button, app) {
 
 }
 
-function refreshDuplicatesCheckbox(app) {
+function refreshDuplicatesButton(app) {
 
-    const checkbox =
+    const button =
         app.element.querySelector(
-            ".cc-duplicates-checkbox"
+            ".cc-duplicates-button"
         );
 
-    if (!checkbox)
+    if (!button)
         return;
-
-    checkbox.checked =
-        app._ccDuplicatesOnly;
 
     const busy =
         app._ccLoadingAllResults ||
         app._ccCalculatingDuplicates ||
         app._ccSelectingAll;
 
-    checkbox.indeterminate = false;
-    checkbox.disabled = busy;
+    button.disabled = busy;
 
-    checkbox
-        .closest(".cc-duplicates-filter")
-        ?.classList.toggle(
-            "disabled",
-            busy
-        );
+    button.classList.toggle(
+        "active",
+        app._ccDuplicatesOnly
+    );
+
+    button.innerHTML =
+        app._ccDuplicatesOnly
+            ? `
+                <i class="fa-solid fa-copy"></i>
+                ${localize("DuplicatesActive")}
+            `
+            : `
+                <i class="fa-solid fa-copy"></i>
+                ${localize("Duplicates")}
+            `;
 
 }
 
