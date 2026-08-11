@@ -1,11 +1,11 @@
 {
   "id": "compendium-curator",
   "title": "Compendium Curator",
-  "description": "Enhance the D&D5e Compendium Browser by hiding individual entries and creating independent profiles for different campaigns and settings.",
+  "description": "Enhance the D&D5e Compendium Browser with entry curation, independent profiles, duplicate detection, source priority, and translation consistency tools.",
   "url": "https://github.com/kaindanin/compendium-curator",
   "manifest": "https://raw.githubusercontent.com/kaindanin/compendium-curator/main/module.json",
-  "download": "https://github.com/kaindanin/compendium-curator/releases/download/v0.2.0/compendium-curator.zip",
-  "version": "0.2.0",
+  "download": "https://github.com/kaindanin/compendium-curator/releases/download/v0.3.0/compendium-curator.zip",
+  "version": "0.3.0",
 
   "compatibility": {
     "minimum": "14",

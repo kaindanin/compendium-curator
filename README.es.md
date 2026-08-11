@@ -28,7 +28,10 @@ Olvídate de invertir horas creando y organizando compendios personalizados solo
 * Limitar la previsualización de cada entrada a su nombre para que no interfiera con los controles.
 * Renombrar y duplicar perfiles.
 * Exportar e importar perfiles.
-* Mostrar únicamente las entradas duplicadas dentro de los resultados actuales del navegador.
+* Detectar y agrupar entradas duplicadas dentro de los resultados actuales del navegador.
+* Definir una prioridad global de fuentes para decidir qué copia conservar.
+* Seleccionar automáticamente las copias de menor prioridad para ocultarlas.
+* Detectar duplicados con traducciones diferentes.
 * Mostrar indicadores de carga durante operaciones largas.
 
 ## Requisitos
@@ -75,11 +78,29 @@ Estas entradas aparecerán atenuadas. Al desactivar la opción volverán a desap
 
 ### Duplicados
 
-Activa **Solo duplicados** para mostrar únicamente las entradas cuyo nombre original coincide con otra entrada dentro de los resultados actuales del Navegador de Compendios.
+Pulsa **Duplicados** para mostrar únicamente las entradas cuyo nombre original coincide con otra entrada dentro de los resultados actuales del Navegador de Compendios.
 
 El filtro respeta la categoría, búsqueda, fuentes y demás filtros activos del navegador.
 
+Las copias duplicadas se agrupan para facilitar su comparación. Cuando existen traducciones, estas aparecen primero dentro del grupo.
+
 Si **Ocultos** está desactivado, las entradas ocultas no participan en la detección de duplicados. Al activarlo, también se tienen en cuenta y aparecen atenuadas como de costumbre.
+
+#### Prioridad de fuentes
+
+Pulsa **Prioridad** para ordenar las fuentes desde la que prefieres conservar hasta la de menor prioridad.
+
+La prioridad se guarda para todo el mundo y es independiente de la categoría o filtros actuales del navegador.
+
+Pulsa **Aplicar prioridad** para seleccionar automáticamente todas las copias duplicadas excepto la perteneciente a la fuente de mayor prioridad.
+
+La acción solo modifica la selección. Las entradas no se ocultan hasta que pulses **Ocultar**, por lo que puedes revisar y modificar manualmente la selección antes de aplicar los cambios.
+
+#### Traducciones diferentes
+
+Pulsa **Traducciones** para mostrar únicamente los grupos duplicados que contienen dos o más traducciones diferentes para el mismo nombre original.
+
+Las copias sin traducir pueden aparecer dentro de estos grupos para facilitar la comparación, pero una traducción y una copia original sin traducir no se consideran por sí solas un conflicto.
 
 ### Perfiles
 
@@ -87,7 +108,7 @@ Cada perfil mantiene su propia lista de entradas ocultas.
 
 El selector de perfiles permite cambiar el perfil que está editando el GM.
 
-Los botones situados junto al selector permiten:
+El menú de configuración situado junto al selector permite:
 
 * Crear un perfil.
 * Renombrar un perfil.
@@ -140,7 +161,7 @@ Los cambios futuros en la estructura interna de dicho navegador podrían requeri
 
 ## Versión
 
-**0.2.0**
+**0.3.0**
 
 ## Autor
 

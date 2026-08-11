@@ -29,7 +29,10 @@ Forget about spending hours creating and organizing custom compendiums just to c
 * Interface available in English and Spanish.
 * Rename and duplicate profiles.
 * Export and import profiles.
-* Show only duplicate entries within the current browser results.
+* Detect and group duplicate entries within the current browser results.
+* Define a global source priority to decide which duplicate copy to keep.
+* Automatically select lower-priority copies for hiding.
+* Detect duplicate entries with inconsistent translations.
 * Display loading indicators during long operations.
 
 ## Requirements
@@ -76,11 +79,29 @@ Hidden entries appear faded. Disabling the option removes them from the browser 
 
 ### Duplicates
 
-Enable **Duplicates only** to display only entries whose original name matches another entry within the current Compendium Browser results.
+Click **Duplicates** to display only entries whose original name matches another entry within the current Compendium Browser results.
 
 The filter respects the current category, search, sources, and other active browser filters.
 
+Duplicate copies are grouped together to make comparison easier. When translations are available, translated copies are shown first within the group.
+
 When **Hidden** is disabled, hidden entries do not participate in duplicate detection. Enabling it includes hidden entries as well, and they appear faded as usual.
+
+#### Source Priority
+
+Click **Priority** to order sources from the one you prefer to keep to the lowest priority.
+
+The priority is stored globally for the world and is independent of the current browser category or filters.
+
+Click **Apply priority** to automatically select every duplicate copy except the one belonging to the highest-priority source.
+
+This action only changes the selection. Entries are not hidden until you click **Hide**, allowing you to review and manually adjust the selection first.
+
+#### Different Translations
+
+Click **Translations** to display only duplicate groups containing two or more different translations for the same original name.
+
+Untranslated copies may still appear within these groups for comparison, but one translated copy and one untranslated original do not count as a translation conflict by themselves.
 
 ### Profiles
 
@@ -88,7 +109,7 @@ Each profile maintains its own list of hidden entries.
 
 The profile selector changes the profile currently being edited by the GM.
 
-The buttons beside the selector allow the GM to:
+The settings menu beside the selector allows the GM to:
 
 * Create a profile.
 * Rename a profile.
@@ -141,7 +162,7 @@ Future changes to the browser's internal structure may require an update to the 
 
 ## Version
 
-**0.2.0**
+**0.3.0**
 
 ## Author
 
