@@ -994,6 +994,7 @@ async function refreshDuplicateFilter(app) {
     updateCuratorMode(app);
     groupDuplicateItems(app);
     refreshDuplicatesCheckbox(app);
+    refreshDuplicateActions(app);
     refreshToolbar(app);
     refreshLoadingIndicator(app);
 
@@ -1375,6 +1376,7 @@ function createModeToolbar(app) {
         refreshProfileButtons(toolbar);
         refreshPublicProfileButton(toolbar);
         refreshDuplicatesCheckbox(app);
+        refreshDuplicateActions(app);
 
         return toolbar;
 
@@ -1471,6 +1473,24 @@ function createModeToolbar(app) {
             <span>${localize("DuplicatesOnly")}</span>
         </label>
 
+        <button
+            type="button"
+            class="cc-duplicate-priority"
+            hidden
+        >
+            <i class="fa-solid fa-arrow-down-wide-short"></i>
+            ${localize("DuplicatePriority")}
+        </button>
+
+        <button
+            type="button"
+            class="cc-duplicate-apply-priority"
+            hidden
+        >
+            <i class="fa-solid fa-check-double"></i>
+            ${localize("ApplyDuplicatePriority")}
+        </button>
+
         <span class="cc-loading-indicator" hidden>
             <i class="fa-solid fa-spinner fa-spin"></i>
             <span class="cc-loading-text"></span>
@@ -1547,6 +1567,7 @@ function createModeToolbar(app) {
                 restoreDuplicateItemOrder(app, true);
                 updateCuratorMode(app);
                 refreshDuplicatesCheckbox(app);
+                refreshDuplicateActions(app);
                 refreshToolbar(app);
                 refreshLoadingIndicator(app);
 
@@ -2100,6 +2121,7 @@ function createModeToolbar(app) {
     refreshCuratorButton(curatorButton, app);
     refreshHiddenButton(hiddenButton, app);
     refreshDuplicatesCheckbox(app);
+    refreshDuplicateActions(app);
 
     container.appendChild(toolbar);
 
@@ -2388,6 +2410,40 @@ function refreshDuplicatesCheckbox(app) {
             "disabled",
             busy
         );
+
+}
+
+function refreshDuplicateActions(app) {
+
+    const priorityButton =
+        app.element.querySelector(
+            ".cc-duplicate-priority"
+        );
+
+    const applyButton =
+        app.element.querySelector(
+            ".cc-duplicate-apply-priority"
+        );
+
+    if (!priorityButton || !applyButton)
+        return;
+
+    const visible =
+        app._ccDuplicatesOnly;
+
+    priorityButton.hidden = !visible;
+    applyButton.hidden = !visible;
+
+    const busy =
+        app._ccLoadingAllResults ||
+        app._ccCalculatingDuplicates ||
+        app._ccSelectingAll;
+
+    priorityButton.disabled =
+        busy || !app._ccDuplicatesReady;
+
+    applyButton.disabled =
+        busy || !app._ccDuplicatesReady;
 
 }
 

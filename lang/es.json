@@ -11,6 +11,8 @@
     "Hide": "Ocultar",
     "Show": "Mostrar",
     "DuplicatesOnly": "Solo duplicados",
+    "DuplicatePriority": "Prioridad",
+    "ApplyDuplicatePriority": "Aplicar prioridad",
 
     "SelectedOne": "1 seleccionado",
     "SelectedMany": "{count} seleccionados",

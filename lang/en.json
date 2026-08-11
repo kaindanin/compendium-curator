@@ -11,6 +11,8 @@
     "Hide": "Hide",
     "Show": "Restore",
     "DuplicatesOnly": "Duplicates only",
+    "DuplicatePriority": "Priority",
+    "ApplyDuplicatePriority": "Apply priority",
 
     "SelectedOne": "1 selected",
     "SelectedMany": "{count} selected",
