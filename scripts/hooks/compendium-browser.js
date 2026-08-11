@@ -1060,7 +1060,33 @@ async function refreshDuplicateFilter(app) {
         !app._ccDuplicatesOnly ||
         app._ccDuplicateGeneration !== generation
     ) {
+
+        /*
+        * Solo limpiamos el estado si esta sigue siendo
+        * la generación activa. Una generación anterior
+        * nunca debe interferir con un cálculo más reciente.
+        */
+        if (
+            app._ccDuplicatesOnly &&
+            app._ccDuplicateGeneration === generation
+        ) {
+
+            app._ccCalculatingDuplicates = false;
+            app._ccDuplicatesReady = false;
+            app._ccDuplicateUuids = new Set();
+            app._ccTranslationConflictUuids =
+                new Set();
+
+            updateCuratorMode(app);
+            refreshDuplicatesButton(app);
+            refreshDuplicateActions(app);
+            refreshToolbar(app);
+            refreshLoadingIndicator(app);
+
+        }
+
         return false;
+
     }
 
     const duplicateUuids =
@@ -2809,21 +2835,13 @@ function createModeToolbar(app) {
 
     deleteProfileButton.addEventListener("click", async () => {
 
-        const activeProfile = StorageService.getActiveProfileId();
-        const activeProfileName = StorageService.getProfileName(activeProfile);
-        const content = document.createElement("div");
-        const paragraph = document.createElement("p");
-        const profileName = document.createElement("strong");
+        const activeProfile =
+            StorageService.getActiveProfileId();
 
-        profileName.textContent = activeProfileName;
-
-        paragraph.append(
-            "¿Eliminar el perfil ",
-            profileName,
-            "? Todas sus reglas se perderán."
-        );
-
-        content.appendChild(paragraph);
+        const activeProfileName =
+            StorageService.getProfileName(
+                activeProfile
+            );
 
         const confirmed =
             await foundry.applications.api.DialogV2.confirm({
