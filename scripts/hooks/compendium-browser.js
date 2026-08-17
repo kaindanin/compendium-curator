@@ -148,6 +148,9 @@ function onRenderCompendiumBrowser(app) {
     app._ccDuplicateRefreshTimer ??= null;
     app._ccCalculatingDuplicates ??= false;
     app._ccSelectingAll ??= false;
+    app._ccFillingVisibleResults ??= false;
+    app._ccFillVisiblePromise ??= null;
+    app._ccVisibleFillTimer ??= null;
     app._ccDuplicateOriginalOrder = new Map();
 
     /*
@@ -324,6 +327,7 @@ function updateCuratorMode(app) {
 
     createMasterCheckbox(app);
     refreshMasterCheckbox(app);
+    scheduleVisibleResultsFill(app);
 
 }
 
@@ -1179,7 +1183,190 @@ function waitForNextResultsBatch(
 
 }
 
+function scheduleVisibleResultsFill(app) {
+
+    clearTimeout(
+        app._ccVisibleFillTimer
+    );
+
+    /*
+     * Si mostramos los ocultos no hay huecos que rellenar.
+     *
+     * El modo Duplicados ya carga todos los resultados
+     * necesarios mediante su propio proceso.
+     */
+    if (
+        app._ccShowHidden ||
+        app._ccDuplicatesOnly ||
+        app._ccResultsFullyLoaded ||
+        app._ccLoadingAllResults
+    ) {
+        return;
+    }
+
+    app._ccVisibleFillTimer =
+        setTimeout(() => {
+
+            void ensureVisibleResultsFilled(app);
+
+        }, 50);
+
+}
+
+async function ensureVisibleResultsFilled(app) {
+
+    if (
+        app._ccShowHidden ||
+        app._ccDuplicatesOnly ||
+        app._ccResultsFullyLoaded
+    ) {
+        return true;
+    }
+
+    if (app._ccFillVisiblePromise)
+        return app._ccFillVisiblePromise;
+
+    const promise = (async () => {
+
+        const results =
+            app.element.querySelector(
+                '[data-application-part="results"]'
+            );
+
+        const itemList =
+            results?.querySelector(
+                ".item-list"
+            );
+
+        if (!results || !itemList)
+            return false;
+
+        const originalScrollTop =
+            results.scrollTop;
+
+        app._ccFillingVisibleResults = true;
+
+        try {
+
+            await waitForPaint();
+
+            while (
+                results.isConnected &&
+                itemList.isConnected
+            ) {
+
+                /*
+                 * Otro modo puede haber tomado el control
+                 * mientras esperábamos un nuevo lote.
+                 */
+                if (
+                    app._ccShowHidden ||
+                    app._ccDuplicatesOnly ||
+                    app._ccLoadingAllResults
+                ) {
+                    return true;
+                }
+
+                /*
+                 * Ya existe suficiente contenido visible
+                 * para que el navegador tenga scroll normal.
+                 */
+                if (
+                    results.scrollHeight >
+                    results.clientHeight + 1
+                ) {
+                    return true;
+                }
+
+                const previousCount =
+                    itemList.querySelectorAll(
+                        ":scope > .item[data-uuid]"
+                    ).length;
+
+                const batchPromise =
+                    waitForNextResultsBatch(
+                        itemList,
+                        previousCount
+                    );
+
+                /*
+                 * Simulamos alcanzar el final para pedir
+                 * únicamente el siguiente lote a D&D5e.
+                 */
+                results.scrollTop =
+                    results.scrollHeight;
+
+                results.dispatchEvent(
+                    new Event("scroll")
+                );
+
+                results.scrollTop =
+                    originalScrollTop;
+
+                const loadedBatch =
+                    await batchPromise;
+
+                /*
+                 * Si no aparece otro lote, realmente hemos
+                 * alcanzado el final de los resultados.
+                 */
+                if (!loadedBatch) {
+
+                    app._ccResultsFullyLoaded = true;
+
+                    return true;
+
+                }
+
+                /*
+                 * Dejamos que MutationObserver aplique
+                 * Curator a las nuevas entradas antes de
+                 * comprobar de nuevo la altura visible.
+                 */
+                await waitForPaint();
+
+            }
+
+            return false;
+
+        }
+        finally {
+
+            if (results.isConnected)
+                results.scrollTop =
+                    originalScrollTop;
+
+            app._ccFillingVisibleResults =
+                false;
+
+        }
+
+    })();
+
+    app._ccFillVisiblePromise = promise;
+
+    try {
+
+        return await promise;
+
+    }
+    finally {
+
+        if (
+            app._ccFillVisiblePromise ===
+            promise
+        ) {
+            app._ccFillVisiblePromise = null;
+        }
+
+    }
+
+}
+
 async function ensureAllResultsLoaded(app) {
+
+    if (app._ccFillVisiblePromise)
+        await app._ccFillVisiblePromise;
 
     if (app._ccResultsFullyLoaded)
         return true;
