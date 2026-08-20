@@ -3,6 +3,10 @@ import {
 } from "../services/table-profile-service.js";
 
 import {
+    TableProfileStorageService
+} from "../services/table-profile-storage-service.js";
+
+import {
     activateDnd5eDocumentEntries,
     prepareDnd5eDocumentEntries
 } from "../ui/dnd5e-document-list.js";
@@ -31,9 +35,11 @@ export class TableFilterGroupDetailsApplication
             browserApp;
 
         this.profile =
-            foundry.utils.deepClone(
-                profile
-            );
+            profile
+                ? foundry.utils.deepClone(
+                    profile
+                )
+                : null;
 
         this.filterGroup =
             foundry.utils.deepClone(
@@ -41,7 +47,7 @@ export class TableFilterGroupDetailsApplication
             );
 
         this.profileId =
-            profile.id;
+            profile?.id ?? null;
 
         this.filterGroupId =
             filterGroup.id;
@@ -89,10 +95,11 @@ export class TableFilterGroupDetailsApplication
                 options
             );
 
-        const profile =
-            this.profile;
-
         const filterGroup =
+            TableProfileStorageService
+                .getFilterGroup(
+                    this.filterGroupId
+                ) ??
             this.filterGroup;
 
         if (!filterGroup) {
@@ -110,14 +117,42 @@ export class TableFilterGroupDetailsApplication
         context.groupName =
             filterGroup.name;
 
-        context.profileName =
-            profile.name;
+        const profiles =
+            Object.values(
+                TableProfileStorageService
+                    .getProfiles()
+            );
 
-        /*
-         * Los bloques proceden directamente
-         * de las definiciones del navegador
-         * de D&D5e.
-         */
+        context.usedBy =
+            profiles
+                .filter(profile =>
+                    Array.isArray(
+                        profile.filterGroups
+                    ) &&
+                    profile.filterGroups
+                        .some(group =>
+                            group.id ===
+                            filterGroup.id
+                        )
+                )
+                .map(profile => ({
+                    id: profile.id,
+                    name: profile.name
+                }))
+                .sort((a, b) =>
+                    String(a.name ?? "")
+                        .localeCompare(
+                            String(b.name ?? ""),
+                            game.i18n.lang,
+                            {
+                                sensitivity: "base"
+                            }
+                        )
+                );
+
+        context.hasUsage =
+            context.usedBy.length > 0;
+
         context.filterGroups =
             TableProfileService
                 .getFilterDisplayGroups(
@@ -133,9 +168,6 @@ export class TableFilterGroupDetailsApplication
                 .filterGroups
                 .length > 0;
 
-        /*
-         * Coincidencias guardadas.
-         */
         const matchUuids =
             Array.isArray(
                 filterGroup.matches

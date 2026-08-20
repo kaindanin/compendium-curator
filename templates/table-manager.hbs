@@ -51,7 +51,6 @@
 
     <nav
         class="tabs"
-        style="margin: 0 1rem 0.8rem;"
         aria-label="{{localize 'COMPENDIUM_CURATOR.TableManagerTitle'}}"
     >
 
@@ -105,10 +104,7 @@
 
     <div class="cc-table-profile-list">
 
-        <div
-            class="filter-element"
-            style="margin-bottom: 0.8rem;"
-        >
+        <div class="filter-element">
 
             <search
                 aria-label="{{searchLabel}}"
@@ -142,10 +138,7 @@
 
         {{#if isFilterGroupsTab}}
 
-            <div
-                class="cc-table-manager-profiles"
-                style="gap: 0.85rem;"
-            >
+            <div class="cc-table-manager-profiles">
 
                 {{#if hasFilterGroups}}
 
@@ -153,6 +146,7 @@
 
                         <div
                             class="cc-table-manager-profile"
+                            data-profile-id="{{usedBy.[0].id}}"
                             data-filter-group-id="{{id}}"
                             data-cc-search-text="{{searchText}}"
                         >
@@ -168,11 +162,6 @@
                                 <span>
                                     <i class="fas fa-filter"></i>
                                     {{matchesLabel}}
-
-                                    ·
-
-                                    <i class="fas fa-link"></i>
-                                    {{usageLabel}}
                                 </span>
 
                                 {{#if usedBy.length}}
@@ -186,7 +175,7 @@
                                             <div
                                                 class="cc-table-manager-filter-group"
                                             >
-                                                <i class="fas fa-table"></i>
+                                                <i class="fas fa-link"></i>
 
                                                 <span>
                                                     {{name}}
@@ -197,7 +186,57 @@
 
                                     </div>
 
+                                {{else}}
+
+                                    <p class="hint">
+                                        {{localize
+                                            "COMPENDIUM_CURATOR.FilterGroupUnused"
+                                        }}
+                                    </p>
+
                                 {{/if}}
+
+                            </div>
+
+                            <div
+                                class="cc-table-manager-profile-status"
+                            >
+                                {{usageLabel}}
+                            </div>
+
+                            <div
+                                class="cc-table-manager-actions"
+                            >
+
+                                <button
+                                    type="button"
+                                    class="cc-table-manager-filter-group-control"
+                                    data-action="filterGroupDetails"
+                                    title="{{localize 'COMPENDIUM_CURATOR.FilterGroupDetails'}}"
+                                    {{#unless usedBy.length}}disabled{{/unless}}
+                                >
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    class="cc-table-manager-filter-group-control"
+                                    data-action="refreshFilterGroup"
+                                    title="{{localize 'COMPENDIUM_CURATOR.RefreshFilterGroup'}}"
+                                    {{#unless usedBy.length}}disabled{{/unless}}
+                                >
+                                    <i class="fas fa-arrows-rotate"></i>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    class="cc-table-manager-filter-group-control"
+                                    data-action="loadFilterGroup"
+                                    title="{{localize 'COMPENDIUM_CURATOR.LoadFilterGroupFilters'}}"
+                                    {{#unless usedBy.length}}disabled{{/unless}}
+                                >
+                                    <i class="fas fa-arrow-up-from-bracket"></i>
+                                </button>
 
                             </div>
 
@@ -209,8 +248,8 @@
 
                     <p class="cc-table-manager-empty">
                         {{localize
-                            "COMPENDIUM_CURATOR.FilterGroups"
-                        }}: 0
+                            "COMPENDIUM_CURATOR.NoFilterGroups"
+                        }}
                     </p>
 
                 {{/if}}
@@ -219,10 +258,7 @@
 
         {{else}}
 
-            <div
-                class="cc-table-manager-profiles"
-                style="gap: 0.85rem;"
-            >
+            <div class="cc-table-manager-profiles">
 
                 {{#if hasProfiles}}
 
@@ -272,49 +308,10 @@
                                                 <button
                                                     type="button"
                                                     class="cc-table-manager-filter-group-control"
-                                                    data-action="filterGroupDetails"
-                                                    title="{{
-                                                        localize
-                                                            'COMPENDIUM_CURATOR.FilterGroupDetails'
-                                                    }}"
-                                                >
-                                                    <i class="fas fa-info-circle"></i>
-                                                </button>
-
-                                                <button
-                                                    type="button"
-                                                    class="cc-table-manager-filter-group-control"
-                                                    data-action="refreshFilterGroup"
-                                                    title="{{
-                                                        localize
-                                                            'COMPENDIUM_CURATOR.RefreshFilterGroup'
-                                                    }}"
-                                                >
-                                                    <i class="fas fa-arrows-rotate"></i>
-                                                </button>
-
-                                                <button
-                                                    type="button"
-                                                    class="cc-table-manager-filter-group-control"
-                                                    data-action="loadFilterGroup"
-                                                    title="{{
-                                                        localize
-                                                            'COMPENDIUM_CURATOR.LoadFilterGroupFilters'
-                                                    }}"
-                                                >
-                                                    <i class="fas fa-arrow-up-from-bracket"></i>
-                                                </button>
-
-                                                <button
-                                                    type="button"
-                                                    class="cc-table-manager-filter-group-control"
                                                     data-action="deleteFilterGroup"
-                                                    title="{{
-                                                        localize
-                                                            'COMPENDIUM_CURATOR.DeleteFilterGroup'
-                                                    }}"
+                                                    title="{{localize 'COMPENDIUM_CURATOR.UnlinkFilterGroup'}}"
                                                 >
-                                                    <i class="fas fa-trash"></i>
+                                                    <i class="fas fa-link-slash"></i>
                                                 </button>
 
                                             </div>

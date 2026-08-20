@@ -10,9 +10,45 @@
                 {{groupName}}
             </h2>
 
-            <p class="hint">
-                {{profileName}}
-            </p>
+            <div class="cc-table-filter-group-usage">
+
+                <strong>
+                    {{localize
+                        "COMPENDIUM_CURATOR.FilterGroupUsedBy"
+                    }}
+                </strong>
+
+                {{#if hasUsage}}
+
+                    <div class="cc-table-manager-filter-groups">
+
+                        {{#each usedBy}}
+
+                            <div
+                                class="cc-table-manager-filter-group"
+                            >
+                                <i class="fas fa-link"></i>
+
+                                <span>
+                                    {{name}}
+                                </span>
+                            </div>
+
+                        {{/each}}
+
+                    </div>
+
+                {{else}}
+
+                    <p class="hint">
+                        {{localize
+                            "COMPENDIUM_CURATOR.FilterGroupUnused"
+                        }}
+                    </p>
+
+                {{/if}}
+
+            </div>
 
         </header>
 
