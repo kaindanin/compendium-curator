@@ -146,7 +146,6 @@
 
                         <div
                             class="cc-table-manager-profile"
-                            data-profile-id="{{usedBy.[0].id}}"
                             data-filter-group-id="{{id}}"
                             data-cc-search-text="{{searchText}}"
                         >
@@ -205,7 +204,7 @@
                             </div>
 
                             <div
-                                class="cc-table-manager-actions"
+                                class="cc-table-manager-filter-group-actions"
                             >
 
                                 <button
@@ -213,7 +212,6 @@
                                     class="cc-table-manager-filter-group-control"
                                     data-action="filterGroupDetails"
                                     title="{{localize 'COMPENDIUM_CURATOR.FilterGroupDetails'}}"
-                                    {{#unless usedBy.length}}disabled{{/unless}}
                                 >
                                     <i class="fas fa-info-circle"></i>
                                 </button>
@@ -223,7 +221,6 @@
                                     class="cc-table-manager-filter-group-control"
                                     data-action="refreshFilterGroup"
                                     title="{{localize 'COMPENDIUM_CURATOR.RefreshFilterGroup'}}"
-                                    {{#unless usedBy.length}}disabled{{/unless}}
                                 >
                                     <i class="fas fa-arrows-rotate"></i>
                                 </button>
@@ -233,10 +230,71 @@
                                     class="cc-table-manager-filter-group-control"
                                     data-action="loadFilterGroup"
                                     title="{{localize 'COMPENDIUM_CURATOR.LoadFilterGroupFilters'}}"
-                                    {{#unless usedBy.length}}disabled{{/unless}}
                                 >
                                     <i class="fas fa-arrow-up-from-bracket"></i>
                                 </button>
+
+                                <div
+                                    class="cc-table-manager-profile-menu-wrapper"
+                                >
+
+                                    <button
+                                        type="button"
+                                        class="cc-table-manager-profile-menu-toggle"
+                                        data-action="toggleProfileActions"
+                                    >
+                                        <i class="fas fa-gear"></i>
+
+                                        {{localize
+                                            "COMPENDIUM_CURATOR.Actions"
+                                        }}
+                                    </button>
+
+                                    <div
+                                        class="cc-table-manager-profile-menu"
+                                        hidden
+                                    >
+
+                                        <button
+                                            type="button"
+                                            data-action="renameFilterGroup"
+                                        >
+                                            <i class="fas fa-pen"></i>
+
+                                            {{localize
+                                                "COMPENDIUM_CURATOR.RenameFilterGroup"
+                                            }}
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            data-action="duplicateFilterGroup"
+                                        >
+                                            <i class="fas fa-copy"></i>
+
+                                            {{localize
+                                                "COMPENDIUM_CURATOR.DuplicateFilterGroup"
+                                            }}
+                                        </button>
+
+                                        <div
+                                            class="cc-table-manager-profile-menu-separator"
+                                        ></div>
+
+                                        <button
+                                            type="button"
+                                            data-action="deleteGlobalFilterGroup"
+                                        >
+                                            <i class="fas fa-trash"></i>
+
+                                            {{localize
+                                                "COMPENDIUM_CURATOR.DeleteFilterGroup"
+                                            }}
+                                        </button>
+
+                                    </div>
+
+                                </div>
 
                             </div>
 
@@ -308,7 +366,7 @@
                                                 <button
                                                     type="button"
                                                     class="cc-table-manager-filter-group-control"
-                                                    data-action="deleteFilterGroup"
+                                                    data-action="unlinkFilterGroup"
                                                     title="{{localize 'COMPENDIUM_CURATOR.UnlinkFilterGroup'}}"
                                                 >
                                                     <i class="fas fa-link-slash"></i>

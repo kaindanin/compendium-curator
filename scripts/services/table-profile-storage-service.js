@@ -345,25 +345,30 @@ export class TableProfileStorageService {
 
 
         const profile =
-            storage.profiles
-                ?.[profileId];
+            profileId
+                ? storage.profiles
+                    ?.[profileId]
+                : null;
 
 
+        /*
+         * profileId se mantiene por
+         * compatibilidad con las llamadas
+         * anteriores. Los grupos son recursos
+         * globales, por lo que también pueden
+         * actualizarse sin estar enlazados a
+         * ningún perfil.
+         */
         if (
-            !profile ||
-            profile.version !== 2
-        ) {
-            throw new Error(
-                "TABLE_PROFILE_NOT_FOUND"
-            );
-        }
-
-
-        if (
-            !Array.from(
-                profile.filterGroupIds ?? []
-            ).includes(
-                filterGroupId
+            profileId &&
+            (
+                !profile ||
+                profile.version !== 2 ||
+                !Array.from(
+                    profile.filterGroupIds ?? []
+                ).includes(
+                    filterGroupId
+                )
             )
         ) {
             throw new Error(
@@ -525,12 +530,14 @@ export class TableProfileStorageService {
 
         return {
             profile:
-                this.#hydrateProfile(
-                    storage.profiles[
-                        profileId
-                    ],
-                    storage
-                ),
+                profile
+                    ? this.#hydrateProfile(
+                        storage.profiles[
+                            profileId
+                        ],
+                        storage
+                    )
+                    : null,
 
             filterGroup:
                 foundry.utils.deepClone(
@@ -977,6 +984,263 @@ export class TableProfileStorageService {
 
     }
 
+
+    static getFilterGroupUsage(
+        filterGroupId
+    ) {
+
+        const storage =
+            this.getStorage();
+
+
+        return Object.values(
+            storage.profiles ?? {}
+        )
+            .filter(profile =>
+                Array.from(
+                    profile.filterGroupIds ?? []
+                ).includes(
+                    filterGroupId
+                )
+            )
+            .map(profile => ({
+                id: profile.id,
+                name: profile.name,
+                type: profile.type
+            }));
+
+    }
+
+
+    static async renameFilterGroup(
+        filterGroupId,
+        name
+    ) {
+
+        const normalizedName =
+            String(
+                name ?? ""
+            ).trim();
+
+
+        if (!normalizedName) {
+            throw new Error(
+                "FILTER_GROUP_NAME_REQUIRED"
+            );
+        }
+
+
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+
+
+        const filterGroup =
+            storage.filterGroups
+                ?.[filterGroupId];
+
+
+        if (!filterGroup) {
+            throw new Error(
+                "TABLE_FILTER_GROUP_NOT_FOUND"
+            );
+        }
+
+
+        if (
+            this.isFilterGroupNameTaken(
+                null,
+                normalizedName,
+                filterGroupId
+            )
+        ) {
+            throw new Error(
+                "FILTER_GROUP_NAME_TAKEN"
+            );
+        }
+
+
+        if (
+            filterGroup.name ===
+            normalizedName
+        ) {
+            return filterGroup;
+        }
+
+
+        /*
+         * El nombre es metadato del recurso.
+         * No cambia las coincidencias ni los
+         * pesos de ninguna tabla, así que no
+         * incrementamos revisiones.
+         */
+        filterGroup.name =
+            normalizedName;
+
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+
+        return foundry.utils.deepClone(
+            filterGroup
+        );
+
+    }
+
+
+    static async duplicateFilterGroup(
+        filterGroupId,
+        name
+    ) {
+
+        const normalizedName =
+            String(
+                name ?? ""
+            ).trim();
+
+
+        if (!normalizedName) {
+            throw new Error(
+                "FILTER_GROUP_NAME_REQUIRED"
+            );
+        }
+
+
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+
+
+        const source =
+            storage.filterGroups
+                ?.[filterGroupId];
+
+
+        if (!source) {
+            throw new Error(
+                "TABLE_FILTER_GROUP_NOT_FOUND"
+            );
+        }
+
+
+        if (
+            this.isFilterGroupNameTaken(
+                null,
+                normalizedName
+            )
+        ) {
+            throw new Error(
+                "FILTER_GROUP_NAME_TAKEN"
+            );
+        }
+
+
+        let id;
+
+        do {
+            id = foundry.utils.randomID();
+        }
+        while (
+            storage.filterGroups?.[id]
+        );
+
+
+        const duplicate =
+            foundry.utils.deepClone(
+                source
+            );
+
+
+        duplicate.id = id;
+        duplicate.name = normalizedName;
+        duplicate.revision = 1;
+
+
+        storage.filterGroups ??= {};
+        storage.filterGroups[id] =
+            duplicate;
+
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+
+        return foundry.utils.deepClone(
+            duplicate
+        );
+
+    }
+
+
+    static async deleteGlobalFilterGroup(
+        filterGroupId
+    ) {
+
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+
+
+        const filterGroup =
+            storage.filterGroups
+                ?.[filterGroupId];
+
+
+        if (!filterGroup) {
+            throw new Error(
+                "TABLE_FILTER_GROUP_NOT_FOUND"
+            );
+        }
+
+
+        const usage =
+            Object.values(
+                storage.profiles ?? {}
+            )
+                .filter(profile =>
+                    Array.from(
+                        profile.filterGroupIds ?? []
+                    ).includes(
+                        filterGroupId
+                    )
+                );
+
+
+        if (usage.length > 0) {
+            throw new Error(
+                "FILTER_GROUP_IN_USE"
+            );
+        }
+
+
+        delete storage.filterGroups[
+            filterGroupId
+        ];
+
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+
+        return foundry.utils.deepClone(
+            filterGroup
+        );
+
+    }
+
     static isNameTaken(name, excludeId = null) {
 
         const normalizedName =
@@ -1305,7 +1569,7 @@ export class TableProfileStorageService {
 
     }
 
-        static async removeFilterGroup(
+    static async removeFilterGroup(
         profileId,
         filterGroupId
     ) {
