@@ -48,6 +48,7 @@
   ],
 
   "styles": [
-    "styles/compendium-curator.css"
+    "styles/compendium-curator.css",
+    "styles/table-manager-tabs.css"
   ]
 }
