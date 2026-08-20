@@ -2,7 +2,6 @@ import { debug } from "./debug.js";
 import { registerSettings } from "./settings.js";
 import { registerCompendiumBrowserHooks } from "./hooks/compendium-browser.js";
 import { StorageService } from "./services/storage-service.js";
-import { registerTableManagerTabs } from "./ui/table-manager-tabs.js";
 
 Hooks.once("init", () => {
 
@@ -10,7 +9,6 @@ Hooks.once("init", () => {
 
     registerSettings();
     registerCompendiumBrowserHooks();
-    registerTableManagerTabs();
 
     debug("Settings registradas");
 
