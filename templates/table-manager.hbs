@@ -51,6 +51,7 @@
 
     <nav
         class="tabs"
+        style="margin: 0 1rem 0.8rem;"
         aria-label="{{localize 'COMPENDIUM_CURATOR.TableManagerTitle'}}"
     >
 
@@ -61,7 +62,7 @@
             data-tab="content"
         >
             {{localize
-                "COMPENDIUM_CURATOR.TableProfileTypeContent"
+                "COMPENDIUM_CURATOR.TableManagerTabContent"
             }}
 
             <span>
@@ -76,7 +77,7 @@
             data-tab="nested"
         >
             {{localize
-                "COMPENDIUM_CURATOR.TableProfileTypeNested"
+                "COMPENDIUM_CURATOR.TableManagerTabNested"
             }}
 
             <span>
@@ -91,7 +92,7 @@
             data-tab="filters"
         >
             {{localize
-                "COMPENDIUM_CURATOR.FilterGroups"
+                "COMPENDIUM_CURATOR.TableManagerTabFilterGroups"
             }}
 
             <span>
@@ -104,7 +105,10 @@
 
     <div class="cc-table-profile-list">
 
-        <div class="filter-element">
+        <div
+            class="filter-element"
+            style="margin-bottom: 0.8rem;"
+        >
 
             <search
                 aria-label="{{searchLabel}}"
@@ -138,7 +142,10 @@
 
         {{#if isFilterGroupsTab}}
 
-            <div class="cc-table-manager-profiles">
+            <div
+                class="cc-table-manager-profiles"
+                style="gap: 0.85rem;"
+            >
 
                 {{#if hasFilterGroups}}
 
@@ -212,7 +219,10 @@
 
         {{else}}
 
-            <div class="cc-table-manager-profiles">
+            <div
+                class="cc-table-manager-profiles"
+                style="gap: 0.85rem;"
+            >
 
                 {{#if hasProfiles}}
 
