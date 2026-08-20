@@ -68,6 +68,8 @@
     "TableProfiles": "Perfiles de tabla",
     "TableProfilesHint": "Crea y administra perfiles reutilizables para generar RollTables.",
     "CreateTableProfile": "Crear perfil",
+    "CreateFilterGroup": "Crear grupo de filtros",
+    "ManageFilterGroups": "Gestionar grupos de filtros",
     "NoTableProfiles": "Todavía no hay perfiles de tabla.",
     "NewTableProfile": "Nuevo perfil de tabla",
     "LivePreview": "Vista previa en vivo",

@@ -18,7 +18,20 @@
 
         <div class="cc-table-manager-actions">
 
-            {{#unless isFilterGroupsTab}}
+            {{#if isFilterGroupsTab}}
+
+                <button
+                    type="button"
+                    data-action="createProfile"
+                >
+                    <i class="fas fa-plus"></i>
+
+                    {{localize
+                        "COMPENDIUM_CURATOR.CreateFilterGroup"
+                    }}
+                </button>
+
+            {{else}}
 
                 <button
                     type="button"
@@ -31,7 +44,7 @@
                     }}
                 </button>
 
-            {{/unless}}
+            {{/if}}
 
             <button
                 type="button"
@@ -458,10 +471,10 @@
                                             type="button"
                                             data-action="addCurrentFilters"
                                         >
-                                            <i class="fas fa-plus"></i>
+                                            <i class="fas fa-filter"></i>
 
                                             {{localize
-                                                "COMPENDIUM_CURATOR.AddCurrentFilters"
+                                                "COMPENDIUM_CURATOR.ManageFilterGroups"
                                             }}
                                         </button>
 

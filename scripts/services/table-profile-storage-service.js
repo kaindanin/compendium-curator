@@ -5,9 +5,169 @@ import {
 
 export class TableProfileStorageService {
 
-    static #normalizeStorage(
-        rawStorage
+    static #normalizeComparableName(value) {
+
+        return String(value ?? "")
+            .trim()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLocaleLowerCase();
+
+    }
+
+
+    static #isProfileNameTakenInStorage(
+        storage,
+        name,
+        excludeId = null
     ) {
+
+        const normalizedName =
+            this.#normalizeComparableName(name);
+
+        if (!normalizedName)
+            return false;
+
+        return Object.entries(
+            storage.profiles ?? {}
+        ).some(([profileId, profile]) => {
+
+            if (
+                excludeId &&
+                (
+                    profileId === excludeId ||
+                    profile?.id === excludeId
+                )
+            ) {
+                return false;
+            }
+
+            return (
+                this.#normalizeComparableName(
+                    profile?.name
+                ) === normalizedName
+            );
+
+        });
+
+    }
+
+
+    static #isFilterGroupNameTakenInStorage(
+        storage,
+        name,
+        excludeId = null
+    ) {
+
+        const normalizedName =
+            this.#normalizeComparableName(name);
+
+        if (!normalizedName)
+            return false;
+
+        return Object.entries(
+            storage.filterGroups ?? {}
+        ).some(([filterGroupId, filterGroup]) => {
+
+            if (
+                excludeId &&
+                (
+                    filterGroupId === excludeId ||
+                    filterGroup?.id === excludeId
+                )
+            ) {
+                return false;
+            }
+
+            return (
+                this.#normalizeComparableName(
+                    filterGroup?.name
+                ) === normalizedName
+            );
+
+        });
+
+    }
+
+
+    static #normalizeMatches(uuids) {
+
+        const matches = [
+            ...new Set(
+                Array.from(uuids ?? [])
+                    .map(uuid =>
+                        String(uuid ?? "").trim()
+                    )
+                    .filter(Boolean)
+            )
+        ];
+
+        matches.sort();
+
+        return matches;
+
+    }
+
+
+    static #createFilterGroupRecord(
+        storage,
+        filterGroup
+    ) {
+
+        const name =
+            String(filterGroup?.name ?? "").trim();
+
+        if (!name) {
+            throw new Error(
+                "FILTER_GROUP_NAME_REQUIRED"
+            );
+        }
+
+        if (
+            this.#isFilterGroupNameTakenInStorage(
+                storage,
+                name
+            )
+        ) {
+            throw new Error(
+                "FILTER_GROUP_NAME_TAKEN"
+            );
+        }
+
+        storage.filterGroups ??= {};
+
+        let id;
+
+        do {
+            id = foundry.utils.randomID();
+        }
+        while (storage.filterGroups[id]);
+
+        const storedGroup = {
+            id,
+            name,
+            revision: 1,
+            browser:
+                foundry.utils.deepClone(
+                    filterGroup.browser ?? {}
+                ),
+            matches:
+                this.#normalizeMatches(
+                    filterGroup.matches
+                ),
+            refreshedAt:
+                Date.now()
+        };
+
+        storage.filterGroups[id] =
+            storedGroup;
+
+        return storedGroup;
+
+    }
+
+
+    static #normalizeStorage(rawStorage) {
 
         const source =
             foundry.utils.deepClone(
@@ -19,22 +179,14 @@ export class TableProfileStorageService {
 
         const storage = {
             ...source,
-
             version: 3,
-
             profiles: {},
-
             filterGroups:
                 foundry.utils.deepClone(
                     source.filterGroups ?? {}
                 )
         };
 
-
-        /*
-         * Normalizar grupos que ya estén
-         * almacenados de forma independiente.
-         */
         for (
             const [groupId, sourceGroup]
             of Object.entries(
@@ -42,31 +194,21 @@ export class TableProfileStorageService {
             )
         ) {
 
-            storage.filterGroups[
-                groupId
-            ] = {
+            storage.filterGroups[groupId] = {
                 ...sourceGroup,
-
-                id:
-                    groupId,
-
+                id: groupId,
                 revision:
                     Number(
-                        sourceGroup
-                            ?.revision ?? 1
+                        sourceGroup?.revision ?? 1
                     )
             };
 
         }
 
-
         const usedGroupIds =
             new Set(
-                Object.keys(
-                    storage.filterGroups
-                )
+                Object.keys(storage.filterGroups)
             );
-
 
         for (
             const [profileId, sourceProfile]
@@ -77,29 +219,26 @@ export class TableProfileStorageService {
 
             if (
                 !sourceProfile ||
-                typeof sourceProfile !==
-                    "object"
+                typeof sourceProfile !== "object"
             ) {
                 continue;
             }
-
 
             const profile =
                 foundry.utils.deepClone(
                     sourceProfile
                 );
 
-
-            profile.id ??=
-                profileId;
-
+            /*
+             * La clave del almacenamiento es
+             * siempre el ID canónico. Esto evita
+             * perfiles fantasma si una versión
+             * antigua dejó un id interno distinto.
+             */
+            profile.id = profileId;
 
             let filterGroupIds = [];
 
-
-            /*
-             * Perfil ya migrado.
-             */
             if (
                 Array.isArray(
                     profile.filterGroupIds
@@ -109,27 +248,15 @@ export class TableProfileStorageService {
                 filterGroupIds =
                     profile.filterGroupIds
                         .map(id =>
-                            String(
-                                id ?? ""
-                            ).trim()
+                            String(id ?? "").trim()
                         )
                         .filter(id =>
                             Boolean(
-                                storage
-                                    .filterGroups
-                                    ?.[id]
+                                storage.filterGroups?.[id]
                             )
                         );
 
             }
-
-
-            /*
-             * Perfil antiguo:
-             * extraemos los grupos embebidos
-             * y los convertimos en recursos
-             * independientes.
-             */
             else if (
                 Array.isArray(
                     profile.filterGroups
@@ -143,144 +270,89 @@ export class TableProfileStorageService {
 
                     if (
                         !sourceGroup ||
-                        typeof sourceGroup !==
-                            "object"
+                        typeof sourceGroup !== "object"
                     ) {
                         continue;
                     }
-
 
                     let groupId =
                         String(
                             sourceGroup.id ?? ""
                         ).trim();
 
-
-                    /*
-                     * Conservamos el ID antiguo
-                     * siempre que sea posible.
-                     *
-                     * Una colisión significa que
-                     * dos grupos antiguos distintos
-                     * compartían accidentalmente ID.
-                     */
                     if (
                         !groupId ||
-                        usedGroupIds.has(
-                            groupId
-                        )
+                        usedGroupIds.has(groupId)
                     ) {
 
                         do {
-
                             groupId =
-                                foundry.utils
-                                    .randomID();
-
+                                foundry.utils.randomID();
                         }
                         while (
-                            usedGroupIds.has(
-                                groupId
-                            )
+                            usedGroupIds.has(groupId)
                         );
 
                     }
 
+                    usedGroupIds.add(groupId);
 
-                    usedGroupIds.add(
-                        groupId
-                    );
-
-
-                    storage.filterGroups[
-                        groupId
-                    ] = {
-                        ...foundry.utils
-                            .deepClone(
-                                sourceGroup
-                            ),
-
-                        id:
-                            groupId,
-
+                    storage.filterGroups[groupId] = {
+                        ...foundry.utils.deepClone(
+                            sourceGroup
+                        ),
+                        id: groupId,
                         revision:
                             Number(
-                                sourceGroup
-                                    .revision ?? 1
+                                sourceGroup.revision ?? 1
                             )
                     };
 
-
-                    filterGroupIds.push(
-                        groupId
-                    );
+                    filterGroupIds.push(groupId);
 
                 }
 
             }
 
+            profile.filterGroupIds = [
+                ...new Set(filterGroupIds)
+            ];
 
-            profile.filterGroupIds =
-                [
-                    ...new Set(
-                        filterGroupIds
-                    )
-                ];
-
-
-            /*
-             * Desde v3 los grupos ya no viven
-             * dentro del perfil almacenado.
-             */
             delete profile.filterGroups;
 
-
-            storage.profiles[
-                profileId
-            ] = profile;
+            storage.profiles[profileId] =
+                profile;
 
         }
-
 
         return storage;
 
     }
 
 
-    static #hydrateProfile(
-        profile,
-        storage
-    ) {
+    static #hydrateProfile(profile, storage) {
 
         if (!profile)
             return null;
 
-
         const hydrated =
-            foundry.utils.deepClone(
-                profile
-            );
-
+            foundry.utils.deepClone(profile);
 
         hydrated.filterGroups =
             Array.from(
                 profile.filterGroupIds ?? []
             )
-                .map(
-                    filterGroupId =>
-                        storage
-                            .filterGroups
-                            ?.[filterGroupId]
+                .map(filterGroupId =>
+                    storage.filterGroups?.[
+                        filterGroupId
+                    ]
                 )
                 .filter(Boolean)
-                .map(
-                    filterGroup =>
-                        foundry.utils
-                            .deepClone(
-                                filterGroup
-                            )
+                .map(filterGroup =>
+                    foundry.utils.deepClone(
+                        filterGroup
+                    )
                 );
-
 
         return hydrated;
 
@@ -298,12 +370,8 @@ export class TableProfileStorageService {
                 profiles: {}
             };
 
-
         const migrated =
-            this.#normalizeStorage(
-                current
-            );
-
+            this.#normalizeStorage(current);
 
         if (
             foundry.utils.equals(
@@ -314,22 +382,20 @@ export class TableProfileStorageService {
             return false;
         }
 
-
         await game.settings.set(
             MODULE_ID,
             TABLE_PROFILES_SETTING,
             migrated
         );
 
-
         console.info(
             "Compendium Curator | Perfiles de tabla migrados al formato v3."
         );
 
-
         return true;
 
     }
+
 
     static async updateFilterGroupMatches(
         profileId,
@@ -343,22 +409,11 @@ export class TableProfileStorageService {
                 this.getStorage()
             );
 
-
         const profile =
             profileId
-                ? storage.profiles
-                    ?.[profileId]
+                ? storage.profiles?.[profileId]
                 : null;
 
-
-        /*
-         * profileId se mantiene por
-         * compatibilidad con las llamadas
-         * anteriores. Los grupos son recursos
-         * globales, por lo que también pueden
-         * actualizarse sin estar enlazados a
-         * ningún perfil.
-         */
         if (
             profileId &&
             (
@@ -366,9 +421,7 @@ export class TableProfileStorageService {
                 profile.version !== 2 ||
                 !Array.from(
                     profile.filterGroupIds ?? []
-                ).includes(
-                    filterGroupId
-                )
+                ).includes(filterGroupId)
             )
         ) {
             throw new Error(
@@ -376,11 +429,10 @@ export class TableProfileStorageService {
             );
         }
 
-
         const filterGroup =
-            storage.filterGroups
-                ?.[filterGroupId];
-
+            storage.filterGroups?.[
+                filterGroupId
+            ];
 
         if (!filterGroup) {
             throw new Error(
@@ -388,57 +440,27 @@ export class TableProfileStorageService {
             );
         }
 
-
         const matches =
-            [
-                ...new Set(
-                    Array.from(
-                        uuids ?? []
-                    )
-                        .map(uuid =>
-                            String(
-                                uuid ?? ""
-                            ).trim()
-                        )
-                        .filter(Boolean)
-                )
-            ];
-
-
-        matches.sort();
-
+            this.#normalizeMatches(uuids);
 
         const previous =
-            Array.from(
-                filterGroup.matches ?? []
-            )
-                .map(String)
-                .sort();
-
-
-        const matchesChanged =
-            previous.length !==
-                matches.length ||
-            previous.some(
-                (uuid, index) =>
-                    uuid !==
-                        matches[index]
+            this.#normalizeMatches(
+                filterGroup.matches
             );
 
+        const matchesChanged =
+            previous.length !== matches.length ||
+            previous.some(
+                (uuid, index) =>
+                    uuid !== matches[index]
+            );
 
         let filtersChanged = false;
 
-
-        if (
-            browserFilters !== null
-        ) {
+        if (browserFilters !== null) {
 
             const previousFilters =
-                filterGroup
-                    .browser
-                    ?.filters ??
-                {};
-
+                filterGroup.browser?.filters ?? {};
 
             filtersChanged =
                 !foundry.utils.equals(
@@ -446,10 +468,7 @@ export class TableProfileStorageService {
                     browserFilters
                 );
 
-
             filterGroup.browser ??= {};
-
-
             filterGroup.browser.filters =
                 foundry.utils.deepClone(
                     browserFilters
@@ -457,19 +476,11 @@ export class TableProfileStorageService {
 
         }
 
-
-        filterGroup.matches =
-            matches;
-
-
-        filterGroup.refreshedAt =
-            Date.now();
-
+        filterGroup.matches = matches;
+        filterGroup.refreshedAt = Date.now();
 
         const changed =
-            matchesChanged ||
-            filtersChanged;
-
+            matchesChanged || filtersChanged;
 
         if (changed) {
 
@@ -478,18 +489,6 @@ export class TableProfileStorageService {
                     filterGroup.revision ?? 1
                 ) + 1;
 
-
-            /*
-             * Mientras todavía usamos el
-             * sistema actual de revision del
-             * perfil, marcamos como modificadas
-             * todas las tablas que utilizan
-             * este grupo compartido.
-             *
-             * Más adelante la generación
-             * almacenará revisiones de
-             * dependencias directamente.
-             */
             for (
                 const usedProfile
                 of Object.values(
@@ -499,27 +498,20 @@ export class TableProfileStorageService {
 
                 if (
                     !Array.from(
-                        usedProfile
-                            .filterGroupIds ??
-                        []
-                    ).includes(
-                        filterGroupId
-                    )
+                        usedProfile.filterGroupIds ?? []
+                    ).includes(filterGroupId)
                 ) {
                     continue;
                 }
 
-
                 usedProfile.revision =
                     Number(
-                        usedProfile
-                            .revision ?? 1
+                        usedProfile.revision ?? 1
                     ) + 1;
 
             }
 
         }
-
 
         await game.settings.set(
             MODULE_ID,
@@ -527,27 +519,23 @@ export class TableProfileStorageService {
             storage
         );
 
-
         return {
             profile:
                 profile
                     ? this.#hydrateProfile(
-                        storage.profiles[
-                            profileId
-                        ],
+                        storage.profiles[profileId],
                         storage
                     )
                     : null,
-
             filterGroup:
                 foundry.utils.deepClone(
                     filterGroup
                 ),
-
             changed
         };
 
     }
+
 
     static isFilterGroupNameTaken(
         profileId,
@@ -555,70 +543,21 @@ export class TableProfileStorageService {
         excludeId = null
     ) {
 
-        /*
-         * profileId se conserva temporalmente
-         * en la firma para no romper las
-         * aplicaciones existentes.
-         *
-         * Desde v3 los nombres se comprueban
-         * globalmente.
-         */
         void profileId;
 
-
-        const normalizedName =
-            String(name)
-                .trim()
-                .normalize("NFD")
-                .replace(
-                    /[\u0300-\u036f]/g,
-                    ""
-                )
-                .toLocaleLowerCase();
-
-
-        if (!normalizedName)
-            return false;
-
-
-        return Object.values(
-            this.getFilterGroups()
-        ).some(
-            filterGroup => {
-
-                if (
-                    excludeId &&
-                    filterGroup.id ===
-                        excludeId
-                ) {
-                    return false;
-                }
-
-
-                const normalizedGroupName =
-                    String(
-                        filterGroup.name ?? ""
-                    )
-                        .trim()
-                        .normalize("NFD")
-                        .replace(
-                            /[\u0300-\u036f]/g,
-                            ""
-                        )
-                        .toLocaleLowerCase();
-
-
-                return (
-                    normalizedGroupName ===
-                    normalizedName
-                );
-
-            }
+        return this.#isFilterGroupNameTakenInStorage(
+            this.getStorage(),
+            name,
+            excludeId
         );
 
     }
 
-    static async setManualExcludes( profileId, uuids ) {
+
+    static async setManualExcludes(
+        profileId,
+        uuids
+    ) {
 
         const storage =
             foundry.utils.deepClone(
@@ -626,8 +565,7 @@ export class TableProfileStorageService {
             );
 
         const profile =
-            storage.profiles
-                ?.[profileId];
+            storage.profiles?.[profileId];
 
         if (
             !profile ||
@@ -639,50 +577,26 @@ export class TableProfileStorageService {
         }
 
         const normalized =
-            [
-                ...new Set(
-                    Array.from(
-                        uuids ?? []
-                    )
-                        .map(uuid =>
-                            String(
-                                uuid ?? ""
-                            ).trim()
-                        )
-                        .filter(Boolean)
-                )
-            ];
-
-        normalized.sort();
+            this.#normalizeMatches(uuids);
 
         const previous =
-            Array.from(
-                profile.manualExcludes ?? []
-            )
-                .map(uuid =>
-                    String(uuid)
-                )
-                .sort();
+            this.#normalizeMatches(
+                profile.manualExcludes
+            );
 
         const changed =
-            previous.length !==
-                normalized.length ||
+            previous.length !== normalized.length ||
             previous.some(
                 (uuid, index) =>
-                    uuid !==
-                    normalized[index]
+                    uuid !== normalized[index]
             );
 
         if (!changed)
             return profile;
 
-        profile.manualExcludes =
-            normalized;
-
+        profile.manualExcludes = normalized;
         profile.revision =
-            Number(
-                profile.revision ?? 1
-            ) + 1;
+            Number(profile.revision ?? 1) + 1;
 
         await game.settings.set(
             MODULE_ID,
@@ -694,7 +608,11 @@ export class TableProfileStorageService {
 
     }
 
-    static async setManualIncludes( profileId, uuids ) {
+
+    static async setManualIncludes(
+        profileId,
+        uuids
+    ) {
 
         const storage =
             foundry.utils.deepClone(
@@ -702,8 +620,7 @@ export class TableProfileStorageService {
             );
 
         const profile =
-            storage.profiles
-                ?.[profileId];
+            storage.profiles?.[profileId];
 
         if (
             !profile ||
@@ -715,50 +632,26 @@ export class TableProfileStorageService {
         }
 
         const normalized =
-            [
-                ...new Set(
-                    Array.from(
-                        uuids ?? []
-                    )
-                        .map(uuid =>
-                            String(
-                                uuid ?? ""
-                            ).trim()
-                        )
-                        .filter(Boolean)
-                )
-            ];
-
-        normalized.sort();
+            this.#normalizeMatches(uuids);
 
         const previous =
-            Array.from(
-                profile.manualIncludes ?? []
-            )
-                .map(uuid =>
-                    String(uuid)
-                )
-                .sort();
+            this.#normalizeMatches(
+                profile.manualIncludes
+            );
 
         const changed =
-            previous.length !==
-                normalized.length ||
+            previous.length !== normalized.length ||
             previous.some(
                 (uuid, index) =>
-                    uuid !==
-                    normalized[index]
+                    uuid !== normalized[index]
             );
 
         if (!changed)
             return profile;
 
-        profile.manualIncludes =
-            normalized;
-
+        profile.manualIncludes = normalized;
         profile.revision =
-            Number(
-                profile.revision ?? 1
-            ) + 1;
+            Number(profile.revision ?? 1) + 1;
 
         await game.settings.set(
             MODULE_ID,
@@ -767,6 +660,32 @@ export class TableProfileStorageService {
         );
 
         return profile;
+
+    }
+
+
+    static async createFilterGroup(filterGroup) {
+
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+
+        const storedGroup =
+            this.#createFilterGroupRecord(
+                storage,
+                filterGroup
+            );
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return foundry.utils.deepClone(
+            storedGroup
+        );
 
     }
 
@@ -781,11 +700,8 @@ export class TableProfileStorageService {
                 this.getStorage()
             );
 
-
         const profile =
-            storage.profiles
-                ?.[profileId];
-
+            storage.profiles?.[profileId];
 
         if (
             !profile ||
@@ -796,112 +712,26 @@ export class TableProfileStorageService {
             );
         }
 
-
-        const name =
-            String(
-                filterGroup?.name ?? ""
-            ).trim();
-
-
-        if (!name) {
-            throw new Error(
-                "FILTER_GROUP_NAME_REQUIRED"
+        const storedGroup =
+            this.#createFilterGroupRecord(
+                storage,
+                filterGroup
             );
-        }
-
-
-        if (
-            this.isFilterGroupNameTaken(
-                profileId,
-                name
-            )
-        ) {
-            throw new Error(
-                "FILTER_GROUP_NAME_TAKEN"
-            );
-        }
-
-
-        storage.filterGroups ??= {};
-
-
-        let id;
-
-
-        do {
-
-            id =
-                foundry.utils.randomID();
-
-        }
-        while (
-            storage.filterGroups[id]
-        );
-
-
-        const matches =
-            [
-                ...new Set(
-                    Array.from(
-                        filterGroup.matches ??
-                            []
-                    )
-                        .map(uuid =>
-                            String(
-                                uuid ?? ""
-                            ).trim()
-                        )
-                        .filter(Boolean)
-                )
-            ];
-
-
-        matches.sort();
-
-
-        const storedGroup = {
-            id,
-            name,
-
-            revision: 1,
-
-            browser:
-                foundry.utils.deepClone(
-                    filterGroup.browser ?? {}
-                ),
-
-            matches,
-
-            refreshedAt:
-                Date.now()
-        };
-
-
-        storage.filterGroups[
-            id
-        ] = storedGroup;
-
 
         profile.filterGroupIds ??= [];
 
-
         if (
-            !profile.filterGroupIds
-                .includes(id)
+            !profile.filterGroupIds.includes(
+                storedGroup.id
+            )
         ) {
-
             profile.filterGroupIds.push(
-                id
+                storedGroup.id
             );
-
         }
 
-
         profile.revision =
-            Number(
-                profile.revision ?? 1
-            ) + 1;
-
+            Number(profile.revision ?? 1) + 1;
 
         await game.settings.set(
             MODULE_ID,
@@ -909,12 +739,12 @@ export class TableProfileStorageService {
             storage
         );
 
-
         return foundry.utils.deepClone(
             storedGroup
         );
 
     }
+
 
     static getStorage() {
 
@@ -927,40 +757,25 @@ export class TableProfileStorageService {
                 profiles: {}
             };
 
-
-        /*
-         * Esto también permite trabajar de
-         * forma segura aunque una operación
-         * acceda al almacenamiento antes de
-         * que migrateStorage() lo haya
-         * persistido.
-         */
-        return this.#normalizeStorage(
-            storage
-        );
+        return this.#normalizeStorage(storage);
 
     }
 
 
     static getProfiles() {
 
-        const storage =
-            this.getStorage();
-
+        const storage = this.getStorage();
 
         return Object.fromEntries(
             Object.entries(
                 storage.profiles ?? {}
-            ).map(
-                ([profileId, profile]) => [
-                    profileId,
-
-                    this.#hydrateProfile(
-                        profile,
-                        storage
-                    )
-                ]
-            )
+            ).map(([profileId, profile]) => [
+                profileId,
+                this.#hydrateProfile(
+                    profile,
+                    storage
+                )
+            ])
         );
 
     }
@@ -974,24 +789,18 @@ export class TableProfileStorageService {
     }
 
 
-    static getFilterGroup(
-        filterGroupId
-    ) {
+    static getFilterGroup(filterGroupId) {
 
-        return this.getFilterGroups()
-            ?.[filterGroupId] ??
-            null;
+        return this.getFilterGroups()?.[
+            filterGroupId
+        ] ?? null;
 
     }
 
 
-    static getFilterGroupUsage(
-        filterGroupId
-    ) {
+    static getFilterGroupUsage(filterGroupId) {
 
-        const storage =
-            this.getStorage();
-
+        const storage = this.getStorage();
 
         return Object.values(
             storage.profiles ?? {}
@@ -999,9 +808,7 @@ export class TableProfileStorageService {
             .filter(profile =>
                 Array.from(
                     profile.filterGroupIds ?? []
-                ).includes(
-                    filterGroupId
-                )
+                ).includes(filterGroupId)
             )
             .map(profile => ({
                 id: profile.id,
@@ -1018,10 +825,7 @@ export class TableProfileStorageService {
     ) {
 
         const normalizedName =
-            String(
-                name ?? ""
-            ).trim();
-
+            String(name ?? "").trim();
 
         if (!normalizedName) {
             throw new Error(
@@ -1029,17 +833,15 @@ export class TableProfileStorageService {
             );
         }
 
-
         const storage =
             foundry.utils.deepClone(
                 this.getStorage()
             );
 
-
         const filterGroup =
-            storage.filterGroups
-                ?.[filterGroupId];
-
+            storage.filterGroups?.[
+                filterGroupId
+            ];
 
         if (!filterGroup) {
             throw new Error(
@@ -1047,10 +849,9 @@ export class TableProfileStorageService {
             );
         }
 
-
         if (
-            this.isFilterGroupNameTaken(
-                null,
+            this.#isFilterGroupNameTakenInStorage(
+                storage,
                 normalizedName,
                 filterGroupId
             )
@@ -1060,31 +861,16 @@ export class TableProfileStorageService {
             );
         }
 
-
-        if (
-            filterGroup.name ===
-            normalizedName
-        ) {
+        if (filterGroup.name === normalizedName)
             return filterGroup;
-        }
 
-
-        /*
-         * El nombre es metadato del recurso.
-         * No cambia las coincidencias ni los
-         * pesos de ninguna tabla, así que no
-         * incrementamos revisiones.
-         */
-        filterGroup.name =
-            normalizedName;
-
+        filterGroup.name = normalizedName;
 
         await game.settings.set(
             MODULE_ID,
             TABLE_PROFILES_SETTING,
             storage
         );
-
 
         return foundry.utils.deepClone(
             filterGroup
@@ -1099,10 +885,7 @@ export class TableProfileStorageService {
     ) {
 
         const normalizedName =
-            String(
-                name ?? ""
-            ).trim();
-
+            String(name ?? "").trim();
 
         if (!normalizedName) {
             throw new Error(
@@ -1110,17 +893,15 @@ export class TableProfileStorageService {
             );
         }
 
-
         const storage =
             foundry.utils.deepClone(
                 this.getStorage()
             );
 
-
         const source =
-            storage.filterGroups
-                ?.[filterGroupId];
-
+            storage.filterGroups?.[
+                filterGroupId
+            ];
 
         if (!source) {
             throw new Error(
@@ -1128,10 +909,9 @@ export class TableProfileStorageService {
             );
         }
 
-
         if (
-            this.isFilterGroupNameTaken(
-                null,
+            this.#isFilterGroupNameTakenInStorage(
+                storage,
                 normalizedName
             )
         ) {
@@ -1140,39 +920,28 @@ export class TableProfileStorageService {
             );
         }
 
-
         let id;
 
         do {
             id = foundry.utils.randomID();
         }
-        while (
-            storage.filterGroups?.[id]
-        );
-
+        while (storage.filterGroups?.[id]);
 
         const duplicate =
-            foundry.utils.deepClone(
-                source
-            );
-
+            foundry.utils.deepClone(source);
 
         duplicate.id = id;
         duplicate.name = normalizedName;
         duplicate.revision = 1;
 
-
         storage.filterGroups ??= {};
-        storage.filterGroups[id] =
-            duplicate;
-
+        storage.filterGroups[id] = duplicate;
 
         await game.settings.set(
             MODULE_ID,
             TABLE_PROFILES_SETTING,
             storage
         );
-
 
         return foundry.utils.deepClone(
             duplicate
@@ -1190,11 +959,10 @@ export class TableProfileStorageService {
                 this.getStorage()
             );
 
-
         const filterGroup =
-            storage.filterGroups
-                ?.[filterGroupId];
-
+            storage.filterGroups?.[
+                filterGroupId
+            ];
 
         if (!filterGroup) {
             throw new Error(
@@ -1202,19 +970,14 @@ export class TableProfileStorageService {
             );
         }
 
-
         const usage =
             Object.values(
                 storage.profiles ?? {}
-            )
-                .filter(profile =>
-                    Array.from(
-                        profile.filterGroupIds ?? []
-                    ).includes(
-                        filterGroupId
-                    )
-                );
-
+            ).filter(profile =>
+                Array.from(
+                    profile.filterGroupIds ?? []
+                ).includes(filterGroupId)
+            );
 
         if (usage.length > 0) {
             throw new Error(
@@ -1222,11 +985,9 @@ export class TableProfileStorageService {
             );
         }
 
-
         delete storage.filterGroups[
             filterGroupId
         ];
-
 
         await game.settings.set(
             MODULE_ID,
@@ -1234,82 +995,35 @@ export class TableProfileStorageService {
             storage
         );
 
-
         return foundry.utils.deepClone(
             filterGroup
         );
 
     }
 
-    static isNameTaken(name, excludeId = null) {
 
-        const normalizedName =
-            String(name)
-                .trim()
-                .normalize("NFD")
-                .replace(
-                    /[\u0300-\u036f]/g,
-                    ""
-                )
-                .toLocaleLowerCase();
+    static isNameTaken(
+        name,
+        excludeId = null
+    ) {
 
-        if (!normalizedName)
-            return false;
-
-        return Object.values(
-            this.getProfiles()
-        ).some(profile => {
-
-            if (
-                excludeId &&
-                profile.id === excludeId
-            ) {
-                return false;
-            }
-
-            const normalizedProfileName =
-                String(
-                    profile.name ?? ""
-                )
-                    .trim()
-                    .normalize("NFD")
-                    .replace(
-                        /[\u0300-\u036f]/g,
-                        ""
-                    )
-                    .toLocaleLowerCase();
-
-            return (
-                normalizedProfileName ===
-                normalizedName
-            );
-
-        });
+        return this.#isProfileNameTakenInStorage(
+            this.getStorage(),
+            name,
+            excludeId
+        );
 
     }
+
 
     static async create(profile) {
 
         const name =
-            String(
-                profile?.name ?? ""
-            ).trim();
+            String(profile?.name ?? "").trim();
 
         if (!name) {
             throw new Error(
                 "TABLE_PROFILE_NAME_REQUIRED"
-            );
-        }
-
-        profile.name = name;
-
-        if (
-            this.isNameTaken(
-                profile?.name
-            )
-        ) {
-            throw new Error(
-                "TABLE_PROFILE_NAME_TAKEN"
             );
         }
 
@@ -1318,34 +1032,42 @@ export class TableProfileStorageService {
                 this.getStorage()
             );
 
+        if (
+            this.#isProfileNameTakenInStorage(
+                storage,
+                name
+            )
+        ) {
+            throw new Error(
+                "TABLE_PROFILE_NAME_TAKEN"
+            );
+        }
+
         storage.version = 3;
         storage.profiles ??= {};
         storage.filterGroups ??= {};
 
-        const id =
-            foundry.utils.randomID();
+        let id;
+
+        do {
+            id = foundry.utils.randomID();
+        }
+        while (storage.profiles[id]);
 
         storage.profiles[id] = {
+            ...foundry.utils.deepClone(profile),
             id,
-
-            ...foundry.utils.deepClone(
-                profile
-            )
+            name
         };
 
-
         const normalizedStorage =
-            this.#normalizeStorage(
-                storage
-            );
-
+            this.#normalizeStorage(storage);
 
         await game.settings.set(
             MODULE_ID,
             TABLE_PROFILES_SETTING,
             normalizedStorage
         );
-
 
         return this.#hydrateProfile(
             normalizedStorage.profiles[id],
@@ -1354,15 +1076,14 @@ export class TableProfileStorageService {
 
     }
 
+
     static async renameProfile(
         profileId,
         name
     ) {
 
         const normalizedName =
-            String(
-                name ?? ""
-            ).trim();
+            String(name ?? "").trim();
 
         if (!normalizedName) {
             throw new Error(
@@ -1376,8 +1097,7 @@ export class TableProfileStorageService {
             );
 
         const profile =
-            storage.profiles
-                ?.[profileId];
+            storage.profiles?.[profileId];
 
         if (
             !profile ||
@@ -1389,7 +1109,8 @@ export class TableProfileStorageService {
         }
 
         if (
-            this.isNameTaken(
+            this.#isProfileNameTakenInStorage(
+                storage,
                 normalizedName,
                 profileId
             )
@@ -1399,35 +1120,23 @@ export class TableProfileStorageService {
             );
         }
 
-        if (
-            profile.name ===
-            normalizedName
-        ) {
+        if (profile.name === normalizedName)
             return profile;
-        }
 
-        profile.name =
-            normalizedName;
-
-        /*
-        * Renombrar no modifica el contenido
-        * que generará el perfil, por lo que
-        * no incrementamos revision.
-        *
-        * Más adelante, si existe una RollTable
-        * enlazada, se sincronizará su nombre
-        * conservando su UUID.
-        */
+        profile.name = normalizedName;
 
         await game.settings.set(
             MODULE_ID,
             TABLE_PROFILES_SETTING,
-            storage
+            this.#normalizeStorage(storage)
         );
 
-        return profile;
+        return foundry.utils.deepClone(
+            profile
+        );
 
     }
+
 
     static async duplicateProfile(
         profileId,
@@ -1435,9 +1144,7 @@ export class TableProfileStorageService {
     ) {
 
         const normalizedName =
-            String(
-                name ?? ""
-            ).trim();
+            String(name ?? "").trim();
 
         if (!normalizedName) {
             throw new Error(
@@ -1451,8 +1158,7 @@ export class TableProfileStorageService {
             );
 
         const source =
-            storage.profiles
-                ?.[profileId];
+            storage.profiles?.[profileId];
 
         if (
             !source ||
@@ -1464,7 +1170,8 @@ export class TableProfileStorageService {
         }
 
         if (
-            this.isNameTaken(
+            this.#isProfileNameTakenInStorage(
+                storage,
                 normalizedName
             )
         ) {
@@ -1473,69 +1180,49 @@ export class TableProfileStorageService {
             );
         }
 
-        const id =
-            foundry.utils.randomID();
+        let id;
+
+        do {
+            id = foundry.utils.randomID();
+        }
+        while (storage.profiles?.[id]);
 
         const duplicate =
-            foundry.utils.deepClone(
-                source
-            );
+            foundry.utils.deepClone(source);
 
-        duplicate.id =
-            id;
-
-        duplicate.name =
-            normalizedName;
-
-        /*
-        * El duplicado comienza su propio
-        * historial de modificaciones.
-        */
+        duplicate.id = id;
+        duplicate.name = normalizedName;
         duplicate.revision = 1;
-
-        /*
-        * Desde v3 los grupos son recursos
-        * compartidos.
-        *
-        * El duplicado conserva las mismas
-        * referencias a grupos que el original.
-        */
-        duplicate.filterGroupIds =
-            [
-                ...new Set(
-                    source.filterGroupIds ?? []
-                )
-            ];
+        duplicate.filterGroupIds = [
+            ...new Set(
+                source.filterGroupIds ?? []
+            )
+        ];
 
         delete duplicate.filterGroups;
 
-        /*
-        * Nunca heredamos enlaces a RollTables.
-        * El nuevo perfil todavía no ha generado
-        * ningún documento.
-        */
         duplicate.generation = {
             masterUuid: null,
             groupUuids: {},
             generatedRevision: 0
         };
 
-        storage.profiles[id] =
-            duplicate;
+        storage.profiles[id] = duplicate;
 
         await game.settings.set(
             MODULE_ID,
             TABLE_PROFILES_SETTING,
-            storage
+            this.#normalizeStorage(storage)
         );
 
-        return duplicate;
+        return foundry.utils.deepClone(
+            duplicate
+        );
 
     }
 
-    static async removeProfile(
-        profileId
-    ) {
+
+    static async removeProfile(profileId) {
 
         const storage =
             foundry.utils.deepClone(
@@ -1543,8 +1230,7 @@ export class TableProfileStorageService {
             );
 
         const profile =
-            storage.profiles
-                ?.[profileId];
+            storage.profiles?.[profileId];
 
         if (
             !profile ||
@@ -1555,19 +1241,18 @@ export class TableProfileStorageService {
             );
         }
 
-        delete storage.profiles[
-            profileId
-        ];
+        delete storage.profiles[profileId];
 
         await game.settings.set(
             MODULE_ID,
             TABLE_PROFILES_SETTING,
-            storage
+            this.#normalizeStorage(storage)
         );
 
-        return profile;
+        return foundry.utils.deepClone(profile);
 
     }
+
 
     static async removeFilterGroup(
         profileId,
@@ -1579,11 +1264,8 @@ export class TableProfileStorageService {
                 this.getStorage()
             );
 
-
         const profile =
-            storage.profiles
-                ?.[profileId];
-
+            storage.profiles?.[profileId];
 
         if (
             !profile ||
@@ -1594,60 +1276,37 @@ export class TableProfileStorageService {
             );
         }
 
-
         const filterGroupIds =
             Array.from(
                 profile.filterGroupIds ?? []
             );
 
-
         const nextFilterGroupIds =
             filterGroupIds.filter(
-                id =>
-                    id !==
-                        filterGroupId
+                id => id !== filterGroupId
             );
-
 
         if (
             nextFilterGroupIds.length ===
             filterGroupIds.length
         ) {
-
             return this.#hydrateProfile(
                 profile,
                 storage
             );
-
         }
 
-
-        /*
-         * Importante:
-         *
-         * quitamos la REFERENCIA de esta
-         * tabla, pero NO eliminamos el grupo
-         * global.
-         *
-         * Después podremos reutilizarlo desde
-         * la pestaña Grupos de filtros.
-         */
         profile.filterGroupIds =
             nextFilterGroupIds;
 
-
         profile.revision =
-            Number(
-                profile.revision ?? 1
-            ) + 1;
-
+            Number(profile.revision ?? 1) + 1;
 
         await game.settings.set(
             MODULE_ID,
             TABLE_PROFILES_SETTING,
             storage
         );
-
 
         return this.#hydrateProfile(
             profile,

@@ -29,38 +29,28 @@ export class TableFilterGroupApplication
 
         super(options);
 
-        this.browserApp =
-            browserApp;
-
-        this.managerApp =
-            managerApp;
-
-        this.profileId =
-            profileId;
+        this.browserApp = browserApp;
+        this.managerApp = managerApp;
+        this.profileId = profileId;
 
     }
 
 
     static DEFAULT_OPTIONS = {
-
         id:
             "compendium-curator-table-filter-group",
-
         classes: [
             "dnd5e2",
             "cc-table-filter-group-app"
         ],
-
         window: {
             title:
                 "COMPENDIUM_CURATOR.FilterGroups"
         },
-
         position: {
             width: 560,
             height: 520
         },
-
         actions: {
             createCurrentFilters:
                 this.#onCreateCurrentFilters,
@@ -69,46 +59,163 @@ export class TableFilterGroupApplication
             cancel:
                 this.#onCancel
         }
-
     };
 
 
     static PARTS = {
-
         body: {
             template:
                 "modules/compendium-curator/templates/table-filter-group.hbs"
         }
-
     };
+
+
+    static async createFromCurrentFilters(
+        browserApp,
+        profileId = null
+    ) {
+
+        const draft =
+            await TableProfileService
+                .createContentDraft(browserApp);
+
+        if (
+            (draft?.includedCount ?? 0) === 0
+        ) {
+            ui.notifications.warn(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.FilterGroupNoObjects"
+                )
+            );
+            return null;
+        }
+
+        const field =
+            document.createElement("div");
+
+        field.className = "form-group";
+
+        const label =
+            document.createElement("label");
+
+        label.textContent =
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.FilterGroupName"
+            );
+
+        const input =
+            document.createElement("input");
+
+        input.type = "text";
+        input.name = "filterGroupName";
+        input.autocomplete = "off";
+        input.autofocus = true;
+
+        field.append(label, input);
+
+        const result =
+            await foundry
+                .applications
+                .api
+                .DialogV2
+                .input({
+                    window: {
+                        title:
+                            game.i18n.localize(
+                                "COMPENDIUM_CURATOR.AddFilterGroupTitle"
+                            )
+                    },
+                    content:
+                        field.outerHTML,
+                    ok: {
+                        label:
+                            game.i18n.localize(
+                                "COMPENDIUM_CURATOR.Create"
+                            )
+                    },
+                    rejectClose: false,
+                    modal: true
+                });
+
+        if (!result)
+            return null;
+
+        const name =
+            String(
+                result.filterGroupName ?? ""
+            ).trim();
+
+        if (!name) {
+            ui.notifications.warn(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.FilterGroupNameRequired"
+                )
+            );
+            return null;
+        }
+
+        if (
+            TableProfileStorageService
+                .isFilterGroupNameTaken(
+                    null,
+                    name
+                )
+        ) {
+            ui.notifications.warn(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.FilterGroupNameTaken"
+                )
+            );
+            return null;
+        }
+
+        const filterGroup = {
+            name,
+            browser:
+                draft.browser,
+            matches:
+                draft.matches
+        };
+
+        const storedGroup =
+            profileId
+                ? await TableProfileStorageService
+                    .addFilterGroup(
+                        profileId,
+                        filterGroup
+                    )
+                : await TableProfileStorageService
+                    .createFilterGroup(
+                        filterGroup
+                    );
+
+        ui.notifications.info(
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.FilterGroupSaved"
+            )
+        );
+
+        return storedGroup;
+
+    }
 
 
     async _prepareContext(options) {
 
         const context =
-            await super._prepareContext(
-                options
-            );
+            await super._prepareContext(options);
 
         const profile =
             TableProfileStorageService
-                .getProfiles()
-                ?.[this.profileId];
+                .getProfiles()?.[this.profileId];
 
         if (!profile) {
-
-            context.exists =
-                false;
-
+            context.exists = false;
             return context;
-
         }
 
-        context.exists =
-            true;
-
-        context.profileName =
-            profile.name;
+        context.exists = true;
+        context.profileName = profile.name;
 
         const selectedIds =
             new Set(
@@ -134,30 +241,18 @@ export class TableFilterGroupApplication
                                 Array.from(
                                     usedProfile
                                         .filterGroupIds ?? []
-                                ).includes(
-                                    group.id
-                                )
+                                ).includes(group.id)
                         ).length;
 
                     return {
-                        id:
-                            group.id,
-
-                        name:
-                            group.name,
-
+                        id: group.id,
+                        name: group.name,
                         checked:
-                            selectedIds.has(
-                                group.id
-                            ),
-
+                            selectedIds.has(group.id),
                         matchCount:
-                            Array.isArray(
-                                group.matches
-                            )
+                            Array.isArray(group.matches)
                                 ? group.matches.length
                                 : 0,
-
                         useCount
                     };
 
@@ -168,8 +263,7 @@ export class TableFilterGroupApplication
                             String(b.name ?? ""),
                             game.i18n.lang,
                             {
-                                sensitivity:
-                                    "base"
+                                sensitivity: "base"
                             }
                         )
                 );
@@ -187,10 +281,7 @@ export class TableFilterGroupApplication
     }
 
 
-    async _onRender(
-        context,
-        options
-    ) {
+    async _onRender(context, options) {
 
         await super._onRender(
             context,
@@ -199,10 +290,9 @@ export class TableFilterGroupApplication
 
         const inputs =
             Array.from(
-                this.element
-                    .querySelectorAll(
-                        '[name="filterGroupIds"]'
-                    )
+                this.element.querySelectorAll(
+                    '[name="filterGroupIds"]'
+                )
             );
 
         const countElement =
@@ -223,9 +313,7 @@ export class TableFilterGroupApplication
             countElement.textContent =
                 game.i18n.format(
                     "COMPENDIUM_CURATOR.FilterGroupCount",
-                    {
-                        count
-                    }
+                    { count }
                 );
 
         };
@@ -243,20 +331,15 @@ export class TableFilterGroupApplication
     _refreshParentApplications() {
 
         if (this.managerApp?.rendered) {
-
             this.managerApp.render({
                 force: true
             });
-
         }
 
         const applications = [
-            this.managerApp
-                ?._profilePreview,
-            this.managerApp
-                ?._profileInclusions,
-            this.managerApp
-                ?._profileExclusions
+            this.managerApp?._profilePreview,
+            this.managerApp?._profileInclusions,
+            this.managerApp?._profileExclusions
         ];
 
         for (
@@ -269,11 +352,9 @@ export class TableFilterGroupApplication
                 application.profileId ===
                     this.profileId
             ) {
-
                 application.render({
                     force: true
                 });
-
             }
 
         }
@@ -283,144 +364,15 @@ export class TableFilterGroupApplication
 
     static async #onCreateCurrentFilters() {
 
-        const draft =
-            await TableProfileService
-                .createContentDraft(
-                    this.browserApp
+        const storedGroup =
+            await TableFilterGroupApplication
+                .createFromCurrentFilters(
+                    this.browserApp,
+                    this.profileId
                 );
 
-        if (
-            (
-                draft
-                    ?.includedCount ?? 0
-            ) === 0
-        ) {
-
-            ui.notifications.warn(
-                game.i18n.localize(
-                    "COMPENDIUM_CURATOR.FilterGroupNoObjects"
-                )
-            );
-
+        if (!storedGroup)
             return;
-
-        }
-
-        const field =
-            document.createElement(
-                "div"
-            );
-
-        field.className =
-            "form-group";
-
-        const label =
-            document.createElement(
-                "label"
-            );
-
-        label.textContent =
-            game.i18n.localize(
-                "COMPENDIUM_CURATOR.FilterGroupName"
-            );
-
-        const input =
-            document.createElement(
-                "input"
-            );
-
-        input.type = "text";
-        input.name = "filterGroupName";
-        input.autocomplete = "off";
-        input.autofocus = true;
-
-        field.append(
-            label,
-            input
-        );
-
-        const result =
-            await foundry
-                .applications
-                .api
-                .DialogV2
-                .input({
-                    window: {
-                        title:
-                            game.i18n.localize(
-                                "COMPENDIUM_CURATOR.AddFilterGroupTitle"
-                            )
-                    },
-
-                    content:
-                        field.outerHTML,
-
-                    ok: {
-                        label:
-                            game.i18n.localize(
-                                "COMPENDIUM_CURATOR.AddFilterGroup"
-                            )
-                    },
-
-                    rejectClose: false,
-                    modal: true
-                });
-
-        if (!result)
-            return;
-
-        const name =
-            String(
-                result.filterGroupName ?? ""
-            ).trim();
-
-        if (!name) {
-
-            ui.notifications.warn(
-                game.i18n.localize(
-                    "COMPENDIUM_CURATOR.FilterGroupNameRequired"
-                )
-            );
-
-            return;
-
-        }
-
-        if (
-            TableProfileStorageService
-                .isFilterGroupNameTaken(
-                    this.profileId,
-                    name
-                )
-        ) {
-
-            ui.notifications.warn(
-                game.i18n.localize(
-                    "COMPENDIUM_CURATOR.FilterGroupNameTaken"
-                )
-            );
-
-            return;
-
-        }
-
-        await TableProfileStorageService
-            .addFilterGroup(
-                this.profileId,
-                {
-                    name,
-                    browser:
-                        draft.browser,
-                    matches:
-                        draft.matches
-                }
-            );
-
-        ui.notifications.info(
-            game.i18n.localize(
-                "COMPENDIUM_CURATOR.FilterGroupSaved"
-            )
-        );
 
         this._refreshParentApplications();
 
@@ -435,14 +387,11 @@ export class TableFilterGroupApplication
 
         const selectedIds =
             Array.from(
-                this.element
-                    .querySelectorAll(
-                        '[name="filterGroupIds"]:checked'
-                    )
+                this.element.querySelectorAll(
+                    '[name="filterGroupIds"]:checked'
+                )
             )
-                .map(input =>
-                    input.value
-                );
+                .map(input => input.value);
 
         await TableProfileFilterGroupLinkService
             .setProfileFilterGroups(
@@ -458,9 +407,7 @@ export class TableFilterGroupApplication
 
 
     static async #onCancel() {
-
         await this.close();
-
     }
 
 }
