@@ -2,40 +2,97 @@
 
     <div class="cc-table-filter-group-content">
 
-        <p class="hint cc-table-filter-group-intro">
-            {{localize
-                "COMPENDIUM_CURATOR.AddFilterGroupHint"
-                profile=profileName
-            }}
-        </p>
+        {{#if exists}}
+
+            <header>
+
+                <h2>
+                    {{profileName}}
+                </h2>
+
+                <p
+                    class="hint cc-table-filter-group-intro"
+                    data-cc-selected-count
+                >
+                    {{localize
+                        "COMPENDIUM_CURATOR.FilterGroupCount"
+                        count=selectedCount
+                    }}
+                </p>
+
+            </header>
 
 
-        <div class="cc-table-filter-group-form">
+            {{#if hasGroups}}
 
-            <label
-                for="cc-table-filter-group-name"
-                class="cc-table-filter-group-label"
+                <div class="cc-table-manager-profiles">
+
+                    {{#each groups}}
+
+                        <label
+                            class="cc-table-manager-filter-group"
+                        >
+
+                            <input
+                                type="checkbox"
+                                name="filterGroupIds"
+                                value="{{id}}"
+                                {{#if checked}}
+                                    checked
+                                {{/if}}
+                            >
+
+                            <span>
+                                {{name}}
+                            </span>
+
+                            <small>
+                                <i class="fas fa-filter"></i>
+                                {{matchCount}}
+
+                                &nbsp;·&nbsp;
+
+                                <i class="fas fa-link"></i>
+                                {{useCount}}
+                            </small>
+
+                        </label>
+
+                    {{/each}}
+
+                </div>
+
+            {{else}}
+
+                <p class="hint">
+                    {{localize
+                        "COMPENDIUM_CURATOR.NoFilterGroups"
+                    }}
+                </p>
+
+            {{/if}}
+
+
+            <button
+                type="button"
+                data-action="createCurrentFilters"
             >
+                <i class="fas fa-plus"></i>
+
                 {{localize
-                    "COMPENDIUM_CURATOR.FilterGroupName"
+                    "COMPENDIUM_CURATOR.AddCurrentFilters"
                 }}
-            </label>
+            </button>
 
-            <input
-                id="cc-table-filter-group-name"
-                type="text"
-                name="filterGroupName"
-                autocomplete="off"
-            >
+        {{else}}
 
-            <p class="hint cc-table-filter-group-count">
+            <p class="hint">
                 {{localize
-                    "COMPENDIUM_CURATOR.CurrentFilterMatches"
-                    count=candidateCount
+                    "COMPENDIUM_CURATOR.ProfileNameInvalid"
                 }}
             </p>
 
-        </div>
+        {{/if}}
 
     </div>
 
@@ -56,14 +113,14 @@
         <button
             type="button"
             data-action="save"
-            {{#unless hasCandidates}}
+            {{#unless exists}}
                 disabled
             {{/unless}}
         >
-            <i class="fas fa-plus"></i>
+            <i class="fas fa-check"></i>
 
             {{localize
-                "COMPENDIUM_CURATOR.AddFilterGroup"
+                "COMPENDIUM_CURATOR.Save"
             }}
         </button>
 
