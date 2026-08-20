@@ -32,6 +32,15 @@ export class TableProfileStorageService {
             storage.profiles ?? {}
         ).some(([profileId, profile]) => {
 
+            /*
+             * Solo los perfiles actuales y válidos
+             * reservan nombres. Los registros
+             * heredados que el Gestor no muestra
+             * tampoco deben bloquear renombrados.
+             */
+            if (profile?.version !== 2)
+                return false;
+
             if (
                 excludeId &&
                 (
