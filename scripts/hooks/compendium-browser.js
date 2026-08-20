@@ -2,15 +2,24 @@ import { debug } from "../debug.js";
 import { CuratorState } from "../state/curator-state.js";
 import { StorageService } from "../services/storage-service.js";
 import { MODULE_ID, DUPLICATE_PRIORITY_SETTING, STORAGE_CHANGED_HOOK } from "../settings.js";
+import { TableManagerApplication } from "../applications/table-manager-application.js";
 
 const openCompendiumBrowsers = new Set();
 const duplicateIdentityCache = new Map();
 const duplicateTranslationCache = new Map();
 const duplicateTranslatedNameCache = new Map();
+const PROFILE_DIALOG_CLASSES = [ "cc-profile-dialog" ];
 
 function canCurate() {
 
     return game.user.can("SETTINGS_MODIFY");
+
+}
+
+function refreshTableProfilePreview(app) {
+
+    app._ccTableManager
+        ?.refreshProfileEditor();
 
 }
 
@@ -35,6 +44,8 @@ export function registerCompendiumBrowserHooks() {
 
     Hooks.on("renderApplicationV2", app => {
 
+        restrictCheckboxItemTooltips(app.element);
+
         if (app.constructor.name !== "CompendiumBrowser")
             return;
 
@@ -53,6 +64,31 @@ export function registerCompendiumBrowserHooks() {
 
         app._ccResultsObserver?.disconnect();
         app._ccResultsObserver = null;
+
+        if (app._ccProfileMenuOutsideHandler) {
+
+            document.removeEventListener(
+                "pointerdown",
+                app._ccProfileMenuOutsideHandler,
+                true
+            );
+
+            app._ccProfileMenuOutsideHandler =
+                null;
+
+        }
+
+        /*
+        * Las ventanas de gestión pertenecen
+        * al Navegador de Compendios.
+        */
+        const tableManager =
+            app._ccTableManager;
+
+        app._ccTableManager = null;
+
+        if (tableManager?.rendered)
+            void tableManager.close();
 
         openCompendiumBrowsers.delete(app);
 
@@ -151,7 +187,18 @@ function onRenderCompendiumBrowser(app) {
     app._ccFillingVisibleResults ??= false;
     app._ccFillVisiblePromise ??= null;
     app._ccVisibleFillTimer ??= null;
+    app._ccFillVisibleResultsElement ??= null;
     app._ccDuplicateOriginalOrder = new Map();
+    app._ccTableManagerLocked ??= false;
+    app._ccRefreshToolbar ??=
+        () => {
+
+            if (!app.element?.isConnected)
+                return;
+
+            refreshToolbar(app);
+
+        };
 
     /*
     * Un render completo puede haber cambiado los resultados
@@ -211,6 +258,8 @@ function onRenderCompendiumBrowser(app) {
         scheduleDuplicateRefresh(app);
 
     }
+
+    refreshTableProfilePreview(app);
 
 }
 
@@ -292,6 +341,8 @@ function observeCompendiumResults(app) {
 
             if (app._ccDuplicatesOnly)
                 scheduleDuplicateRefresh(app);
+            else
+                scheduleVisibleResultsFill(app);
 
         }
 
@@ -328,6 +379,32 @@ function updateCuratorMode(app) {
     createMasterCheckbox(app);
     refreshMasterCheckbox(app);
     scheduleVisibleResultsFill(app);
+    refreshTableProfilePreview(app);
+
+}
+
+function restrictCheckboxItemTooltips(root) {
+
+    if (!root)
+        return;
+
+    const items = root.querySelectorAll(
+        ".item-list > .item"
+    );
+
+    for (const item of items) {
+
+        const checkbox = item.querySelector(
+            '.item-controls dnd5e-checkbox, ' +
+            '.item-controls input[type="checkbox"]'
+        );
+
+        if (!checkbox)
+            continue;
+
+        restrictItemTooltip(item);
+
+    }
 
 }
 
@@ -428,6 +505,8 @@ function updateItem(app, item) {
 
     checkbox.checked = CuratorState.getSelection(app).has(uuid);
 
+    checkbox.disabled = app._ccTableManagerLocked === true;
+
     checkbox.addEventListener("change", () => {
 
         const selection =
@@ -440,6 +519,7 @@ function updateItem(app, item) {
 
         refreshToolbar(app);
         refreshMasterCheckbox(app);
+        refreshTableProfilePreview(app);
 
         debug(selection);
 
@@ -1183,6 +1263,100 @@ function waitForNextResultsBatch(
 
 }
 
+function waitForInitialResultsBatch(
+    results,
+    timeout = 1500
+) {
+
+    return new Promise(resolve => {
+
+        const itemList =
+            results?.querySelector(
+                ".item-list"
+            );
+
+        const loading =
+            results?.querySelector(
+                ".results-loading"
+            );
+
+        if (
+            !results ||
+            !itemList ||
+            !loading
+        ) {
+            resolve(false);
+            return;
+        }
+
+        /*
+         * El lote inicial ya está completamente
+         * insertado en el DOM.
+         */
+        if (
+            loading.hidden &&
+            itemList.querySelector(
+                ":scope > .item[data-uuid]"
+            )
+        ) {
+            resolve(true);
+            return;
+        }
+
+        let timer;
+
+        const finish = ready => {
+
+            observer.disconnect();
+            clearTimeout(timer);
+
+            resolve(ready);
+
+        };
+
+        /*
+         * D&D5e usa replaceChildren() cuando termina
+         * de renderizar el primer lote.
+         *
+         * Cuando observamos esa mutación, su índice
+         * interno de resultados queda actualizado en
+         * la misma tarea antes de que este observer
+         * llegue a ejecutarse.
+         */
+        const observer =
+            new MutationObserver(() => {
+
+                if (!results.isConnected) {
+
+                    finish(false);
+                    return;
+
+                }
+
+                if (
+                    loading.hidden &&
+                    itemList.querySelector(
+                        ":scope > .item[data-uuid]"
+                    )
+                ) {
+                    finish(true);
+                }
+
+            });
+
+        observer.observe(itemList, {
+            childList: true
+        });
+
+        timer = setTimeout(
+            () => finish(false),
+            timeout
+        );
+
+    });
+
+}
+
 function scheduleVisibleResultsFill(app) {
 
     clearTimeout(
@@ -1223,23 +1397,71 @@ async function ensureVisibleResultsFilled(app) {
         return true;
     }
 
-    if (app._ccFillVisiblePromise)
+    const results =
+        app.element.querySelector(
+            '[data-application-part="results"]'
+        );
+
+    if (!results)
+        return false;
+
+    /*
+     * Solo reutilizamos la promesa si pertenece
+     * exactamente a esta lista de resultados.
+     *
+     * Un cambio de filtros sustituye esta parte del DOM,
+     * por lo que una carga antigua nunca debe bloquear
+     * la nueva.
+     */
+    if (
+        app._ccFillVisiblePromise &&
+        app._ccFillVisibleResultsElement ===
+            results
+    ) {
         return app._ccFillVisiblePromise;
+    }
 
     const promise = (async () => {
 
-        const results =
-            app.element.querySelector(
-                '[data-application-part="results"]'
+        /*
+         * Esperamos a que D&D5e termine realmente
+         * de insertar su primer lote antes de intentar
+         * provocar el siguiente scroll.
+         */
+        const ready =
+            await waitForInitialResultsBatch(
+                results
             );
 
+        if (
+            !ready ||
+            !results.isConnected
+        ) {
+            return false;
+        }
+
         const itemList =
-            results?.querySelector(
+            results.querySelector(
                 ".item-list"
             );
 
-        if (!results || !itemList)
+        if (!itemList)
             return false;
+
+        /*
+         * Usamos el tamaño de lote real definido por D&D5e.
+         * Actualmente son 50 entradas.
+         */
+        const configuredBatchSize =
+            Number(
+                app.constructor?.BATCHING?.SIZE
+            );
+
+        const targetVisibleCount =
+            Number.isFinite(configuredBatchSize) &&
+            configuredBatchSize > 0
+                ? configuredBatchSize
+                : 50;
 
         const originalScrollTop =
             results.scrollTop;
@@ -1256,8 +1478,8 @@ async function ensureVisibleResultsFilled(app) {
             ) {
 
                 /*
-                 * Otro modo puede haber tomado el control
-                 * mientras esperábamos un nuevo lote.
+                 * Si otro proceso toma el control,
+                 * dejamos de rellenar la lista.
                  */
                 if (
                     app._ccShowHidden ||
@@ -1268,12 +1490,26 @@ async function ensureVisibleResultsFilled(app) {
                 }
 
                 /*
-                 * Ya existe suficiente contenido visible
-                 * para que el navegador tenga scroll normal.
+                 * Contamos únicamente las entradas
+                 * realmente visibles después de aplicar
+                 * las reglas de Curator.
+                 */
+                const visibleCount =
+                    Array.from(
+                        itemList.querySelectorAll(
+                            ":scope > .item[data-uuid]"
+                        )
+                    ).filter(item =>
+                        !item.hidden
+                    ).length;
+
+                /*
+                 * Ya hemos recuperado el tamaño normal
+                 * del primer lote de D&D5e.
                  */
                 if (
-                    results.scrollHeight >
-                    results.clientHeight + 1
+                    visibleCount >=
+                    targetVisibleCount
                 ) {
                     return true;
                 }
@@ -1290,8 +1526,8 @@ async function ensureVisibleResultsFilled(app) {
                     );
 
                 /*
-                 * Simulamos alcanzar el final para pedir
-                 * únicamente el siguiente lote a D&D5e.
+                 * Pedimos únicamente el siguiente lote
+                 * mediante el lazy loading normal de D&D5e.
                  */
                 results.scrollTop =
                     results.scrollHeight;
@@ -1307,8 +1543,7 @@ async function ensureVisibleResultsFilled(app) {
                     await batchPromise;
 
                 /*
-                 * Si no aparece otro lote, realmente hemos
-                 * alcanzado el final de los resultados.
+                 * No quedan más resultados.
                  */
                 if (!loadedBatch) {
 
@@ -1319,9 +1554,9 @@ async function ensureVisibleResultsFilled(app) {
                 }
 
                 /*
-                 * Dejamos que MutationObserver aplique
-                 * Curator a las nuevas entradas antes de
-                 * comprobar de nuevo la altura visible.
+                 * Esperamos a que Curator oculte las
+                 * entradas correspondientes del nuevo lote
+                 * antes de volver a contar.
                  */
                 await waitForPaint();
 
@@ -1332,9 +1567,19 @@ async function ensureVisibleResultsFilled(app) {
         }
         finally {
 
-            if (results.isConnected)
+            if (results.isConnected) {
+
                 results.scrollTop =
-                    originalScrollTop;
+                    Math.min(
+                        originalScrollTop,
+                        Math.max(
+                            0,
+                            results.scrollHeight -
+                                results.clientHeight
+                        )
+                    );
+
+            }
 
             app._ccFillingVisibleResults =
                 false;
@@ -1344,6 +1589,9 @@ async function ensureVisibleResultsFilled(app) {
     })();
 
     app._ccFillVisiblePromise = promise;
+
+    app._ccFillVisibleResultsElement =
+        results;
 
     try {
 
@@ -1356,7 +1604,11 @@ async function ensureVisibleResultsFilled(app) {
             app._ccFillVisiblePromise ===
             promise
         ) {
+
             app._ccFillVisiblePromise = null;
+            app._ccFillVisibleResultsElement =
+                null;
+
         }
 
     }
@@ -1548,6 +1800,7 @@ function createMasterCheckbox(app) {
 
     checkbox.title = localize("SelectAllVisible");
     checkbox.checked = false;
+    checkbox.disabled = app._ccTableManagerLocked === true;
 
     checkbox.addEventListener("change", async () => {
 
@@ -1612,7 +1865,9 @@ function createMasterCheckbox(app) {
 
             refreshMasterCheckbox(app);
             refreshDuplicatesButton(app);
+            refreshToolbar(app);
             refreshLoadingIndicator(app);
+            refreshTableProfilePreview(app);
 
         }
 
@@ -1976,6 +2231,10 @@ async function openDuplicatePriorityDialog(app) {
 
     const result =
         await foundry.applications.api.DialogV2.wait({
+
+            classes: [
+                "cc-duplicate-priority-window"
+            ],
 
             window: {
                 title:
@@ -2466,6 +2725,11 @@ function createModeToolbar(app) {
                 ${localize("Duplicates")}
             </button>
 
+            <button type="button" class="cc-table-manager-button">
+                <i class="fa-solid fa-table-list"></i>
+                ${localize("ManageTables")}
+            </button>
+
         </div>
 
         <span class="cc-loading-indicator" hidden>
@@ -2477,9 +2741,13 @@ function createModeToolbar(app) {
     const curatorButton = toolbar.querySelector(".cc-curator-button");
     const hiddenButton = toolbar.querySelector(".cc-hidden-button");
     const duplicatesButton = toolbar.querySelector(".cc-duplicates-button");
+    const tableManagerButton = toolbar.querySelector(".cc-table-manager-button");
     const publicProfileButton = toolbar.querySelector(".cc-profile-public");
 
     curatorButton.addEventListener("click", () => {
+
+        if (app._ccTableManagerLocked)
+            return;
 
         app._ccCuratorMode = !app._ccCuratorMode;
 
@@ -2562,17 +2830,64 @@ function createModeToolbar(app) {
         }
     );
 
+    tableManagerButton.addEventListener(
+        "click",
+        () => {
+
+            if (
+                app._ccTableManager?.rendered
+            ) {
+
+                app._ccTableManager
+                    .bringToFront();
+
+                return;
+
+            }
+
+            app._ccTableManager ??=
+                new TableManagerApplication(app);
+
+            app._ccTableManagerLocked =
+                true;
+
+            if (app._ccCuratorMode) {
+
+                app._ccCuratorMode =
+                    false;
+
+                clearSelection(app);
+                updateCuratorMode(app);
+
+            }
+
+            refreshToolbar(app);
+
+            app._ccTableManager.render({
+                force: true
+            });
+
+        }
+    );
+
     const profileSelect = toolbar.querySelector(
         ".cc-profile-select"
     );
 
-    const profileMenuToggle = toolbar.querySelector(
-        ".cc-profile-menu-toggle"
-    );
+    const profileMenuWrapper =
+        toolbar.querySelector(
+            ".cc-profile-menu-wrapper"
+        );
 
-    const profileMenu = toolbar.querySelector(
-        ".cc-profile-menu"
-    );
+    const profileMenuToggle =
+        toolbar.querySelector(
+            ".cc-profile-menu-toggle"
+        );
+
+    const profileMenu =
+        toolbar.querySelector(
+            ".cc-profile-menu"
+        );
 
     const createProfileButton = toolbar.querySelector(
         ".cc-profile-create"
@@ -2612,6 +2927,55 @@ function createModeToolbar(app) {
         }
     );
 
+    /*
+    * Cerrar el menú de perfiles al hacer
+    * clic fuera de él.
+    */
+    /*
+    * Evita acumular listeners globales
+    * cuando el Compendium Browser
+    * vuelve a renderizarse.
+    */
+    if (app._ccProfileMenuOutsideHandler) {
+
+        document.removeEventListener(
+            "pointerdown",
+            app._ccProfileMenuOutsideHandler,
+            true
+        );
+
+    }
+
+
+    app._ccProfileMenuOutsideHandler =
+        event => {
+
+            if (profileMenu.hidden)
+                return;
+
+            /*
+            * Un clic en el selector, engranaje
+            * o propio menú no lo cierra.
+            */
+            if (
+                profileMenuWrapper.contains(
+                    event.target
+                )
+            ) {
+                return;
+            }
+
+            profileMenu.hidden = true;
+
+        };
+
+
+    document.addEventListener(
+        "pointerdown",
+        app._ccProfileMenuOutsideHandler,
+        true
+    );
+
     profileMenu.addEventListener(
         "click",
         event => {
@@ -2626,13 +2990,23 @@ function createModeToolbar(app) {
 
         const result =
             await foundry.applications.api.DialogV2.input({
+
+                classes:
+                    PROFILE_DIALOG_CLASSES,
+
                 window: {
-                    title: localize("CreateProfile")
+                    title:
+                        localize(
+                            "CreateProfile"
+                        )
                 },
 
                 content: `
-                    <div class="form-group">
-                        <label>${localize("ProfileName")}</label>
+                    <div class="form-group cc-profile-dialog-field">
+
+                        <label>
+                            ${localize("ProfileName")}
+                        </label>
 
                         <input
                             type="text"
@@ -2640,11 +3014,15 @@ function createModeToolbar(app) {
                             autocomplete="off"
                             autofocus
                         >
+
                     </div>
                 `,
 
                 ok: {
-                    label: localize("Create")
+                    label:
+                        localize(
+                            "Create"
+                        )
                 },
 
                 rejectClose: false,
@@ -2694,8 +3072,11 @@ function createModeToolbar(app) {
         const activeProfileName =
             StorageService.getProfileName(activeProfile);
 
-        const field = document.createElement("div");
-        field.className = "form-group";
+        const field =
+            document.createElement("div");
+
+        field.className =
+            "form-group cc-profile-dialog-field";
 
         const label = document.createElement("label");
         label.textContent = localize("ProfileName");
@@ -2711,6 +3092,10 @@ function createModeToolbar(app) {
 
         const result =
             await foundry.applications.api.DialogV2.input({
+
+                classes:
+                    PROFILE_DIALOG_CLASSES,
+
                 window: {
                     title: localize("RenameProfile")
                 },
@@ -2784,7 +3169,8 @@ function createModeToolbar(app) {
         );
 
         const field = document.createElement("div");
-        field.className = "form-group";
+        field.className =
+            "form-group cc-profile-dialog-field";
 
         const label = document.createElement("label");
         label.textContent = localize("ProfileName");
@@ -2800,6 +3186,10 @@ function createModeToolbar(app) {
 
         const result =
             await foundry.applications.api.DialogV2.input({
+
+                classes:
+                    PROFILE_DIALOG_CLASSES,
+
                 window: {
                     title: localize("DuplicateProfile")
                 },
@@ -2940,7 +3330,8 @@ function createModeToolbar(app) {
             const field =
                 document.createElement("div");
 
-            field.className = "form-group";
+            field.className =
+                "form-group cc-profile-dialog-field";
 
             const label =
                 document.createElement("label");
@@ -2961,6 +3352,10 @@ function createModeToolbar(app) {
 
             const result =
                 await foundry.applications.api.DialogV2.input({
+
+                    classes:
+                        PROFILE_DIALOG_CLASSES,
+
                     window: {
                         title: localize("ImportProfile")
                     },
@@ -3032,6 +3427,10 @@ function createModeToolbar(app) {
 
         const confirmed =
             await foundry.applications.api.DialogV2.confirm({
+
+                classes:
+                    PROFILE_DIALOG_CLASSES,
+
                 window: {
                     title: localize("DeleteProfile")
                 },
@@ -3244,8 +3643,12 @@ function refreshProfileSelect(select) {
 
 function createToolbar(app) {
 
-    if (!canCurate())
+    if (
+        !canCurate() ||
+        !app?.element?.isConnected
+    ) {
         return null;
+    }
 
     let toolbar = app.element.querySelector(".cc-toolbar");
 
@@ -3443,11 +3846,36 @@ function refreshToolbar(app) {
                 { count }
             );
 
+    const tableManagerLocked =
+        app._ccTableManagerLocked === true;
+
+    const curatorButton =
+        app.element.querySelector(
+            ".cc-curator-button"
+        );
+
+    if (curatorButton) {
+        curatorButton.disabled =
+            tableManagerLocked;
+    }
+
+    for (
+        const checkbox
+        of app.element.querySelectorAll(
+            ".cc-checkbox"
+        )
+    ) {
+        checkbox.disabled =
+            tableManagerLocked;
+    }
+
     toolbar.querySelector(".cc-hide").disabled =
-        count === 0;
+        count === 0 ||
+        tableManagerLocked;
 
     toolbar.querySelector(".cc-show").disabled =
-        count === 0;
+        count === 0 ||
+        tableManagerLocked;
 
     /*
      * Selección y Ocultar/Mostrar pertenecen

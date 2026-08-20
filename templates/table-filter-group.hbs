@@ -1,0 +1,72 @@
+<div class="cc-table-filter-group">
+
+    <div class="cc-table-filter-group-content">
+
+        <p class="hint cc-table-filter-group-intro">
+            {{localize
+                "COMPENDIUM_CURATOR.AddFilterGroupHint"
+                profile=profileName
+            }}
+        </p>
+
+
+        <div class="cc-table-filter-group-form">
+
+            <label
+                for="cc-table-filter-group-name"
+                class="cc-table-filter-group-label"
+            >
+                {{localize
+                    "COMPENDIUM_CURATOR.FilterGroupName"
+                }}
+            </label>
+
+            <input
+                id="cc-table-filter-group-name"
+                type="text"
+                name="filterGroupName"
+                autocomplete="off"
+            >
+
+            <p class="hint cc-table-filter-group-count">
+                {{localize
+                    "COMPENDIUM_CURATOR.CurrentFilterMatches"
+                    count=candidateCount
+                }}
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <footer class="cc-table-filter-group-footer">
+
+        <button
+            type="button"
+            data-action="cancel"
+        >
+            <i class="fas fa-xmark"></i>
+
+            {{localize
+                "COMPENDIUM_CURATOR.TableDefaultsCancel"
+            }}
+        </button>
+
+        <button
+            type="button"
+            data-action="save"
+            {{#unless hasCandidates}}
+                disabled
+            {{/unless}}
+        >
+            <i class="fas fa-plus"></i>
+
+            {{localize
+                "COMPENDIUM_CURATOR.AddFilterGroup"
+            }}
+        </button>
+
+    </footer>
+
+</div>

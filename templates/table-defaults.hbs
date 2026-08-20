@@ -1,0 +1,96 @@
+<div class="cc-table-defaults">
+
+    <div class="cc-table-defaults-content">
+
+        <p class="hint">
+            {{localize
+                "COMPENDIUM_CURATOR.TableDefaultsHint"
+            }}
+        </p>
+
+
+        <section>
+
+            <h3>
+                {{localize
+                    "COMPENDIUM_CURATOR.DefaultRarityWeights"
+                }}
+            </h3>
+
+
+            <div
+                class="
+                    cc-table-filter-detail-block
+                    cc-table-defaults-weights
+                "
+            >
+
+                {{#each rarityWeights}}
+
+                    <div
+                        class="
+                            cc-table-filter-detail-choice
+                            cc-table-defaults-weight-row
+                        "
+                    >
+
+                        <label
+                            for="cc-table-default-weight-{{key}}"
+                        >
+                            {{label}}
+                        </label>
+
+
+                        <div class="form-fields">
+
+                            <input
+                                id="cc-table-default-weight-{{key}}"
+                                type="number"
+                                name="rarityWeight.{{key}}"
+                                value="{{value}}"
+                                min="1"
+                                step="1"
+                            >
+
+                        </div>
+
+                    </div>
+
+                {{/each}}
+
+            </div>
+
+        </section>
+
+    </div>
+
+
+    <footer
+        class="cc-table-defaults-footer"
+    >
+
+        <button
+            type="button"
+            data-action="cancel"
+        >
+            <i class="fas fa-xmark"></i>
+
+            {{localize
+                "COMPENDIUM_CURATOR.TableDefaultsCancel"
+            }}
+        </button>
+
+        <button
+            type="button"
+            data-action="save"
+        >
+            <i class="fas fa-floppy-disk"></i>
+
+            {{localize
+                "COMPENDIUM_CURATOR.TableDefaultsSave"
+            }}
+        </button>
+
+    </footer>
+
+</div>

@@ -1,0 +1,299 @@
+<section class="cc-table-manager">
+
+    <header class="cc-table-manager-header">
+
+        <div>
+            <h2>
+                {{localize
+                    "COMPENDIUM_CURATOR.TableProfiles"
+                }}
+            </h2>
+
+            <p class="hint">
+                {{localize
+                    "COMPENDIUM_CURATOR.TableProfilesHint"
+                }}
+            </p>
+        </div>
+
+        <div class="cc-table-manager-actions">
+
+            <button
+                type="button"
+                data-action="createProfile"
+            >
+                <i class="fas fa-plus"></i>
+
+                {{localize
+                    "COMPENDIUM_CURATOR.CreateTableProfile"
+                }}
+            </button>
+
+            <button
+                type="button"
+                data-action="configureDefaults"
+            >
+                <i class="fas fa-gear"></i>
+
+                {{localize
+                    "COMPENDIUM_CURATOR.TableDefaults"
+                }}
+            </button>
+
+        </div>
+
+    </header>
+
+    <div class="cc-table-profile-list">
+
+        <div class="cc-table-manager-profiles">
+
+            {{#if hasProfiles}}
+
+                {{#each profiles}}
+
+                    <div
+                        class="cc-table-manager-profile"
+                        data-profile-id="{{id}}"
+                    >
+
+                        <div
+                            class="cc-table-manager-profile-info"
+                        >
+
+                            <strong>
+                                {{name}}
+                            </strong>
+
+                            <span>
+                                <i class="{{typeIcon}}"></i>
+
+                                {{typeLabel}}
+
+                                ·
+
+                                {{summary}}
+                            </span>
+
+                            {{#if filterGroups.length}}
+
+                                <div class="cc-table-manager-filter-groups">
+
+                                    {{#each filterGroups}}
+
+                                        <div
+                                            class="cc-table-manager-filter-group"
+                                            data-filter-group-id="{{id}}"
+                                        >
+
+                                            <i class="fas fa-filter"></i>
+
+                                            <span>
+                                                {{name}}
+                                            </span>
+
+                                            <button
+                                                type="button"
+                                                class="cc-table-manager-filter-group-control"
+                                                data-action="filterGroupDetails"
+                                                title="{{
+                                                    localize
+                                                        'COMPENDIUM_CURATOR.FilterGroupDetails'
+                                                }}"
+                                            >
+                                                <i class="fas fa-info-circle"></i>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                class="cc-table-manager-filter-group-control"
+                                                data-action="refreshFilterGroup"
+                                                title="{{
+                                                    localize
+                                                        'COMPENDIUM_CURATOR.RefreshFilterGroup'
+                                                }}"
+                                            >
+                                                <i class="fas fa-arrows-rotate"></i>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                class="cc-table-manager-filter-group-control"
+                                                data-action="loadFilterGroup"
+                                                title="{{
+                                                    localize
+                                                        'COMPENDIUM_CURATOR.LoadFilterGroupFilters'
+                                                }}"
+                                            >
+                                                <i class="fas fa-arrow-up-from-bracket"></i>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                class="cc-table-manager-filter-group-control"
+                                                data-action="deleteFilterGroup"
+                                                title="{{
+                                                    localize
+                                                        'COMPENDIUM_CURATOR.DeleteFilterGroup'
+                                                }}"
+                                            >
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+
+                                        </div>
+
+                                    {{/each}}
+
+                                </div>
+
+                            {{/if}}
+
+                        </div>
+
+                        <div
+                            class="cc-table-manager-profile-status"
+                        >
+                            {{status}}
+                        </div>
+
+                        <div
+                            class="cc-table-manager-profile-menu-wrapper"
+                        >
+
+                            <button
+                                type="button"
+                                class="cc-table-manager-profile-menu-toggle"
+                                data-action="toggleProfileActions"
+                            >
+                                <i class="fas fa-gear"></i>
+
+                                {{localize
+                                    "COMPENDIUM_CURATOR.Actions"
+                                }}
+                            </button>
+
+                            <div
+                                class="cc-table-manager-profile-menu"
+                                hidden
+                            >
+                                {{#if isContent}}
+                                    <button
+                                        type="button"
+                                        data-action="previewProfile"
+                                        {{#unless filterGroupCount}}
+                                            disabled
+                                        {{/unless}}
+                                    >
+                                        <i class="fas fa-eye"></i>
+
+                                        {{localize
+                                            "COMPENDIUM_CURATOR.TableProfilePreview"
+                                        }}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        data-action="manualInclusions"
+                                    >
+                                        <i class="fas fa-plus-circle"></i>
+
+                                        {{localize
+                                            "COMPENDIUM_CURATOR.ManualInclusions"
+                                        }}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        data-action="manualExclusions"
+                                        {{#unless filterGroupCount}}
+                                            disabled
+                                        {{/unless}}
+                                    >
+                                        <i class="fas fa-ban"></i>
+
+                                        {{localize
+                                            "COMPENDIUM_CURATOR.ManualExclusions"
+                                        }}
+                                    </button>
+
+                                    <div
+                                        class="cc-table-manager-profile-menu-separator"
+                                    ></div>
+
+                                    <button
+                                        type="button"
+                                        data-action="addCurrentFilters"
+                                    >
+                                        <i class="fas fa-plus"></i>
+
+                                        {{localize
+                                            "COMPENDIUM_CURATOR.AddCurrentFilters"
+                                        }}
+                                    </button>
+
+                                    <div
+                                        class="cc-table-manager-profile-menu-separator"
+                                    ></div>
+                                
+                                {{/if}}
+
+                                <button
+                                    type="button"
+                                    data-action="renameProfile"
+                                >
+                                    <i class="fas fa-pen"></i>
+
+                                    {{localize
+                                        "COMPENDIUM_CURATOR.RenameProfile"
+                                    }}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    data-action="duplicateProfile"
+                                >
+                                    <i class="fas fa-copy"></i>
+
+                                    {{localize
+                                        "COMPENDIUM_CURATOR.DuplicateProfile"
+                                    }}
+                                </button>
+
+                                <div
+                                    class="cc-table-manager-profile-menu-separator"
+                                ></div>
+
+                                <button
+                                    type="button"
+                                    data-action="deleteProfile"
+                                >
+                                    <i class="fas fa-trash"></i>
+
+                                    {{localize
+                                        "COMPENDIUM_CURATOR.DeleteProfile"
+                                    }}
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                {{/each}}
+
+            {{else}}
+
+                <p class="cc-table-manager-empty">
+                    {{localize
+                        "COMPENDIUM_CURATOR.NoTableProfiles"
+                    }}
+                </p>
+
+            {{/if}}
+
+        </div>
+
+    </div>
+
+</section>
