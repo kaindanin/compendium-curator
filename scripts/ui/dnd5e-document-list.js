@@ -1,3 +1,92 @@
+function getDocumentSource(source) {
+
+    if (!source)
+        return "";
+
+    if (typeof source === "string")
+        return source;
+
+    return String(
+        source.value ??
+        source.book ??
+        source.label ??
+        ""
+    );
+
+}
+
+
+function buildDocumentEntry(
+    uuid,
+    document,
+    documentClass
+) {
+
+    if (!document) {
+
+        return {
+            uuid,
+            name: uuid,
+            img: null,
+            subtitle: "",
+            source: "",
+            available: false
+        };
+
+    }
+
+    const subtitle =
+        CONFIG[
+            documentClass
+        ]
+            ?.typeLabels
+            ?.[document.type] ??
+        "";
+
+    return {
+        uuid,
+
+        name:
+            document.name ??
+            uuid,
+
+        img:
+            document.img ??
+            null,
+
+        subtitle,
+
+        source:
+            getDocumentSource(
+                document.system
+                    ?.source
+            ),
+
+        available:
+            true
+    };
+
+}
+
+
+function sortDocumentEntries(entries) {
+
+    return entries.sort(
+        (a, b) =>
+            String(a.name)
+                .localeCompare(
+                    String(b.name),
+                    game.i18n.lang,
+                    {
+                        sensitivity:
+                            "base"
+                    }
+                )
+    );
+
+}
+
+
 export async function prepareDnd5eDocumentEntries(
     uuids
 ) {
@@ -15,72 +104,123 @@ export async function prepareDnd5eDocumentEntries(
             )
         );
 
-    return entries
-        .map(
+    return sortDocumentEntries(
+        entries.map(
             (uuid, index) => {
 
                 const document =
                     documents[index];
 
-                if (!document) {
-
-                    return {
-                        uuid,
-                        name: uuid,
-                        img: null,
-                        subtitle: "",
-                        source: "",
-                        available: false
-                    };
-
-                }
-
-                const documentClass =
-                    document.documentName;
-
-                const subtitle =
-                    CONFIG[
-                        documentClass
-                    ]
-                        ?.typeLabels
-                        ?.[document.type] ??
-                    "";
-
-                return {
+                return buildDocumentEntry(
                     uuid,
-
-                    name:
-                        document.name,
-
-                    img:
-                        document.img,
-
-                    subtitle,
-
-                    source:
-                        document.system
-                            ?.source
-                            ?.value ??
-                        "",
-
-                    available:
-                        true
-                };
+                    document,
+                    document?.documentName
+                );
 
             }
         )
-        .sort(
-            (a, b) =>
-                String(a.name)
-                    .localeCompare(
-                        String(b.name),
-                        game.i18n.lang,
-                        {
-                            sensitivity:
-                                "base"
-                        }
-                    )
-        );
+    );
+
+}
+
+
+/*
+ * Variante ligera para vistas previas en vivo.
+ *
+ * Usa el índice que el Compendium Browser ya ha
+ * cargado en memoria, evitando fromUuid() para
+ * cientos o miles de resultados. Devuelve la
+ * misma estructura visual que
+ * prepareDnd5eDocumentEntries().
+ */
+export function prepareDnd5eIndexedEntries(
+    uuids
+) {
+
+    const entries =
+        Array.from(
+            new Set(
+                uuids ?? []
+            )
+        )
+            .map(rawUuid => {
+
+                const uuid =
+                    String(
+                        rawUuid ?? ""
+                    );
+
+                if (!uuid)
+                    return null;
+
+                const parts =
+                    uuid.split(".");
+
+                if (
+                    parts[0] ===
+                        "Compendium" &&
+                    parts.length >= 4
+                ) {
+
+                    const collection =
+                        `${parts[1]}.${parts[2]}`;
+
+                    const documentId =
+                        parts.at(-1);
+
+                    const pack =
+                        game.packs
+                            ?.get(collection);
+
+                    const indexEntry =
+                        pack
+                            ?.index
+                            ?.get(documentId);
+
+                    if (indexEntry) {
+
+                        return buildDocumentEntry(
+                            uuid,
+                            indexEntry,
+                            pack.documentName
+                        );
+
+                    }
+
+                }
+
+                if (
+                    typeof fromUuidSync ===
+                        "function"
+                ) {
+
+                    const document =
+                        fromUuidSync(uuid);
+
+                    if (document) {
+
+                        return buildDocumentEntry(
+                            uuid,
+                            document,
+                            document.documentName
+                        );
+
+                    }
+
+                }
+
+                return buildDocumentEntry(
+                    uuid,
+                    null,
+                    null
+                );
+
+            })
+            .filter(Boolean);
+
+    return sortDocumentEntries(
+        entries
+    );
 
 }
 

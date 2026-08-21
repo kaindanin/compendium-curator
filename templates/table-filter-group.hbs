@@ -4,7 +4,7 @@
 
         <div
             class="cc-table-filter-group-content"
-            style="overflow-y: auto; gap: 0.8rem;"
+            style="overflow-y: auto;"
         >
 
             <header>
@@ -78,16 +78,7 @@
 
             <section>
 
-                <h3
-                    style="
-                        margin: 0 0 0.55rem;
-                        padding-bottom: 0.4rem;
-                        border-bottom: 1px solid rgb(255 255 255 / 10%);
-                        font-family: var(--dnd5e-font-roboto-slab);
-                        font-size: 1.05rem;
-                        line-height: 1.2;
-                    "
-                >
+                <h3 style="margin: 0 0 0.5rem;">
                     {{localize
                         "COMPENDIUM_CURATOR.LivePreview"
                     }}
@@ -177,26 +168,13 @@
             <section
                 class="cc-table-filter-group-matches"
                 data-cc-live-preview
-                style="min-height: 0;"
             >
 
                 <div
                     class="cc-table-filter-group-matches-title"
-                    style="
-                        margin-bottom: 0.55rem;
-                        padding-bottom: 0.4rem;
-                        border-bottom: 1px solid rgb(255 255 255 / 10%);
-                    "
                 >
 
-                    <h3
-                        style="
-                            margin: 0;
-                            font-family: var(--dnd5e-font-roboto-slab);
-                            font-size: 1.05rem;
-                            line-height: 1.2;
-                        "
-                    >
+                    <h3>
                         {{localize
                             "COMPENDIUM_CURATOR.FinalObjects"
                         }}
@@ -236,39 +214,136 @@
 
                 {{#if hasMatches}}
 
-                    <ol
-                        class="cc-table-filter-group-live-results"
-                        style="
-                            max-height: 320px;
-                            margin: 0;
-                            padding: 0.25rem 0.65rem 0.25rem 2.75rem;
-                            background: var(--dnd5e-background-card);
-                            border: 0;
-                            border-radius: 5px;
-                            overflow-x: hidden;
-                            overflow-y: auto;
-                            scrollbar-gutter: stable;
+                    <section
+                        class="
+                            inventory-element
+                            cc-dnd5e-document-list
+                            cc-table-filter-group-live-results
                         "
                     >
 
-                        {{#each matches}}
+                        <section
+                            class="items-list browser-results"
+                        >
 
-                            <li
-                                style="
-                                    min-height: 32px;
-                                    padding: 0.35rem 0.3rem;
-                                    border-bottom: 1px solid rgb(255 255 255 / 5%);
-                                    line-height: 1.25;
-                                "
+                            <div
+                                class="items-section card"
                             >
-                                <span>
-                                    {{name}}
-                                </span>
-                            </li>
 
-                        {{/each}}
+                                <div
+                                    class="items-header header"
+                                >
 
-                    </ol>
+                                    <h3 class="item-name">
+                                        {{localize
+                                            "DND5E.CompendiumBrowser.Column.Results"
+                                        }}
+                                    </h3>
+
+                                    <div
+                                        class="item-header item-source"
+                                    >
+                                        {{localize
+                                            "DND5E.CompendiumBrowser.Column.Source"
+                                        }}
+                                    </div>
+
+                                    <div
+                                        class="item-header item-controls"
+                                    ></div>
+
+                                </div>
+
+
+                                <ol class="item-list unlist">
+
+                                    {{#each matches}}
+
+                                        <li
+                                            class="item cc-dnd5e-document-entry"
+                                            data-uuid="{{uuid}}"
+                                        >
+
+                                            <div class="item-row">
+
+                                                <div
+                                                    class="item-name rollable"
+                                                    role="button"
+                                                    data-cc-open-document
+                                                >
+
+                                                    {{#if img}}
+
+                                                        <img
+                                                            class="item-image gold-icon"
+                                                            loading="lazy"
+                                                            src="{{img}}"
+                                                            alt="{{name}}"
+                                                            draggable="false"
+                                                        >
+
+                                                    {{/if}}
+
+                                                    <div
+                                                        class="name name-stacked"
+                                                    >
+
+                                                        <span class="title">
+                                                            {{name}}
+                                                        </span>
+
+                                                        {{#if subtitle}}
+
+                                                            <span class="subtitle">
+                                                                {{localize subtitle}}
+                                                            </span>
+
+                                                        {{/if}}
+
+                                                    </div>
+
+                                                </div>
+
+
+                                                <div
+                                                    class="
+                                                        item-detail
+                                                        item-source
+                                                        {{#unless source}}empty{{/unless}}
+                                                    "
+                                                >
+
+                                                    {{#if source}}
+
+                                                        <span class="condensed">
+                                                            {{source}}
+                                                        </span>
+
+                                                    {{/if}}
+
+                                                </div>
+
+
+                                                <div
+                                                    class="
+                                                        item-detail
+                                                        item-controls
+                                                    "
+                                                ></div>
+
+                                            </div>
+
+                                        </li>
+
+                                    {{/each}}
+
+                                </ol>
+
+                            </div>
+
+                        </section>
+
+                    </section>
 
                     {{#if previewTruncated}}
 

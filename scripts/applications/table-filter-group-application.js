@@ -10,6 +10,11 @@ import {
     TableProfileFilterGroupLinkService
 } from "../services/table-profile-filter-group-link-service.js";
 
+import {
+    activateDnd5eDocumentEntries,
+    prepareDnd5eIndexedEntries
+} from "../ui/dnd5e-document-list.js";
+
 const {
     ApplicationV2,
     HandlebarsApplicationMixin
@@ -20,80 +25,9 @@ const LIVE_PREVIEW_LIMIT = 300;
 function prepareLivePreviewEntries(uuids) {
 
     const entries =
-        Array.from(
-            new Set(
-                uuids ?? []
-            )
-        )
-            .map(uuid => {
-
-                const value =
-                    String(uuid ?? "");
-
-                let name = "";
-
-                const parts =
-                    value.split(".");
-
-                if (
-                    parts[0] ===
-                        "Compendium" &&
-                    parts.length >= 4
-                ) {
-
-                    const collection =
-                        `${parts[1]}.${parts[2]}`;
-
-                    const documentId =
-                        parts.at(-1);
-
-                    const indexEntry =
-                        game.packs
-                            ?.get(collection)
-                            ?.index
-                            ?.get(documentId);
-
-                    name =
-                        String(
-                            indexEntry?.name ??
-                            ""
-                        );
-
-                }
-
-                if (
-                    !name &&
-                    typeof fromUuidSync ===
-                        "function"
-                ) {
-
-                    name =
-                        String(
-                            fromUuidSync(value)
-                                ?.name ??
-                            ""
-                        );
-
-                }
-
-                return {
-                    uuid: value,
-                    name: name || value
-                };
-
-            })
-            .filter(entry =>
-                Boolean(entry.uuid)
-            )
-            .sort((a, b) =>
-                a.name.localeCompare(
-                    b.name,
-                    game.i18n.lang,
-                    {
-                        sensitivity: "base"
-                    }
-                )
-            );
+        prepareDnd5eIndexedEntries(
+            uuids
+        );
 
     return {
         entries:
@@ -551,10 +485,12 @@ export class TableFilterGroupApplication
                         );
 
                 /*
-                 * La lista viva usa únicamente los índices
-                 * ya cargados por el Compendium Browser.
-                 * No hacemos fromUuid() ni traducciones
-                 * completas para cientos de documentos.
+                 * Construimos las mismas filas visuales
+                 * usadas por el resto de Curator, pero
+                 * únicamente con los índices que el
+                 * Compendium Browser ya tiene en memoria.
+                 * No resolvemos cientos de documentos con
+                 * fromUuid() durante la vista previa.
                  */
                 const preview =
                     prepareLivePreviewEntries(
@@ -800,6 +736,10 @@ export class TableFilterGroupApplication
                 this._didInitialFocus = true;
                 nameInput?.focus();
             }
+
+            activateDnd5eDocumentEntries(
+                this.element
+            );
 
             this._setPreviewLoading(
                 context.isPreviewLoading
