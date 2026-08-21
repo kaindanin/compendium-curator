@@ -5,6 +5,7 @@ import { TableFilterGroupApplication } from "./table-filter-group-application.js
 import { TableProfilePreviewApplication } from "./table-profile-preview-application.js";
 import { TableProfileExclusionsApplication } from "./table-profile-exclusions-application.js";
 import { TableProfileInclusionsApplication } from "./table-profile-inclusions-application.js";
+import { TableGroupingRangeApplication } from "./table-grouping-range-application.js";
 import { TableProfileService } from "../services/table-profile-service.js";
 import { StorageService } from "../services/storage-service.js";
 import { TableFilterGroupDetailsApplication } from "./table-filter-group-details-application.js";
@@ -44,16 +45,6 @@ const CONTENT_INSPECTOR_RARITY_LABELS = {
     legendary: "RarityLegendary",
     artifact: "RarityArtifact"
 };
-
-const CONTENT_INSPECTOR_CR_ORDER = [
-    "0-1",
-    "2-4",
-    "5-8",
-    "9-12",
-    "13-16",
-    "17-plus",
-    "unclassified"
-];
 
 const CONTENT_INSPECTOR_CR_LABELS = {
     "0-1": "CR 0–1",
@@ -418,41 +409,6 @@ function normalizeInspectorChallengeRating(value) {
         : null;
 }
 
-function getInspectorChallengeRatingKey(uuid) {
-    const document =
-        getIndexedDocument(uuid);
-    const cr =
-        normalizeInspectorChallengeRating(
-            document?.system?.details?.cr
-        );
-
-    if (cr === null)
-        return "unclassified";
-
-    if (cr < 2)
-        return "0-1";
-    if (cr < 5)
-        return "2-4";
-    if (cr < 9)
-        return "5-8";
-    if (cr < 13)
-        return "9-12";
-    if (cr < 17)
-        return "13-16";
-
-    return "17-plus";
-}
-
-function getInspectorChallengeRatingLabel(key) {
-    if (key === "unclassified") {
-        return game.i18n.localize(
-            "COMPENDIUM_CURATOR.GroupNoChallengeRating"
-        );
-    }
-
-    return CONTENT_INSPECTOR_CR_LABELS[key] ?? key;
-}
-
 function getInspectorDistributionMode(profile) {
     const mode = String(
         profile?.distribution?.mode ?? ""
@@ -477,6 +433,150 @@ function getInspectorGroupingCriterion(profile) {
         : "rarity";
 }
 
+function getInspectorGroupingRanges(
+    profile,
+    criterion
+) {
+    const grouped =
+        profile?.distribution?.grouped;
+    const activeCriterion =
+        getInspectorGroupingCriterion(profile);
+
+    const ranges =
+        activeCriterion === criterion
+            ? grouped?.grouping?.ranges
+            : grouped?.configurations?.[
+                criterion
+            ]?.ranges;
+
+    return Array.isArray(ranges)
+        ? ranges
+        : [];
+}
+
+function formatInspectorRangeValue(value) {
+    const number = Number(value);
+
+    if (!Number.isFinite(number))
+        return "";
+
+    return new Intl.NumberFormat(
+        game.i18n.lang,
+        {
+            maximumFractionDigits: 3
+        }
+    ).format(number);
+}
+
+function getInspectorRangeLabel(
+    criterion,
+    range
+) {
+    const criterionLabel =
+        getInspectorGroupingLabel(
+            criterion
+        );
+    const min = Number(range?.min);
+
+    if (!Number.isFinite(min))
+        return criterionLabel;
+
+    const rawMax = range?.max;
+
+    if (
+        rawMax === null ||
+        rawMax === undefined ||
+        rawMax === ""
+    ) {
+        return `${criterionLabel} ${formatInspectorRangeValue(min)}+`;
+    }
+
+    const max = Number(rawMax);
+
+    if (!Number.isFinite(max))
+        return criterionLabel;
+
+    if (min === max) {
+        return `${criterionLabel} ${formatInspectorRangeValue(min)}`;
+    }
+
+    return `${criterionLabel} ${formatInspectorRangeValue(min)}–${formatInspectorRangeValue(max)}`;
+}
+
+function getInspectorChallengeRatingKey(
+    uuid,
+    profile
+) {
+    const document =
+        getIndexedDocument(uuid);
+    const cr =
+        normalizeInspectorChallengeRating(
+            document?.system?.details?.cr
+        );
+
+    if (cr === null)
+        return "unclassified";
+
+    const range =
+        getInspectorGroupingRanges(
+            profile,
+            "cr"
+        ).find(candidate => {
+            const min = Number(candidate?.min);
+            const rawMax = candidate?.max;
+            const max =
+                rawMax === null ||
+                rawMax === undefined ||
+                rawMax === ""
+                    ? null
+                    : Number(rawMax);
+
+            if (!Number.isFinite(min))
+                return false;
+
+            return (
+                cr >= min &&
+                (
+                    max === null ||
+                    (
+                        Number.isFinite(max) &&
+                        cr <= max
+                    )
+                )
+            );
+        });
+
+    return range?.key ?? "unclassified";
+}
+
+function getInspectorChallengeRatingLabel(
+    key,
+    profile
+) {
+    if (key === "unclassified") {
+        return game.i18n.localize(
+            "COMPENDIUM_CURATOR.GroupNoChallengeRating"
+        );
+    }
+
+    const range =
+        getInspectorGroupingRanges(
+            profile,
+            "cr"
+        ).find(candidate =>
+            candidate?.key === key
+        );
+
+    if (range) {
+        return getInspectorRangeLabel(
+            "cr",
+            range
+        );
+    }
+
+    return CONTENT_INSPECTOR_CR_LABELS[key] ?? key;
+}
+
 function getInspectorGroupingLabel(criterion) {
     let key = "GroupByRarity";
 
@@ -494,7 +594,8 @@ function getInspectorGroupingLabel(criterion) {
 
 function getInspectorGroupingKey(
     uuid,
-    criterion
+    criterion,
+    profile
 ) {
     if (criterion === "type")
         return getInspectorDocumentType(uuid);
@@ -504,7 +605,8 @@ function getInspectorGroupingKey(
 
     if (criterion === "cr") {
         return getInspectorChallengeRatingKey(
-            uuid
+            uuid,
+            profile
         );
     }
 
@@ -513,7 +615,8 @@ function getInspectorGroupingKey(
 
 function getInspectorGroupingGroupLabel(
     criterion,
-    key
+    key,
+    profile
 ) {
     if (criterion === "type") {
         return getInspectorDocumentTypeLabel(
@@ -529,7 +632,8 @@ function getInspectorGroupingGroupLabel(
 
     if (criterion === "cr") {
         return getInspectorChallengeRatingLabel(
-            key
+            key,
+            profile
         );
     }
 
@@ -538,7 +642,8 @@ function getInspectorGroupingGroupLabel(
 
 function getInspectorOrderedGroupKeys(
     groups,
-    criterion
+    criterion,
+    profile
 ) {
     if (criterion === "rarity") {
         return [
@@ -560,27 +665,43 @@ function getInspectorOrderedGroupKeys(
     }
 
     if (criterion === "cr") {
-        return [
-            ...CONTENT_INSPECTOR_CR_ORDER
-                .filter(key => groups.has(key)),
+        const configuredKeys =
+            getInspectorGroupingRanges(
+                profile,
+                "cr"
+            ).map(range => range.key);
+
+        const ordered =
+            configuredKeys.filter(key =>
+                groups.has(key)
+            );
+
+        if (groups.has("unclassified")) {
+            ordered.push("unclassified");
+        }
+
+        ordered.push(
             ...[...groups.keys()]
                 .filter(key =>
-                    !CONTENT_INSPECTOR_CR_ORDER
-                        .includes(key)
+                    !ordered.includes(key)
                 )
                 .sort()
-        ];
+        );
+
+        return ordered;
     }
 
     return [...groups.keys()]
         .sort((a, b) =>
             getInspectorGroupingGroupLabel(
                 criterion,
-                a
+                a,
+                profile
             ).localeCompare(
                 getInspectorGroupingGroupLabel(
                     criterion,
-                    b
+                    b,
+                    profile
                 ),
                 game.i18n.lang,
                 { sensitivity: "base" }
@@ -916,7 +1037,8 @@ function buildContentInspector(profile) {
         const key =
             getInspectorGroupingKey(
                 uuid,
-                groupingCriterion
+                groupingCriterion,
+                profile
             );
         const uuids =
             byGroup.get(key) ?? [];
@@ -928,7 +1050,8 @@ function buildContentInspector(profile) {
     const orderedKeys =
         getInspectorOrderedGroupKeys(
             byGroup,
-            groupingCriterion
+            groupingCriterion,
+            profile
         );
 
     const mode =
@@ -1006,7 +1129,8 @@ function buildContentInspector(profile) {
                 label:
                     getInspectorGroupingGroupLabel(
                         groupingCriterion,
-                        key
+                        key,
+                        profile
                     ),
                 count: uuids.length,
                 enabled,
@@ -1118,6 +1242,11 @@ function buildContentInspector(profile) {
             groupingCriterion === "source",
         isGroupingCr:
             groupingCriterion === "cr",
+        isRangeGrouping:
+            profile?.distribution
+                ?.grouped
+                ?.grouping
+                ?.type === "range",
         groupSectionLabel:
             game.i18n.format(
                 "COMPENDIUM_CURATOR.ObjectsByGrouping",
@@ -1151,6 +1280,7 @@ export class TableManagerApplication
         this._profileExclusions = null;
         this._profileInclusions = null;
         this._filterGroupDetails = null;
+        this._groupingRangeEditor = null;
         this._profileActionsPopover = null;
         this._profileActionsProfileId = null;
         this._profileActionsOutsideHandler = null;
@@ -1175,6 +1305,7 @@ export class TableManagerApplication
             clearManagerSearch: this.#onClearManagerSearch,
             createProfile: this.#onCreateProfile,
             configureDefaults: this.#onConfigureDefaults,
+            editGroupingRanges: this.#onEditGroupingRanges,
             addCurrentFilters: this.#onAddCurrentFilters,
             previewProfile: this.#onPreviewProfile,
             manualInclusions: this.#onManualInclusions,
@@ -2097,7 +2228,8 @@ export class TableManagerApplication
             "_profilePreview",
             "_profileExclusions",
             "_profileInclusions",
-            "_filterGroupDetails"
+            "_filterGroupDetails",
+            "_groupingRangeEditor"
         ];
 
         for (const property of applications) {
@@ -2191,6 +2323,67 @@ export class TableManagerApplication
 
         this._defaultsEditor = new TableDefaultsApplication();
         this._defaultsEditor.render({ force: true });
+    }
+
+    static async #onEditGroupingRanges(
+        event,
+        target
+    ) {
+        event.preventDefault();
+
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
+
+        if (!profileId)
+            return;
+
+        const profile =
+            TableProfileStorageService
+                .getProfiles()?.[profileId];
+
+        if (!profile)
+            return;
+
+        const criterion =
+            getInspectorGroupingCriterion(
+                profile
+            );
+
+        if (
+            profile.distribution
+                ?.grouped
+                ?.grouping
+                ?.type !== "range"
+        ) {
+            return;
+        }
+
+        if (this._groupingRangeEditor?.rendered) {
+            if (
+                this._groupingRangeEditor
+                    .profileId === profileId &&
+                this._groupingRangeEditor
+                    .criterion === criterion
+            ) {
+                this._groupingRangeEditor
+                    .bringToFront();
+                return;
+            }
+
+            await this._groupingRangeEditor.close();
+        }
+
+        this._groupingRangeEditor =
+            new TableGroupingRangeApplication(
+                this,
+                profileId,
+                criterion
+            );
+
+        this._groupingRangeEditor.render({
+            force: true
+        });
     }
 
     static async #onAddCurrentFilters(event, target) {
@@ -2542,7 +2735,8 @@ export class TableManagerApplication
             "_profilePreview",
             "_profileInclusions",
             "_profileExclusions",
-            "_filterGroupDetails"
+            "_filterGroupDetails",
+            "_groupingRangeEditor"
         ];
 
         for (const property of profileApplications) {

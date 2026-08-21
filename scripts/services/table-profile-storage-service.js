@@ -33,32 +33,32 @@ const GROUPING_CRITERIA = {
             {
                 key: "0-1",
                 min: 0,
-                maxExclusive: 2
+                max: 1
             },
             {
                 key: "2-4",
                 min: 2,
-                maxExclusive: 5
+                max: 4
             },
             {
                 key: "5-8",
                 min: 5,
-                maxExclusive: 9
+                max: 8
             },
             {
                 key: "9-12",
                 min: 9,
-                maxExclusive: 13
+                max: 12
             },
             {
                 key: "13-16",
                 min: 13,
-                maxExclusive: 17
+                max: 16
             },
             {
                 key: "17-plus",
                 min: 17,
-                maxExclusive: null
+                max: null
             }
         ]
     }
@@ -282,14 +282,224 @@ export class TableProfileStorageService {
             : DEFAULT_GROUPING.criterion;
     }
 
-    static #getGroupingDefinition(criterion) {
-        return foundry.utils.deepClone(
+    static #normalizeGroupingRanges(
+        sourceRanges,
+        criterion,
+        fallbackToDefault = true
+    ) {
+        const normalizedCriterion =
+            this.#normalizeGroupingCriterion(
+                criterion
+            );
+        const definition =
             GROUPING_CRITERIA[
-                this.#normalizeGroupingCriterion(
-                    criterion
+                normalizedCriterion
+            ];
+
+        if (definition?.type !== "range")
+            return [];
+
+        const defaults =
+            foundry.utils.deepClone(
+                definition.ranges ?? []
+            );
+
+        const source =
+            Array.isArray(sourceRanges) &&
+            sourceRanges.length
+                ? sourceRanges
+                : defaults;
+
+        const ranges = [];
+
+        for (
+            const [index, sourceRange]
+            of source.entries()
+        ) {
+            if (
+                !sourceRange ||
+                typeof sourceRange !== "object"
+            ) {
+                continue;
+            }
+
+            const rawMin =
+                typeof sourceRange.min === "string"
+                    ? sourceRange.min.trim()
+                    : sourceRange.min;
+            const min =
+                rawMin === null ||
+                rawMin === undefined ||
+                rawMin === ""
+                    ? Number.NaN
+                    : Number(rawMin);
+
+            let rawMax =
+                typeof sourceRange.max === "string"
+                    ? sourceRange.max.trim()
+                    : sourceRange.max;
+
+            if (
+                rawMax === undefined &&
+                Object.prototype.hasOwnProperty.call(
+                    sourceRange,
+                    "maxExclusive"
                 )
-            ]
-        );
+            ) {
+                const rawExclusive =
+                    sourceRange.maxExclusive;
+
+                rawMax =
+                    rawExclusive === null ||
+                    rawExclusive === undefined ||
+                    rawExclusive === ""
+                        ? null
+                        : Number(rawExclusive) - 1;
+            }
+
+            const max =
+                rawMax === null ||
+                rawMax === undefined ||
+                rawMax === ""
+                    ? null
+                    : Number(rawMax);
+
+            if (!Number.isFinite(min))
+                continue;
+
+            if (
+                max !== null &&
+                (
+                    !Number.isFinite(max) ||
+                    max < min
+                )
+            ) {
+                continue;
+            }
+
+            const key =
+                String(
+                    sourceRange.key ?? ""
+                ).trim() ||
+                `range:${normalizedCriterion}:${index}:${min}:${max ?? "plus"}`;
+
+            ranges.push({
+                key,
+                min,
+                max
+            });
+        }
+
+        ranges.sort((a, b) => {
+            if (a.min !== b.min)
+                return a.min - b.min;
+
+            return (
+                (a.max ?? Number.POSITIVE_INFINITY) -
+                (b.max ?? Number.POSITIVE_INFINITY)
+            );
+        });
+
+        if (
+            !ranges.length &&
+            fallbackToDefault
+        ) {
+            return this.#normalizeGroupingRanges(
+                defaults,
+                normalizedCriterion,
+                false
+            );
+        }
+
+        return ranges;
+    }
+
+    static #validateGroupingRanges(
+        sourceRanges,
+        criterion
+    ) {
+        if (
+            !Array.isArray(sourceRanges) ||
+            !sourceRanges.length
+        ) {
+            throw new Error(
+                "INVALID_TABLE_GROUPING_RANGES"
+            );
+        }
+
+        const normalized =
+            this.#normalizeGroupingRanges(
+                sourceRanges,
+                criterion,
+                false
+            );
+
+        if (
+            normalized.length !==
+            sourceRanges.length
+        ) {
+            throw new Error(
+                "INVALID_TABLE_GROUPING_RANGES"
+            );
+        }
+
+        const keys = new Set();
+
+        for (
+            const [index, range]
+            of normalized.entries()
+        ) {
+            if (keys.has(range.key)) {
+                throw new Error(
+                    "INVALID_TABLE_GROUPING_RANGES"
+                );
+            }
+
+            keys.add(range.key);
+
+            if (index === 0)
+                continue;
+
+            const previous =
+                normalized[index - 1];
+
+            if (
+                previous.max === null ||
+                range.min <= previous.max
+            ) {
+                throw new Error(
+                    "INVALID_TABLE_GROUPING_RANGES"
+                );
+            }
+        }
+
+        return normalized;
+    }
+
+    static #getGroupingDefinition(
+        criterion,
+        ranges = null
+    ) {
+        const normalizedCriterion =
+            this.#normalizeGroupingCriterion(
+                criterion
+            );
+        const definition =
+            foundry.utils.deepClone(
+                GROUPING_CRITERIA[
+                    normalizedCriterion
+                ]
+            );
+
+        if (definition.type === "range") {
+            definition.ranges =
+                this.#normalizeGroupingRanges(
+                    ranges,
+                    normalizedCriterion
+                );
+        }
+
+        return definition;
     }
 
     static #automaticGroupId(
@@ -402,12 +612,24 @@ export class TableProfileStorageService {
             );
 
         grouped.configurations ??= {};
-        grouped.configurations[criterion] = {
+
+        const configuration = {
             groups:
                 foundry.utils.deepClone(
                     grouped.groups ?? {}
                 )
         };
+
+        if (grouped?.grouping?.type === "range") {
+            configuration.ranges =
+                this.#normalizeGroupingRanges(
+                    grouped.grouping.ranges,
+                    criterion
+                );
+        }
+
+        grouped.configurations[criterion] =
+            configuration;
     }
 
     static #normalizeProfileDistribution(profile) {
@@ -481,11 +703,6 @@ export class TableProfileStorageService {
                 sourceGrouping.criterion
             );
 
-        const grouping =
-            this.#getGroupingDefinition(
-                activeCriterion
-            );
-
         const sourceGroups =
             sourceGrouped.groups &&
             typeof sourceGrouped.groups === "object" &&
@@ -523,7 +740,7 @@ export class TableProfileStorageService {
                     ? sourceGroups
                     : sourceConfiguration.groups;
 
-            configurations[criterion] = {
+            const configuration = {
                 groups:
                     this.#normalizeDistributionGroups(
                         configurationGroups,
@@ -531,12 +748,41 @@ export class TableProfileStorageService {
                         legacyGroupWeights
                     )
             };
+
+            if (
+                GROUPING_CRITERIA[criterion]
+                    ?.type === "range"
+            ) {
+                const sourceRanges =
+                    criterion === activeCriterion &&
+                    Array.isArray(
+                        sourceGrouping.ranges
+                    )
+                        ? sourceGrouping.ranges
+                        : sourceConfiguration.ranges;
+
+                configuration.ranges =
+                    this.#normalizeGroupingRanges(
+                        sourceRanges,
+                        criterion
+                    );
+            }
+
+            configurations[criterion] =
+                configuration;
         }
 
         const groups =
             foundry.utils.deepClone(
                 configurations[activeCriterion]
                     ?.groups ?? {}
+            );
+
+        const grouping =
+            this.#getGroupingDefinition(
+                activeCriterion,
+                configurations[activeCriterion]
+                    ?.ranges
             );
 
         profile.distribution = {
@@ -1210,7 +1456,8 @@ export class TableProfileStorageService {
 
         grouped.grouping =
             this.#getGroupingDefinition(
-                requestedCriterion
+                requestedCriterion,
+                nextConfiguration.ranges
             );
         grouped.groups =
             foundry.utils.deepClone(
@@ -1220,6 +1467,112 @@ export class TableProfileStorageService {
         this.#syncActiveDistributionConfiguration(
             grouped
         );
+
+        profile.revision =
+            Number(profile.revision ?? 1) + 1;
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return this.#hydrateProfile(
+            profile,
+            storage
+        );
+    }
+
+    static async setDistributionGroupingRanges(
+        profileId,
+        criterion,
+        ranges
+    ) {
+        const requestedCriterion =
+            String(criterion ?? "").trim();
+        const definition =
+            GROUPING_CRITERIA[
+                requestedCriterion
+            ];
+
+        if (definition?.type !== "range") {
+            throw new Error(
+                "INVALID_TABLE_GROUPING_CRITERION"
+            );
+        }
+
+        const normalizedRanges =
+            this.#validateGroupingRanges(
+                ranges,
+                requestedCriterion
+            );
+
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+
+        const profile =
+            storage.profiles?.[profileId];
+
+        if (
+            !profile ||
+            profile.version !== 2 ||
+            profile.type === "nested"
+        ) {
+            throw new Error(
+                "TABLE_PROFILE_NOT_FOUND"
+            );
+        }
+
+        this.#normalizeProfileDistribution(profile);
+
+        const grouped =
+            profile.distribution.grouped;
+        const configuration =
+            grouped.configurations?.[
+                requestedCriterion
+            ];
+
+        if (!configuration) {
+            throw new Error(
+                "INVALID_TABLE_GROUPING_CRITERION"
+            );
+        }
+
+        if (
+            foundry.utils.equals(
+                configuration.ranges ?? [],
+                normalizedRanges
+            )
+        ) {
+            return this.#hydrateProfile(
+                profile,
+                storage
+            );
+        }
+
+        configuration.ranges =
+            foundry.utils.deepClone(
+                normalizedRanges
+            );
+
+        const currentCriterion =
+            this.#normalizeGroupingCriterion(
+                grouped.grouping?.criterion
+            );
+
+        if (currentCriterion === requestedCriterion) {
+            grouped.grouping =
+                this.#getGroupingDefinition(
+                    requestedCriterion,
+                    normalizedRanges
+                );
+
+            this.#syncActiveDistributionConfiguration(
+                grouped
+            );
+        }
 
         profile.revision =
             Number(profile.revision ?? 1) + 1;

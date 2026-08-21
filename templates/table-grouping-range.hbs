@@ -1,0 +1,162 @@
+<section
+    style="
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        padding: 0.85rem;
+    "
+>
+    {{#if missingProfile}}
+        <p class="hint">
+            {{localize "COMPENDIUM_CURATOR.TableProfileNotFound"}}
+        </p>
+    {{else}}
+        <div>
+            <h2 style="margin: 0 0 0.25rem;">
+                {{criterionLabel}}
+            </h2>
+            <p class="hint" style="margin: 0;">
+                {{localize
+                    "COMPENDIUM_CURATOR.GroupingRangesHint"
+                    profile=profileName
+                }}
+            </p>
+        </div>
+
+        <div
+            style="
+                display: flex;
+                flex-direction: column;
+                gap: 0.5rem;
+            "
+        >
+            {{#each ranges}}
+                <div
+                    data-cc-range-row
+                    data-range-key="{{key}}"
+                    style="
+                        display: grid;
+                        grid-template-columns: minmax(110px, 1fr) 90px 90px 30px;
+                        gap: 0.5rem;
+                        align-items: end;
+                        padding: 0.55rem;
+                        background: rgb(0 0 0 / 12%);
+                        border-radius: 5px;
+                    "
+                >
+                    <div>
+                        <span class="hint">
+                            {{localize "COMPENDIUM_CURATOR.RangePreview"}}
+                        </span>
+                        <strong
+                            style="
+                                display: block;
+                                margin-top: 0.2rem;
+                            "
+                        >
+                            {{label}}
+                        </strong>
+                    </div>
+
+                    <label>
+                        <span class="hint">
+                            {{localize "COMPENDIUM_CURATOR.RangeMinimum"}}
+                        </span>
+                        <input
+                            type="number"
+                            step="any"
+                            value="{{minValue}}"
+                            data-cc-range-min
+                        >
+                    </label>
+
+                    <label>
+                        <span class="hint">
+                            {{localize "COMPENDIUM_CURATOR.RangeMaximum"}}
+                        </span>
+                        <input
+                            type="number"
+                            step="any"
+                            value="{{maxValue}}"
+                            placeholder="∞"
+                            data-cc-range-max
+                        >
+                    </label>
+
+                    <button
+                        type="button"
+                        class="unbutton"
+                        data-action="removeRange"
+                        title="{{localize 'COMPENDIUM_CURATOR.RemoveRange'}}"
+                        aria-label="{{localize 'COMPENDIUM_CURATOR.RemoveRange'}}"
+                        {{#unless canRemove}}disabled{{/unless}}
+                        style="
+                            width: 30px;
+                            height: 30px;
+                        "
+                    >
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            {{/each}}
+        </div>
+
+        <div
+            style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 0.75rem;
+            "
+        >
+            <button
+                type="button"
+                data-action="addRange"
+                style="
+                    flex: 0 0 auto;
+                    width: auto;
+                "
+            >
+                <i class="fas fa-plus"></i>
+                {{localize "COMPENDIUM_CURATOR.AddRange"}}
+            </button>
+
+            <span class="hint">
+                {{localize "COMPENDIUM_CURATOR.OpenRangeHint"}}
+            </span>
+        </div>
+
+        <footer
+            style="
+                display: flex;
+                justify-content: flex-end;
+                gap: 0.5rem;
+                padding-top: 0.35rem;
+            "
+        >
+            <button
+                type="button"
+                data-action="cancel"
+                style="
+                    flex: 0 0 auto;
+                    width: auto;
+                    min-width: 96px;
+                "
+            >
+                {{localize "COMPENDIUM_CURATOR.Cancel"}}
+            </button>
+
+            <button
+                type="button"
+                data-action="save"
+                style="
+                    flex: 0 0 auto;
+                    width: auto;
+                    min-width: 96px;
+                "
+            >
+                {{localize "COMPENDIUM_CURATOR.Save"}}
+            </button>
+        </footer>
+    {{/if}}
+</section>

@@ -472,6 +472,24 @@
                                                             {{localize "COMPENDIUM_CURATOR.GroupByChallengeRating"}}
                                                         </option>
                                                     </select>
+
+                                                    {{#if inspector.isRangeGrouping}}
+                                                        <span></span>
+
+                                                        <button
+                                                            type="button"
+                                                            data-action="editGroupingRanges"
+                                                            style="
+                                                                justify-self: end;
+                                                                width: auto;
+                                                                min-width: 0;
+                                                                padding-inline: 0.75rem;
+                                                            "
+                                                        >
+                                                            <i class="fas fa-sliders"></i>
+                                                            {{localize "COMPENDIUM_CURATOR.EditRanges"}}
+                                                        </button>
+                                                    {{/if}}
                                                 {{/if}}
                                             </div>
 
