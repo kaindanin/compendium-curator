@@ -876,6 +876,111 @@ export class TableProfileStorageService {
     }
 
 
+    static async setObjectWeight(
+        profileId,
+        uuid,
+        weight = null
+    ) {
+
+        const normalizedUuid =
+            String(uuid ?? "").trim();
+
+        if (!normalizedUuid) {
+            throw new Error(
+                "TABLE_OBJECT_UUID_REQUIRED"
+            );
+        }
+
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+
+        const profile =
+            storage.profiles?.[profileId];
+
+        if (
+            !profile ||
+            profile.version !== 2 ||
+            profile.type === "nested"
+        ) {
+            throw new Error(
+                "TABLE_PROFILE_NOT_FOUND"
+            );
+        }
+
+        this.#normalizeProfileWeights(
+            profile
+        );
+
+        const previous =
+            this.#normalizePositiveInteger(
+                profile.weights
+                    ?.overrides
+                    ?.[normalizedUuid]
+            );
+
+        const clearOverride =
+            weight === null ||
+            weight === undefined ||
+            weight === "";
+
+        if (clearOverride) {
+
+            if (previous === null) {
+                return this.#hydrateProfile(
+                    profile,
+                    storage
+                );
+            }
+
+            delete profile.weights
+                .overrides[normalizedUuid];
+
+        }
+        else {
+
+            const normalizedWeight =
+                this.#normalizePositiveInteger(
+                    weight
+                );
+
+            if (normalizedWeight === null) {
+                throw new Error(
+                    "INVALID_TABLE_WEIGHT"
+                );
+            }
+
+            if (previous === normalizedWeight) {
+                return this.#hydrateProfile(
+                    profile,
+                    storage
+                );
+            }
+
+            profile.weights
+                .overrides[normalizedUuid] =
+                normalizedWeight;
+
+        }
+
+        profile.revision =
+            Number(profile.revision ?? 1) + 1;
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return this.#hydrateProfile(
+            profile,
+            storage
+        );
+
+    }
+
+
     static async createFilterGroup(filterGroup) {
 
         const storage =

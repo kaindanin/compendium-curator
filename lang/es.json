@@ -95,6 +95,8 @@
     "RarityArtifact": "Artefacto",
     "Weight": "Peso",
     "WeightPerObject": "Peso por objeto",
+    "IndividualWeight": "Peso individual",
+    "ResetObjectWeight": "Volver a heredar el peso de la rareza",
     "GroupObjectCount": "{count} objetos",
     "TableDefaults": "Valores predeterminados",
     "TableDefaultsTitle": "Valores predeterminados",

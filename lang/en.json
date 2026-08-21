@@ -96,6 +96,8 @@
     "RarityArtifact": "Artifact",
     "Weight": "Weight",
     "WeightPerObject": "Weight per object",
+    "IndividualWeight": "Individual weight",
+    "ResetObjectWeight": "Inherit the rarity weight again",
     "GroupObjectCount": "{count} objects",
     "TableDefaults": "Defaults",
     "TableDefaultsTitle": "Table defaults",

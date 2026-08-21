@@ -730,7 +730,16 @@
 
                                                                         <div
                                                                             class="item-header item-controls"
-                                                                        ></div>
+                                                                            style="
+                                                                                flex: 0 0 104px;
+                                                                                min-width: 104px;
+                                                                                text-align: right;
+                                                                            "
+                                                                        >
+                                                                            {{localize
+                                                                                "COMPENDIUM_CURATOR.Weight"
+                                                                            }}
+                                                                        </div>
                                                                     </div>
 
                                                                     <ol
@@ -791,7 +800,54 @@
 
                                                                                     <div
                                                                                         class="item-detail item-controls"
-                                                                                    ></div>
+                                                                                        style="
+                                                                                            flex: 0 0 104px;
+                                                                                            min-width: 104px;
+                                                                                            display: flex;
+                                                                                            align-items: center;
+                                                                                            justify-content: flex-end;
+                                                                                            gap: 0.25rem;
+                                                                                        "
+                                                                                    >
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            min="1"
+                                                                                            step="1"
+                                                                                            value="{{weight}}"
+                                                                                            data-cc-object-weight
+                                                                                            data-uuid="{{uuid}}"
+                                                                                            data-rarity="{{../key}}"
+                                                                                            data-has-override="{{hasOverride}}"
+                                                                                            aria-label="{{localize 'COMPENDIUM_CURATOR.IndividualWeight'}}: {{name}}"
+                                                                                            title="{{localize 'COMPENDIUM_CURATOR.IndividualWeight'}}"
+                                                                                            style="
+                                                                                                flex: 0 0 54px;
+                                                                                                width: 54px;
+                                                                                                height: 26px;
+                                                                                                text-align: right;
+                                                                                            "
+                                                                                        >
+
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            class="unbutton"
+                                                                                            data-cc-reset-object-weight
+                                                                                            data-uuid="{{uuid}}"
+                                                                                            data-rarity="{{../key}}"
+                                                                                            aria-label="{{localize 'COMPENDIUM_CURATOR.ResetObjectWeight'}}: {{name}}"
+                                                                                            title="{{localize 'COMPENDIUM_CURATOR.ResetObjectWeight'}}"
+                                                                                            {{#unless hasOverride}}
+                                                                                                disabled
+                                                                                            {{/unless}}
+                                                                                            style="
+                                                                                                flex: 0 0 24px;
+                                                                                                width: 24px;
+                                                                                                height: 24px;
+                                                                                            "
+                                                                                        >
+                                                                                            <i class="fas fa-rotate-left"></i>
+                                                                                        </button>
+                                                                                    </div>
 
                                                                                 </div>
                                                                             </li>

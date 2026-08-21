@@ -304,6 +304,144 @@ function getInspectorRarityWeight(
         : fallback;
 }
 
+function getInspectorObjectWeight(
+    profile,
+    rarity,
+    uuid
+) {
+    const inheritedWeight =
+        getInspectorRarityWeight(
+            profile,
+            rarity
+        );
+
+    const overrideWeight =
+        Number.parseInt(
+            profile?.weights
+                ?.overrides?.[uuid],
+            10
+        );
+
+    const hasOverride =
+        Number.isInteger(overrideWeight) &&
+        overrideWeight >= 1;
+
+    return {
+        inheritedWeight,
+        hasOverride,
+        weight:
+            hasOverride
+                ? overrideWeight
+                : inheritedWeight
+    };
+}
+
+function refreshRenderedObjectWeightControls(
+    profileElement,
+    profile,
+    rarity = null
+) {
+    if (!profileElement || !profile)
+        return;
+
+    for (
+        const input
+        of profileElement.querySelectorAll(
+            "[data-cc-object-weight]"
+        )
+    ) {
+        const inputRarity =
+            String(
+                input.dataset?.rarity ?? ""
+            ).trim();
+
+        if (
+            rarity &&
+            inputRarity !== rarity
+        ) {
+            continue;
+        }
+
+        const uuid =
+            String(
+                input.dataset?.uuid ?? ""
+            ).trim();
+
+        if (!uuid || !inputRarity)
+            continue;
+
+        const info =
+            getInspectorObjectWeight(
+                profile,
+                inputRarity,
+                uuid
+            );
+
+        input.value =
+            String(info.weight);
+        input.dataset.hasOverride =
+            info.hasOverride
+                ? "true"
+                : "false";
+
+        const resetButton =
+            input.parentElement
+                ?.querySelector(
+                    "[data-cc-reset-object-weight]"
+                );
+
+        if (resetButton) {
+            resetButton.disabled =
+                !info.hasOverride;
+        }
+    }
+}
+
+function updateRenderedProfileStatus(
+    profileElement,
+    profile
+) {
+    const statusElement =
+        profileElement?.querySelector(
+            ".cc-table-manager-profile-status"
+        );
+
+    if (!statusElement || !profile)
+        return;
+
+    const revision =
+        Number(profile.revision ?? 1);
+
+    const generatedRevision =
+        Number(
+            profile.generation
+                ?.generatedRevision ?? 0
+        );
+
+    let statusKey =
+        "TableProfileNeverGenerated";
+
+    if (
+        generatedRevision > 0 &&
+        generatedRevision < revision
+    ) {
+        statusKey =
+            "TableProfilePendingChanges";
+    }
+    else if (
+        generatedRevision > 0 &&
+        generatedRevision === revision
+    ) {
+        statusKey =
+            "TableProfileUpToDate";
+    }
+
+    statusElement.textContent =
+        game.i18n.localize(
+            `COMPENDIUM_CURATOR.${statusKey}`
+        );
+}
+
 function buildContentInspector(profile) {
     const hiddenUuids =
         new Set(
@@ -392,7 +530,20 @@ function buildContentInspector(profile) {
             const allEntries =
                 prepareDnd5eIndexedEntries(
                     uuids
-                );
+                )
+                    .map(entry => {
+                        const weightInfo =
+                            getInspectorObjectWeight(
+                                profile,
+                                key,
+                                entry.uuid
+                            );
+
+                        return {
+                            ...entry,
+                            ...weightInfo
+                        };
+                    });
 
             const entries =
                 allEntries.slice(
@@ -954,51 +1105,16 @@ export class TableManagerApplication
                                         );
                                 }
 
-                                const statusElement =
-                                    profileElement
-                                        ?.querySelector(
-                                            ".cc-table-manager-profile-status"
-                                        );
+                                refreshRenderedObjectWeightControls(
+                                    profileElement,
+                                    updatedProfile,
+                                    rarity
+                                );
 
-                                if (statusElement) {
-
-                                    const revision =
-                                        Number(
-                                            updatedProfile
-                                                ?.revision ?? 1
-                                        );
-
-                                    const generatedRevision =
-                                        Number(
-                                            updatedProfile
-                                                ?.generation
-                                                ?.generatedRevision ?? 0
-                                        );
-
-                                    let statusKey =
-                                        "TableProfileNeverGenerated";
-
-                                    if (
-                                        generatedRevision > 0 &&
-                                        generatedRevision < revision
-                                    ) {
-                                        statusKey =
-                                            "TableProfilePendingChanges";
-                                    }
-                                    else if (
-                                        generatedRevision > 0 &&
-                                        generatedRevision === revision
-                                    ) {
-                                        statusKey =
-                                            "TableProfileUpToDate";
-                                    }
-
-                                    statusElement.textContent =
-                                        game.i18n.localize(
-                                            `COMPENDIUM_CURATOR.${statusKey}`
-                                        );
-
-                                }
+                                updateRenderedProfileStatus(
+                                    profileElement,
+                                    updatedProfile
+                                );
 
                                 if (
                                     this._profilePreview
@@ -1036,6 +1152,12 @@ export class TableManagerApplication
                                         );
                                 }
 
+                                refreshRenderedObjectWeightControls(
+                                    profileElement,
+                                    profile,
+                                    rarity
+                                );
+
                             })
                             .finally(() => {
 
@@ -1050,6 +1172,272 @@ export class TableManagerApplication
                 }
             );
 
+        }
+
+        for (
+            const objectWeightInput
+            of this.element.querySelectorAll(
+                "[data-cc-object-weight]"
+            )
+        ) {
+            objectWeightInput.addEventListener(
+                "change",
+                event => {
+                    const target =
+                        event.currentTarget;
+
+                    const profileElement =
+                        target.closest(
+                            "[data-profile-id]"
+                        );
+                    const profileId =
+                        profileElement
+                            ?.dataset?.profileId;
+                    const uuid =
+                        String(
+                            target.dataset
+                                ?.uuid ?? ""
+                        ).trim();
+                    const rarity =
+                        String(
+                            target.dataset
+                                ?.rarity ?? ""
+                        ).trim();
+                    const weight =
+                        Number.parseInt(
+                            target.value,
+                            10
+                        );
+
+                    if (
+                        !profileId ||
+                        !uuid ||
+                        !rarity
+                    ) {
+                        return;
+                    }
+
+                    if (
+                        !Number.isInteger(weight) ||
+                        weight < 1
+                    ) {
+                        const profile =
+                            TableProfileStorageService
+                                .getProfiles()
+                                ?.[profileId];
+
+                        const info =
+                            getInspectorObjectWeight(
+                                profile,
+                                rarity,
+                                uuid
+                            );
+
+                        target.value =
+                            String(info.weight);
+
+                        ui.notifications.warn(
+                            game.i18n.localize(
+                                "COMPENDIUM_CURATOR.InvalidTableWeight"
+                            )
+                        );
+
+                        target.focus();
+                        return;
+                    }
+
+                    const resetButton =
+                        target.parentElement
+                            ?.querySelector(
+                                "[data-cc-reset-object-weight]"
+                            );
+
+                    target.disabled = true;
+                    if (resetButton)
+                        resetButton.disabled = true;
+
+                    this._weightSaveQueue =
+                        this._weightSaveQueue
+                            .catch(() => {})
+                            .then(async () => {
+                                const updatedProfile =
+                                    await TableProfileStorageService
+                                        .setObjectWeight(
+                                            profileId,
+                                            uuid,
+                                            weight
+                                        );
+
+                                refreshRenderedObjectWeightControls(
+                                    profileElement,
+                                    updatedProfile,
+                                    rarity
+                                );
+
+                                updateRenderedProfileStatus(
+                                    profileElement,
+                                    updatedProfile
+                                );
+
+                                if (
+                                    this._profilePreview
+                                        ?.rendered &&
+                                    this._profilePreview
+                                        .profileId === profileId
+                                ) {
+                                    this._profilePreview.render({
+                                        force: true
+                                    });
+                                }
+                            })
+                            .catch(error => {
+                                console.error(
+                                    "Compendium Curator | Error guardando el peso individual.",
+                                    error
+                                );
+
+                                const profile =
+                                    TableProfileStorageService
+                                        .getProfiles()
+                                        ?.[profileId];
+
+                                refreshRenderedObjectWeightControls(
+                                    profileElement,
+                                    profile,
+                                    rarity
+                                );
+                            })
+                            .finally(() => {
+                                if (target.isConnected)
+                                    target.disabled = false;
+
+                                if (
+                                    resetButton
+                                        ?.isConnected
+                                ) {
+                                    resetButton.disabled =
+                                        target.dataset
+                                            .hasOverride !==
+                                        "true";
+                                }
+                            });
+                }
+            );
+        }
+
+        for (
+            const resetButton
+            of this.element.querySelectorAll(
+                "[data-cc-reset-object-weight]"
+            )
+        ) {
+            resetButton.addEventListener(
+                "click",
+                event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    const target =
+                        event.currentTarget;
+                    const profileElement =
+                        target.closest(
+                            "[data-profile-id]"
+                        );
+                    const profileId =
+                        profileElement
+                            ?.dataset?.profileId;
+                    const uuid =
+                        String(
+                            target.dataset
+                                ?.uuid ?? ""
+                        ).trim();
+                    const rarity =
+                        String(
+                            target.dataset
+                                ?.rarity ?? ""
+                        ).trim();
+                    const input =
+                        target.parentElement
+                            ?.querySelector(
+                                "[data-cc-object-weight]"
+                            );
+
+                    if (
+                        !profileId ||
+                        !uuid ||
+                        !rarity ||
+                        !input
+                    ) {
+                        return;
+                    }
+
+                    input.disabled = true;
+                    target.disabled = true;
+
+                    this._weightSaveQueue =
+                        this._weightSaveQueue
+                            .catch(() => {})
+                            .then(async () => {
+                                const updatedProfile =
+                                    await TableProfileStorageService
+                                        .setObjectWeight(
+                                            profileId,
+                                            uuid,
+                                            null
+                                        );
+
+                                refreshRenderedObjectWeightControls(
+                                    profileElement,
+                                    updatedProfile,
+                                    rarity
+                                );
+
+                                updateRenderedProfileStatus(
+                                    profileElement,
+                                    updatedProfile
+                                );
+
+                                if (
+                                    this._profilePreview
+                                        ?.rendered &&
+                                    this._profilePreview
+                                        .profileId === profileId
+                                ) {
+                                    this._profilePreview.render({
+                                        force: true
+                                    });
+                                }
+                            })
+                            .catch(error => {
+                                console.error(
+                                    "Compendium Curator | Error restaurando el peso heredado.",
+                                    error
+                                );
+
+                                const profile =
+                                    TableProfileStorageService
+                                        .getProfiles()
+                                        ?.[profileId];
+
+                                refreshRenderedObjectWeightControls(
+                                    profileElement,
+                                    profile,
+                                    rarity
+                                );
+                            })
+                            .finally(() => {
+                                if (input.isConnected)
+                                    input.disabled = false;
+
+                                if (target.isConnected) {
+                                    target.disabled =
+                                        input.dataset
+                                            .hasOverride !==
+                                        "true";
+                                }
+                            });
+                }
+            );
         }
 
         activateDnd5eDocumentEntries(
