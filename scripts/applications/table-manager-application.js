@@ -308,6 +308,16 @@ function getInspectorGroupWeight(
     );
 }
 
+function getInspectorGroupEnabled(
+    profile,
+    key
+) {
+    return profile?.distribution
+        ?.grouped
+        ?.groups?.[key]
+        ?.enabled !== false;
+}
+
 function getInspectorIndividualWeight(
     profile,
     uuid
@@ -658,6 +668,11 @@ function buildContentInspector(profile) {
                     profile,
                     key
                 );
+            const enabled =
+                getInspectorGroupEnabled(
+                    profile,
+                    key
+                );
 
             let probabilityWeight;
 
@@ -679,7 +694,9 @@ function buildContentInspector(profile) {
             }
             else {
                 probabilityWeight =
-                    groupWeight;
+                    enabled
+                        ? groupWeight
+                        : 0;
             }
 
             return {
@@ -687,6 +704,7 @@ function buildContentInspector(profile) {
                 label:
                     getInspectorRarityLabel(key),
                 count: uuids.length,
+                enabled,
                 weight: groupWeight,
                 probabilityWeight,
                 allEntries,
@@ -705,9 +723,11 @@ function buildContentInspector(profile) {
     const rarityGroups =
         preparedGroups.map(group => {
             const itemProbabilityWeight =
-                isGrouped && group.count > 0
+                isGrouped &&
+                group.enabled &&
+                group.count > 0
                     ? group.weight / group.count
-                    : 1;
+                    : 0;
 
             const entries =
                 group.allEntries
@@ -744,6 +764,7 @@ function buildContentInspector(profile) {
                 key: group.key,
                 label: group.label,
                 count: group.count,
+                enabled: group.enabled,
                 weight: group.weight,
                 probability:
                     formatInspectorProbability(
@@ -759,12 +780,27 @@ function buildContentInspector(profile) {
             };
         });
 
+    const activeCount =
+        isGrouped
+            ? preparedGroups.reduce(
+                (sum, group) =>
+                    sum +
+                    (
+                        group.enabled
+                            ? group.count
+                            : 0
+                    ),
+                0
+            )
+            : finalUuids.size;
+
     return {
         mode,
         isUniform,
         isIndividual,
         isGrouped,
-        finalCount: finalUuids.size,
+        finalCount: activeCount,
+        sourceCount: finalUuids.size,
         totalWeight,
         hasObjects: finalUuids.size > 0,
         rarityGroups
@@ -1323,6 +1359,104 @@ export class TableManagerApplication
                                     target.value =
                                         getInspectorDistributionMode(
                                             profile
+                                        );
+                                }
+                            })
+                            .finally(() => {
+                                if (target.isConnected) {
+                                    target.disabled = false;
+                                }
+                            });
+                }
+            );
+        }
+
+        for (
+            const groupEnabledInput
+            of this.element.querySelectorAll(
+                "[data-cc-group-enabled]"
+            )
+        ) {
+            groupEnabledInput.addEventListener(
+                "change",
+                event => {
+                    const target =
+                        event.currentTarget;
+                    const profileElement =
+                        target.closest(
+                            "[data-profile-id]"
+                        );
+                    const profileId =
+                        profileElement
+                            ?.dataset?.profileId;
+                    const groupKey =
+                        String(
+                            target.dataset
+                                ?.groupKey ?? ""
+                        ).trim();
+
+                    if (!profileId || !groupKey)
+                        return;
+
+                    const enabled =
+                        Boolean(target.checked);
+
+                    target.disabled = true;
+                    this._openContentInspectors.add(
+                        profileId
+                    );
+
+                    this._distributionSaveQueue =
+                        this._distributionSaveQueue
+                            .catch(() => {})
+                            .then(async () => {
+                                const updatedProfile =
+                                    await TableProfileStorageService
+                                        .setDistributionGroupEnabled(
+                                            profileId,
+                                            groupKey,
+                                            enabled
+                                        );
+
+                                updateRenderedProfileStatus(
+                                    profileElement,
+                                    updatedProfile
+                                );
+
+                                if (
+                                    this._profilePreview
+                                        ?.rendered &&
+                                    this._profilePreview
+                                        .profileId === profileId
+                                ) {
+                                    this._profilePreview.render({
+                                        force: true
+                                    });
+                                }
+
+                                this.render({
+                                    force: true
+                                });
+                            })
+                            .catch(error => {
+                                console.error(
+                                    "Compendium Curator | Error cambiando el estado del grupo.",
+                                    error
+                                );
+
+                                const profile =
+                                    TableProfileStorageService
+                                        .getProfiles()
+                                        ?.[profileId];
+
+                                if (
+                                    target.isConnected &&
+                                    profile
+                                ) {
+                                    target.checked =
+                                        getInspectorGroupEnabled(
+                                            profile,
+                                            groupKey
                                         );
                                 }
                             })

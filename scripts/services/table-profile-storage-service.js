@@ -377,6 +377,8 @@ export class TableProfileStorageService {
                         )
                     ),
                 key,
+                enabled:
+                    sourceGroup.enabled !== false,
                 weight,
                 distribution:
                     internalDistribution
@@ -1059,6 +1061,8 @@ export class TableProfileStorageService {
                     )
                 ),
             key,
+            enabled:
+                previousGroup?.enabled !== false,
             weight: normalizedWeight,
             distribution:
                 foundry.utils.deepClone(
@@ -1075,6 +1079,101 @@ export class TableProfileStorageService {
         profile.weights.rarity ??= {};
         profile.weights.rarity[key] =
             normalizedWeight;
+
+        profile.revision =
+            Number(profile.revision ?? 1) + 1;
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return this.#hydrateProfile(
+            profile,
+            storage
+        );
+    }
+
+    static async setDistributionGroupEnabled(
+        profileId,
+        groupKey,
+        enabled
+    ) {
+        const key =
+            String(groupKey ?? "").trim();
+
+        if (!key) {
+            throw new Error(
+                "TABLE_GROUP_KEY_REQUIRED"
+            );
+        }
+
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+
+        const profile =
+            storage.profiles?.[profileId];
+
+        if (
+            !profile ||
+            profile.version !== 2 ||
+            profile.type === "nested"
+        ) {
+            throw new Error(
+                "TABLE_PROFILE_NOT_FOUND"
+            );
+        }
+
+        this.#normalizeProfileDistribution(profile);
+
+        const grouped =
+            profile.distribution.grouped;
+
+        grouped.groups ??= {};
+
+        const previousGroup =
+            grouped.groups?.[key];
+        const previousEnabled =
+            previousGroup?.enabled !== false;
+        const nextEnabled =
+            Boolean(enabled);
+
+        if (previousEnabled === nextEnabled) {
+            return this.#hydrateProfile(
+                profile,
+                storage
+            );
+        }
+
+        grouped.groups[key] = {
+            id:
+                String(
+                    previousGroup?.id ??
+                    this.#automaticGroupId(
+                        grouped.grouping?.criterion ??
+                        "group",
+                        key
+                    )
+                ),
+            key,
+            enabled: nextEnabled,
+            weight:
+                this.#normalizePositiveNumber(
+                    previousGroup?.weight,
+                    this.#normalizePositiveNumber(
+                        profile.weights?.rarity?.[key],
+                        1
+                    )
+                ),
+            distribution:
+                foundry.utils.deepClone(
+                    previousGroup?.distribution ??
+                    { mode: "uniform" }
+                )
+        };
 
         profile.revision =
             Number(profile.revision ?? 1) + 1;

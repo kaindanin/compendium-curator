@@ -104,6 +104,8 @@
     "RarityArtifact": "Artifact",
     "Weight": "Weight",
     "GroupWeight": "Group weight",
+    "IncludeGroup": "Include group",
+    "GroupExcluded": "Excluded",
     "WeightPerObject": "Weight per object",
     "IndividualWeight": "Individual weight",
     "ResetObjectWeight": "Inherit the rarity weight again",

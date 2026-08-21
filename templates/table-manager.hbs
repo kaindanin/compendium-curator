@@ -445,7 +445,7 @@
 
                                                     <select
                                                         id="cc-distribution-grouping-{{id}}"
-                                                        disabled
+                                                        data-cc-grouping-criterion
                                                     >
                                                         <option value="rarity" selected>
                                                             {{localize "COMPENDIUM_CURATOR.GroupByRarity"}}
@@ -481,6 +481,18 @@
                                                             class="cc-table-filter-detail-choice"
                                                             style="align-items: center;"
                                                         >
+                                                            {{#if isGrouped}}
+                                                                <input
+                                                                    type="checkbox"
+                                                                    data-cc-group-enabled
+                                                                    data-group-key="{{key}}"
+                                                                    aria-label="{{localize 'COMPENDIUM_CURATOR.IncludeGroup'}}: {{label}}"
+                                                                    title="{{localize 'COMPENDIUM_CURATOR.IncludeGroup'}}"
+                                                                    {{#if enabled}}checked{{/if}}
+                                                                    style="flex: 0 0 auto; margin: 0;"
+                                                                >
+                                                            {{/if}}
+
                                                             <span>{{label}}</span>
 
                                                             <div
@@ -498,6 +510,14 @@
                                                                         count=count
                                                                     }}
                                                                 </span>
+
+                                                                {{#if isGrouped}}
+                                                                    {{#unless enabled}}
+                                                                        <span class="hint">
+                                                                            {{localize "COMPENDIUM_CURATOR.GroupExcluded"}}
+                                                                        </span>
+                                                                    {{/unless}}
+                                                                {{/if}}
 
                                                                 <strong
                                                                     data-cc-rarity-probability
@@ -525,6 +545,7 @@
                                                                         data-cc-group-weight
                                                                         data-group-key="{{key}}"
                                                                         aria-label="{{localize 'COMPENDIUM_CURATOR.GroupWeight'}}: {{label}}"
+                                                                        {{#unless enabled}}disabled{{/unless}}
                                                                         style="
                                                                             flex: 0 0 64px;
                                                                             width: 64px;
@@ -571,6 +592,13 @@
                                                                 gap: 0.65rem;
                                                             "
                                                         >
+                                                            {{#if isGrouped}}
+                                                                {{#unless enabled}}
+                                                                    <span class="hint">
+                                                                        {{localize "COMPENDIUM_CURATOR.GroupExcluded"}}
+                                                                    </span>
+                                                                {{/unless}}
+                                                            {{/if}}
                                                             <strong>{{count}}</strong>
                                                             <span
                                                                 class="hint"
