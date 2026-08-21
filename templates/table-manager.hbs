@@ -1,57 +1,33 @@
 <section class="cc-table-manager">
 
     <header class="cc-table-manager-header">
-
         <div>
-            <h2>
-                {{localize
-                    "COMPENDIUM_CURATOR.TableProfiles"
-                }}
-            </h2>
-
+            <h2>{{localize "COMPENDIUM_CURATOR.TableProfiles"}}</h2>
             <p class="hint">
-                {{localize
-                    "COMPENDIUM_CURATOR.TableProfilesHint"
-                }}
+                {{localize "COMPENDIUM_CURATOR.TableProfilesHint"}}
             </p>
         </div>
 
         <div class="cc-table-manager-actions">
-
-            <button
-                type="button"
-                data-action="configureDefaults"
-            >
+            <button type="button" data-action="configureDefaults">
                 <i class="fas fa-gear"></i>
-
-                {{localize
-                    "COMPENDIUM_CURATOR.TableDefaults"
-                }}
+                {{localize "COMPENDIUM_CURATOR.TableDefaults"}}
             </button>
-
         </div>
-
     </header>
-
 
     <nav
         class="tabs"
         aria-label="{{localize 'COMPENDIUM_CURATOR.TableManagerTitle'}}"
     >
-
         <a
             class="item {{contentTabClass}}"
             role="button"
             data-action="changeManagerTab"
             data-tab="content"
         >
-            {{localize
-                "COMPENDIUM_CURATOR.TableManagerTabContent"
-            }}
-
-            <span>
-                ({{contentProfileCount}})
-            </span>
+            {{localize "COMPENDIUM_CURATOR.TableManagerTabContent"}}
+            <span>({{contentProfileCount}})</span>
         </a>
 
         <a
@@ -60,13 +36,8 @@
             data-action="changeManagerTab"
             data-tab="nested"
         >
-            {{localize
-                "COMPENDIUM_CURATOR.TableManagerTabNested"
-            }}
-
-            <span>
-                ({{nestedProfileCount}})
-            </span>
+            {{localize "COMPENDIUM_CURATOR.TableManagerTabNested"}}
+            <span>({{nestedProfileCount}})</span>
         </a>
 
         <a
@@ -75,27 +46,17 @@
             data-action="changeManagerTab"
             data-tab="filters"
         >
-            {{localize
-                "COMPENDIUM_CURATOR.TableManagerTabFilterGroups"
-            }}
-
-            <span>
-                ({{filterGroupCount}})
-            </span>
+            {{localize "COMPENDIUM_CURATOR.TableManagerTabFilterGroups"}}
+            <span>({{filterGroupCount}})</span>
         </a>
-
     </nav>
 
-
     <div class="cc-table-profile-list">
-
         <div class="filter-element cc-table-manager-actions">
-
             <search
                 aria-label="{{searchLabel}}"
                 style="flex: 1 1 auto;"
             >
-
                 <input
                     type="text"
                     name="managerSearch"
@@ -116,7 +77,6 @@
                         </button>
                     </li>
                 </ul>
-
             </search>
 
             <button
@@ -138,81 +98,45 @@
             >
                 <i class="fas fa-plus"></i>
             </button>
-
         </div>
 
-
         {{#if isFilterGroupsTab}}
-
             <div class="cc-table-manager-profiles">
-
                 {{#if hasFilterGroups}}
-
                     {{#each filterGroups}}
-
                         <div
                             class="cc-table-manager-profile"
                             data-filter-group-id="{{id}}"
                             data-cc-search-text="{{searchText}}"
                         >
-
-                            <div
-                                class="cc-table-manager-profile-info"
-                            >
-
-                                <strong>
-                                    {{name}}
-                                </strong>
-
+                            <div class="cc-table-manager-profile-info">
+                                <strong>{{name}}</strong>
                                 <span>
                                     <i class="fas fa-filter"></i>
                                     {{matchesLabel}}
                                 </span>
 
                                 {{#if usedBy.length}}
-
-                                    <div
-                                        class="cc-table-manager-filter-groups"
-                                    >
-
+                                    <div class="cc-table-manager-filter-groups">
                                         {{#each usedBy}}
-
-                                            <div
-                                                class="cc-table-manager-filter-group"
-                                            >
+                                            <div class="cc-table-manager-filter-group">
                                                 <i class="fas fa-link"></i>
-
-                                                <span>
-                                                    {{name}}
-                                                </span>
+                                                <span>{{name}}</span>
                                             </div>
-
                                         {{/each}}
-
                                     </div>
-
                                 {{else}}
-
                                     <p class="hint">
-                                        {{localize
-                                            "COMPENDIUM_CURATOR.FilterGroupUnused"
-                                        }}
+                                        {{localize "COMPENDIUM_CURATOR.FilterGroupUnused"}}
                                     </p>
-
                                 {{/if}}
-
                             </div>
 
-                            <div
-                                class="cc-table-manager-profile-status"
-                            >
+                            <div class="cc-table-manager-profile-status">
                                 {{usageLabel}}
                             </div>
 
-                            <div
-                                class="cc-table-manager-filter-group-actions"
-                            >
-
+                            <div class="cc-table-manager-filter-group-actions">
                                 <button
                                     type="button"
                                     class="cc-table-manager-filter-group-control"
@@ -240,36 +164,26 @@
                                     <i class="fas fa-arrow-up-from-bracket"></i>
                                 </button>
 
-                                <div
-                                    class="cc-table-manager-profile-menu-wrapper"
-                                >
-
+                                <div class="cc-table-manager-profile-menu-wrapper">
                                     <button
                                         type="button"
                                         class="cc-table-manager-profile-menu-toggle"
                                         data-action="toggleProfileActions"
                                     >
                                         <i class="fas fa-gear"></i>
-
-                                        {{localize
-                                            "COMPENDIUM_CURATOR.Actions"
-                                        }}
+                                        {{localize "COMPENDIUM_CURATOR.Actions"}}
                                     </button>
 
                                     <div
                                         class="cc-table-manager-profile-menu"
                                         hidden
                                     >
-
                                         <button
                                             type="button"
                                             data-action="renameFilterGroup"
                                         >
                                             <i class="fas fa-pen"></i>
-
-                                            {{localize
-                                                "COMPENDIUM_CURATOR.RenameFilterGroup"
-                                            }}
+                                            {{localize "COMPENDIUM_CURATOR.RenameFilterGroup"}}
                                         </button>
 
                                         <button
@@ -277,98 +191,54 @@
                                             data-action="duplicateFilterGroup"
                                         >
                                             <i class="fas fa-copy"></i>
-
-                                            {{localize
-                                                "COMPENDIUM_CURATOR.DuplicateFilterGroup"
-                                            }}
+                                            {{localize "COMPENDIUM_CURATOR.DuplicateFilterGroup"}}
                                         </button>
 
-                                        <div
-                                            class="cc-table-manager-profile-menu-separator"
-                                        ></div>
+                                        <div class="cc-table-manager-profile-menu-separator"></div>
 
                                         <button
                                             type="button"
                                             data-action="deleteGlobalFilterGroup"
                                         >
                                             <i class="fas fa-trash"></i>
-
-                                            {{localize
-                                                "COMPENDIUM_CURATOR.DeleteFilterGroup"
-                                            }}
+                                            {{localize "COMPENDIUM_CURATOR.DeleteFilterGroup"}}
                                         </button>
-
                                     </div>
-
                                 </div>
-
                             </div>
-
                         </div>
-
                     {{/each}}
-
                 {{else}}
-
                     <p class="cc-table-manager-empty">
-                        {{localize
-                            "COMPENDIUM_CURATOR.NoFilterGroups"
-                        }}
+                        {{localize "COMPENDIUM_CURATOR.NoFilterGroups"}}
                     </p>
-
                 {{/if}}
-
             </div>
-
         {{else}}
-
             <div class="cc-table-manager-profiles">
-
                 {{#if hasProfiles}}
-
                     {{#each profiles}}
-
                         <div
                             class="cc-table-manager-profile"
                             data-profile-id="{{id}}"
                             data-cc-search-text="{{searchText}}"
                         >
-
-                            <div
-                                class="cc-table-manager-profile-info"
-                            >
-
-                                <strong>
-                                    {{name}}
-                                </strong>
-
+                            <div class="cc-table-manager-profile-info">
+                                <strong>{{name}}</strong>
                                 <span>
                                     <i class="{{typeIcon}}"></i>
-
-                                    {{typeLabel}}
-
-                                    ·
-
-                                    {{summary}}
+                                    {{typeLabel}} · {{summary}}
                                 </span>
 
                                 {{#if filterGroups.length}}
-
                                     <div class="cc-table-manager-filter-groups">
-
                                         {{#each filterGroups}}
-
                                             <div
                                                 class="cc-table-manager-filter-group"
                                                 data-filter-group-id="{{id}}"
                                             >
-
                                                 <i class="fas fa-filter"></i>
-
-                                                <span>
-                                                    {{name}}
-                                                </span>
-
+                                                <span>{{name}}</span>
                                                 <button
                                                     type="button"
                                                     class="cc-table-manager-filter-group-control"
@@ -377,58 +247,38 @@
                                                 >
                                                     <i class="fas fa-link-slash"></i>
                                                 </button>
-
                                             </div>
-
                                         {{/each}}
-
                                     </div>
-
                                 {{/if}}
-
                             </div>
 
-                            <div
-                                class="cc-table-manager-profile-status"
-                            >
+                            <div class="cc-table-manager-profile-status">
                                 {{status}}
                             </div>
 
-                            <div
-                                class="cc-table-manager-profile-menu-wrapper"
-                            >
-
+                            <div class="cc-table-manager-profile-menu-wrapper">
                                 <button
                                     type="button"
                                     class="cc-table-manager-profile-menu-toggle"
                                     data-action="toggleProfileActions"
                                 >
                                     <i class="fas fa-gear"></i>
-
-                                    {{localize
-                                        "COMPENDIUM_CURATOR.Actions"
-                                    }}
+                                    {{localize "COMPENDIUM_CURATOR.Actions"}}
                                 </button>
 
                                 <div
                                     class="cc-table-manager-profile-menu"
                                     hidden
                                 >
-
                                     {{#if isContent}}
-
                                         <button
                                             type="button"
                                             data-action="previewProfile"
-                                            {{#unless filterGroupCount}}
-                                                disabled
-                                            {{/unless}}
+                                            {{#unless filterGroupCount}}disabled{{/unless}}
                                         >
                                             <i class="fas fa-eye"></i>
-
-                                            {{localize
-                                                "COMPENDIUM_CURATOR.TableProfilePreview"
-                                            }}
+                                            {{localize "COMPENDIUM_CURATOR.TableProfilePreview"}}
                                         </button>
 
                                         <button
@@ -436,45 +286,29 @@
                                             data-action="manualInclusions"
                                         >
                                             <i class="fas fa-plus-circle"></i>
-
-                                            {{localize
-                                                "COMPENDIUM_CURATOR.ManualInclusions"
-                                            }}
+                                            {{localize "COMPENDIUM_CURATOR.ManualInclusions"}}
                                         </button>
 
                                         <button
                                             type="button"
                                             data-action="manualExclusions"
-                                            {{#unless filterGroupCount}}
-                                                disabled
-                                            {{/unless}}
+                                            {{#unless filterGroupCount}}disabled{{/unless}}
                                         >
                                             <i class="fas fa-ban"></i>
-
-                                            {{localize
-                                                "COMPENDIUM_CURATOR.ManualExclusions"
-                                            }}
+                                            {{localize "COMPENDIUM_CURATOR.ManualExclusions"}}
                                         </button>
 
-                                        <div
-                                            class="cc-table-manager-profile-menu-separator"
-                                        ></div>
+                                        <div class="cc-table-manager-profile-menu-separator"></div>
 
                                         <button
                                             type="button"
                                             data-action="addCurrentFilters"
                                         >
                                             <i class="fas fa-filter"></i>
-
-                                            {{localize
-                                                "COMPENDIUM_CURATOR.ManageFilterGroups"
-                                            }}
+                                            {{localize "COMPENDIUM_CURATOR.ManageFilterGroups"}}
                                         </button>
 
-                                        <div
-                                            class="cc-table-manager-profile-menu-separator"
-                                        ></div>
-
+                                        <div class="cc-table-manager-profile-menu-separator"></div>
                                     {{/if}}
 
                                     <button
@@ -482,10 +316,7 @@
                                         data-action="renameProfile"
                                     >
                                         <i class="fas fa-pen"></i>
-
-                                        {{localize
-                                            "COMPENDIUM_CURATOR.RenameProfile"
-                                        }}
+                                        {{localize "COMPENDIUM_CURATOR.RenameProfile"}}
                                     </button>
 
                                     <button
@@ -493,35 +324,26 @@
                                         data-action="duplicateProfile"
                                     >
                                         <i class="fas fa-copy"></i>
-
-                                        {{localize
-                                            "COMPENDIUM_CURATOR.DuplicateProfile"
-                                        }}
+                                        {{localize "COMPENDIUM_CURATOR.DuplicateProfile"}}
                                     </button>
 
-                                    <div
-                                        class="cc-table-manager-profile-menu-separator"
-                                    ></div>
+                                    <div class="cc-table-manager-profile-menu-separator"></div>
 
                                     <button
                                         type="button"
                                         data-action="deleteProfile"
                                     >
                                         <i class="fas fa-trash"></i>
-
-                                        {{localize
-                                            "COMPENDIUM_CURATOR.DeleteProfile"
-                                        }}
+                                        {{localize "COMPENDIUM_CURATOR.DeleteProfile"}}
                                     </button>
-
                                 </div>
-
                             </div>
 
                             {{#if isContent}}
-
                                 <details
                                     class="cc-table-manager-content-inspector"
+                                    data-cc-content-inspector
+                                    {{#if inspectorOpen}}open{{/if}}
                                     style="
                                         grid-column: 1 / -1;
                                         margin-top: 0.15rem;
@@ -529,7 +351,6 @@
                                         border-top: 1px solid rgb(255 255 255 / 7%);
                                     "
                                 >
-
                                     <summary
                                         style="
                                             display: flex;
@@ -544,21 +365,16 @@
                                             list-style: none;
                                         "
                                     >
-
                                         <span>
                                             <i class="fas fa-chevron-down"></i>
-                                            {{localize
-                                                "COMPENDIUM_CURATOR.EditContent"
-                                            }}
+                                            {{localize "COMPENDIUM_CURATOR.EditContent"}}
                                         </span>
-
                                         <strong>
                                             {{localize
                                                 "COMPENDIUM_CURATOR.GroupObjectCount"
                                                 count=inspector.finalCount
                                             }}
                                         </strong>
-
                                     </summary>
 
                                     <div
@@ -569,49 +385,103 @@
                                             padding: 0.75rem 0 0.15rem;
                                         "
                                     >
-
                                         <div
                                             class="cc-table-filter-group-matches-title"
                                             style="margin-bottom: 0;"
                                         >
                                             <h3>
-                                                {{localize
-                                                    "COMPENDIUM_CURATOR.FinalObjects"
-                                                }}
+                                                {{localize "COMPENDIUM_CURATOR.FinalObjects"}}
                                             </h3>
-
-                                            <strong>
-                                                {{inspector.finalCount}}
-                                            </strong>
+                                            <strong>{{inspector.finalCount}}</strong>
                                         </div>
 
                                         <div class="cc-table-filter-detail-block">
+                                            <div class="cc-table-filter-detail-heading">
+                                                <strong>
+                                                    {{localize "COMPENDIUM_CURATOR.Distribution"}}
+                                                </strong>
+                                            </div>
 
                                             <div
-                                                class="cc-table-filter-detail-heading"
+                                                style="
+                                                    display: grid;
+                                                    grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.3fr);
+                                                    gap: 0.55rem 0.8rem;
+                                                    align-items: center;
+                                                "
                                             >
+                                                <label for="cc-distribution-mode-{{id}}">
+                                                    {{localize "COMPENDIUM_CURATOR.DistributionMode"}}
+                                                </label>
+
+                                                <select
+                                                    id="cc-distribution-mode-{{id}}"
+                                                    data-cc-distribution-mode
+                                                >
+                                                    <option
+                                                        value="uniform"
+                                                        {{#if inspector.isUniform}}selected{{/if}}
+                                                    >
+                                                        {{localize "COMPENDIUM_CURATOR.DistributionUniform"}}
+                                                    </option>
+                                                    <option
+                                                        value="individual"
+                                                        {{#if inspector.isIndividual}}selected{{/if}}
+                                                    >
+                                                        {{localize "COMPENDIUM_CURATOR.DistributionIndividual"}}
+                                                    </option>
+                                                    <option
+                                                        value="grouped"
+                                                        {{#if inspector.isGrouped}}selected{{/if}}
+                                                    >
+                                                        {{localize "COMPENDIUM_CURATOR.DistributionGrouped"}}
+                                                    </option>
+                                                </select>
+
+                                                {{#if inspector.isGrouped}}
+                                                    <label for="cc-distribution-grouping-{{id}}">
+                                                        {{localize "COMPENDIUM_CURATOR.GroupBy"}}
+                                                    </label>
+
+                                                    <select
+                                                        id="cc-distribution-grouping-{{id}}"
+                                                        disabled
+                                                    >
+                                                        <option value="rarity" selected>
+                                                            {{localize "COMPENDIUM_CURATOR.GroupByRarity"}}
+                                                        </option>
+                                                    </select>
+                                                {{/if}}
+                                            </div>
+
+                                            <p class="hint" style="margin: 0.55rem 0 0;">
+                                                {{#if inspector.isUniform}}
+                                                    {{localize "COMPENDIUM_CURATOR.DistributionUniformHint"}}
+                                                {{else}}
+                                                    {{#if inspector.isIndividual}}
+                                                        {{localize "COMPENDIUM_CURATOR.DistributionIndividualHint"}}
+                                                    {{else}}
+                                                        {{localize "COMPENDIUM_CURATOR.DistributionGroupedHint"}}
+                                                    {{/if}}
+                                                {{/if}}
+                                            </p>
+                                        </div>
+
+                                        <div class="cc-table-filter-detail-block">
+                                            <div class="cc-table-filter-detail-heading">
                                                 <strong>
-                                                    {{localize
-                                                        "COMPENDIUM_CURATOR.ObjectsByRarity"
-                                                    }}
+                                                    {{localize "COMPENDIUM_CURATOR.ObjectsByRarity"}}
                                                 </strong>
                                             </div>
 
                                             {{#if inspector.hasObjects}}
-
-                                                <div
-                                                    class="cc-table-filter-detail-choices"
-                                                >
-
+                                                <div class="cc-table-filter-detail-choices">
                                                     {{#each inspector.rarityGroups}}
-
                                                         <div
                                                             class="cc-table-filter-detail-choice"
                                                             style="align-items: center;"
                                                         >
-                                                            <span>
-                                                                {{label}}
-                                                            </span>
+                                                            <span>{{label}}</span>
 
                                                             <div
                                                                 style="
@@ -632,62 +502,52 @@
                                                                 <strong
                                                                     data-cc-rarity-probability
                                                                     data-rarity="{{key}}"
-                                                                    style="
-                                                                        min-width: 52px;
-                                                                        text-align: right;
-                                                                    "
+                                                                    style="min-width: 58px; text-align: right;"
                                                                 >
                                                                     {{probability}}
                                                                 </strong>
 
-                                                                <label
-                                                                    class="hint"
-                                                                    for="cc-rarity-weight-{{../id}}-{{key}}"
-                                                                    style="margin: 0; white-space: nowrap;"
-                                                                >
-                                                                    {{localize
-                                                                        "COMPENDIUM_CURATOR.WeightPerObject"
-                                                                    }}
-                                                                </label>
+                                                                {{#if isGrouped}}
+                                                                    <label
+                                                                        class="hint"
+                                                                        for="cc-group-weight-{{../id}}-{{key}}"
+                                                                        style="margin: 0; white-space: nowrap;"
+                                                                    >
+                                                                        {{localize "COMPENDIUM_CURATOR.GroupWeight"}}
+                                                                    </label>
 
-                                                                <input
-                                                                    id="cc-rarity-weight-{{../id}}-{{key}}"
-                                                                    type="number"
-                                                                    min="1"
-                                                                    step="1"
-                                                                    value="{{weight}}"
-                                                                    data-cc-rarity-weight
-                                                                    data-rarity="{{key}}"
-                                                                    aria-label="{{localize 'COMPENDIUM_CURATOR.WeightPerObject'}}: {{label}}"
-                                                                    style="
-                                                                        flex: 0 0 64px;
-                                                                        width: 64px;
-                                                                        height: 28px;
-                                                                        text-align: right;
-                                                                    "
-                                                                >
+                                                                    <input
+                                                                        id="cc-group-weight-{{../id}}-{{key}}"
+                                                                        type="number"
+                                                                        min="0.000001"
+                                                                        step="any"
+                                                                        value="{{weight}}"
+                                                                        data-cc-group-weight
+                                                                        data-group-key="{{key}}"
+                                                                        aria-label="{{localize 'COMPENDIUM_CURATOR.GroupWeight'}}: {{label}}"
+                                                                        style="
+                                                                            flex: 0 0 64px;
+                                                                            width: 64px;
+                                                                            height: 28px;
+                                                                            text-align: right;
+                                                                        "
+                                                                    >
+                                                                {{/if}}
                                                             </div>
                                                         </div>
-
                                                     {{/each}}
-
                                                 </div>
-
                                             {{/if}}
-
                                         </div>
 
                                         {{#if inspector.hasObjects}}
-
                                             {{#each inspector.rarityGroups}}
-
                                                 <details
                                                     style="
                                                         background: rgb(0 0 0 / 12%);
                                                         border-radius: 5px;
                                                     "
                                                 >
-
                                                     <summary
                                                         style="
                                                             display: flex;
@@ -711,49 +571,29 @@
                                                                 gap: 0.65rem;
                                                             "
                                                         >
-                                                            <strong>
-                                                                {{count}}
-                                                            </strong>
-
+                                                            <strong>{{count}}</strong>
                                                             <span
                                                                 class="hint"
                                                                 data-cc-rarity-probability
                                                                 data-rarity="{{key}}"
-                                                                style="min-width: 52px; text-align: right;"
+                                                                style="min-width: 58px; text-align: right;"
                                                             >
                                                                 {{probability}}
                                                             </span>
                                                         </div>
                                                     </summary>
 
-                                                    <div
-                                                        style="padding: 0 0.55rem 0.55rem;"
-                                                    >
-
-                                                        <section
-                                                            class="inventory-element cc-dnd5e-document-list"
-                                                        >
-                                                            <section
-                                                                class="items-list browser-results"
-                                                            >
-                                                                <div
-                                                                    class="items-section card"
-                                                                >
-                                                                    <div
-                                                                        class="items-header header"
-                                                                    >
+                                                    <div style="padding: 0 0.55rem 0.55rem;">
+                                                        <section class="inventory-element cc-dnd5e-document-list">
+                                                            <section class="items-list browser-results">
+                                                                <div class="items-section card">
+                                                                    <div class="items-header header">
                                                                         <h3 class="item-name">
-                                                                            {{localize
-                                                                                "DND5E.CompendiumBrowser.Column.Results"
-                                                                            }}
+                                                                            {{localize "DND5E.CompendiumBrowser.Column.Results"}}
                                                                         </h3>
 
-                                                                        <div
-                                                                            class="item-header item-source"
-                                                                        >
-                                                                            {{localize
-                                                                                "DND5E.CompendiumBrowser.Column.Source"
-                                                                            }}
+                                                                        <div class="item-header item-source">
+                                                                            {{localize "DND5E.CompendiumBrowser.Column.Source"}}
                                                                         </div>
 
                                                                         <div
@@ -767,29 +607,15 @@
                                                                                 gap: 0.25rem;
                                                                             "
                                                                         >
-                                                                            <span
-                                                                                style="
-                                                                                    flex: 0 0 54px;
-                                                                                    text-align: center;
-                                                                                "
-                                                                            >
-                                                                                {{localize
-                                                                                    "COMPENDIUM_CURATOR.Weight"
-                                                                                }}
-                                                                            </span>
-
-                                                                            <span
-                                                                                style="
-                                                                                    flex: 0 0 58px;
-                                                                                    text-align: center;
-                                                                                "
-                                                                            >
-                                                                                %
-                                                                            </span>
-
-                                                                            <span
-                                                                                style="flex: 0 0 24px;"
-                                                                            ></span>
+                                                                            {{#if isIndividual}}
+                                                                                <span style="flex: 0 0 54px; text-align: center;">
+                                                                                    {{localize "COMPENDIUM_CURATOR.Weight"}}
+                                                                                </span>
+                                                                            {{else}}
+                                                                                <span style="flex: 0 0 54px;"></span>
+                                                                            {{/if}}
+                                                                            <span style="flex: 0 0 58px; text-align: center;">%</span>
+                                                                            <span style="flex: 0 0 24px;"></span>
                                                                         </div>
                                                                     </div>
 
@@ -800,15 +626,12 @@
                                                                             overflow-y: auto;
                                                                         "
                                                                     >
-
                                                                         {{#each entries}}
-
                                                                             <li
                                                                                 class="item cc-dnd5e-document-entry"
                                                                                 data-uuid="{{uuid}}"
                                                                             >
                                                                                 <div class="item-row">
-
                                                                                     <div
                                                                                         class="item-name rollable"
                                                                                         role="button"
@@ -824,13 +647,8 @@
                                                                                             >
                                                                                         {{/if}}
 
-                                                                                        <div
-                                                                                            class="name name-stacked"
-                                                                                        >
-                                                                                            <span class="title">
-                                                                                                {{name}}
-                                                                                            </span>
-
+                                                                                        <div class="name name-stacked">
+                                                                                            <span class="title">{{name}}</span>
                                                                                             {{#if subtitle}}
                                                                                                 <span class="subtitle">
                                                                                                     {{localize subtitle}}
@@ -839,13 +657,9 @@
                                                                                         </div>
                                                                                     </div>
 
-                                                                                    <div
-                                                                                        class="item-detail item-source {{#unless source}}empty{{/unless}}"
-                                                                                    >
+                                                                                    <div class="item-detail item-source {{#unless source}}empty{{/unless}}">
                                                                                         {{#if source}}
-                                                                                            <span class="condensed">
-                                                                                                {{source}}
-                                                                                            </span>
+                                                                                            <span class="condensed">{{source}}</span>
                                                                                         {{/if}}
                                                                                     </div>
 
@@ -860,24 +674,27 @@
                                                                                             gap: 0.25rem;
                                                                                         "
                                                                                     >
-                                                                                        <input
-                                                                                            type="number"
-                                                                                            min="1"
-                                                                                            step="1"
-                                                                                            value="{{weight}}"
-                                                                                            data-cc-object-weight
-                                                                                            data-uuid="{{uuid}}"
-                                                                                            data-rarity="{{../key}}"
-                                                                                            data-has-override="{{hasOverride}}"
-                                                                                            aria-label="{{localize 'COMPENDIUM_CURATOR.IndividualWeight'}}: {{name}}"
-                                                                                            title="{{localize 'COMPENDIUM_CURATOR.IndividualWeight'}}"
-                                                                                            style="
-                                                                                                flex: 0 0 54px;
-                                                                                                width: 54px;
-                                                                                                height: 26px;
-                                                                                                text-align: right;
-                                                                                            "
-                                                                                        >
+                                                                                        {{#if isIndividual}}
+                                                                                            <input
+                                                                                                type="number"
+                                                                                                min="0.000001"
+                                                                                                step="any"
+                                                                                                value="{{weight}}"
+                                                                                                data-cc-individual-weight
+                                                                                                data-uuid="{{uuid}}"
+                                                                                                data-has-override="{{hasOverride}}"
+                                                                                                aria-label="{{localize 'COMPENDIUM_CURATOR.IndividualWeight'}}: {{name}}"
+                                                                                                title="{{localize 'COMPENDIUM_CURATOR.IndividualWeight'}}"
+                                                                                                style="
+                                                                                                    flex: 0 0 54px;
+                                                                                                    width: 54px;
+                                                                                                    height: 26px;
+                                                                                                    text-align: right;
+                                                                                                "
+                                                                                            >
+                                                                                        {{else}}
+                                                                                            <span style="flex: 0 0 54px;"></span>
+                                                                                        {{/if}}
 
                                                                                         <span
                                                                                             class="hint"
@@ -893,32 +710,30 @@
                                                                                             {{probability}}
                                                                                         </span>
 
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            class="unbutton"
-                                                                                            data-cc-reset-object-weight
-                                                                                            data-uuid="{{uuid}}"
-                                                                                            data-rarity="{{../key}}"
-                                                                                            aria-label="{{localize 'COMPENDIUM_CURATOR.ResetObjectWeight'}}: {{name}}"
-                                                                                            title="{{localize 'COMPENDIUM_CURATOR.ResetObjectWeight'}}"
-                                                                                            {{#unless hasOverride}}
-                                                                                                disabled
-                                                                                            {{/unless}}
-                                                                                            style="
-                                                                                                flex: 0 0 24px;
-                                                                                                width: 24px;
-                                                                                                height: 24px;
-                                                                                            "
-                                                                                        >
-                                                                                            <i class="fas fa-rotate-left"></i>
-                                                                                        </button>
+                                                                                        {{#if isIndividual}}
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                class="unbutton"
+                                                                                                data-cc-reset-individual-weight
+                                                                                                data-uuid="{{uuid}}"
+                                                                                                aria-label="{{localize 'COMPENDIUM_CURATOR.ResetIndividualWeight'}}: {{name}}"
+                                                                                                title="{{localize 'COMPENDIUM_CURATOR.ResetIndividualWeight'}}"
+                                                                                                {{#unless hasOverride}}disabled{{/unless}}
+                                                                                                style="
+                                                                                                    flex: 0 0 24px;
+                                                                                                    width: 24px;
+                                                                                                    height: 24px;
+                                                                                                "
+                                                                                            >
+                                                                                                <i class="fas fa-rotate-left"></i>
+                                                                                            </button>
+                                                                                        {{else}}
+                                                                                            <span style="flex: 0 0 24px;"></span>
+                                                                                        {{/if}}
                                                                                     </div>
-
                                                                                 </div>
                                                                             </li>
-
                                                                         {{/each}}
-
                                                                     </ol>
                                                                 </div>
                                                             </section>
@@ -932,55 +747,29 @@
                                                                     text-align: right;
                                                                 "
                                                             >
-                                                                {{localize
-                                                                    "COMPENDIUM_CURATOR.LivePreview"
-                                                                }}:
-                                                                {{previewCount}}
-                                                                /
-                                                                {{count}}
+                                                                {{localize "COMPENDIUM_CURATOR.LivePreview"}}:
+                                                                {{previewCount}} / {{count}}
                                                             </p>
                                                         {{/if}}
-
                                                     </div>
-
                                                 </details>
-
                                             {{/each}}
-
                                         {{else}}
-
                                             <p class="hint">
-                                                {{localize
-                                                    "COMPENDIUM_CURATOR.NoMatchingObjects"
-                                                }}
+                                                {{localize "COMPENDIUM_CURATOR.NoMatchingObjects"}}
                                             </p>
-
                                         {{/if}}
-
                                     </div>
-
                                 </details>
-
                             {{/if}}
-
                         </div>
-
                     {{/each}}
-
                 {{else}}
-
                     <p class="cc-table-manager-empty">
-                        {{localize
-                            "COMPENDIUM_CURATOR.NoTableProfiles"
-                        }}
+                        {{localize "COMPENDIUM_CURATOR.NoTableProfiles"}}
                     </p>
-
                 {{/if}}
-
             </div>
-
         {{/if}}
-
     </div>
-
 </section>

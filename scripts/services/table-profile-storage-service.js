@@ -3,25 +3,33 @@ import {
     TABLE_PROFILES_SETTING
 } from "../settings.js";
 
+const DISTRIBUTION_MODES = new Set([
+    "uniform",
+    "individual",
+    "grouped"
+]);
+
+const DEFAULT_GROUPING = {
+    type: "field",
+    criterion: "rarity",
+    field: "system.rarity"
+};
+
 export class TableProfileStorageService {
 
     static #normalizeComparableName(value) {
-
         return String(value ?? "")
             .trim()
             .normalize("NFD")
             .replace(/[\u0300-\u036f]/g, "")
             .toLocaleLowerCase();
-
     }
-
 
     static #isProfileNameTakenInStorage(
         storage,
         name,
         excludeId = null
     ) {
-
         const normalizedName =
             this.#normalizeComparableName(name);
 
@@ -31,13 +39,6 @@ export class TableProfileStorageService {
         return Object.entries(
             storage.profiles ?? {}
         ).some(([profileId, profile]) => {
-
-            /*
-             * Solo los perfiles actuales y válidos
-             * reservan nombres. Los registros
-             * heredados que el Gestor no muestra
-             * tampoco deben bloquear renombrados.
-             */
             if (profile?.version !== 2)
                 return false;
 
@@ -56,18 +57,14 @@ export class TableProfileStorageService {
                     profile?.name
                 ) === normalizedName
             );
-
         });
-
     }
-
 
     static #isFilterGroupNameTakenInStorage(
         storage,
         name,
         excludeId = null
     ) {
-
         const normalizedName =
             this.#normalizeComparableName(name);
 
@@ -77,7 +74,6 @@ export class TableProfileStorageService {
         return Object.entries(
             storage.filterGroups ?? {}
         ).some(([filterGroupId, filterGroup]) => {
-
             if (
                 excludeId &&
                 (
@@ -93,14 +89,10 @@ export class TableProfileStorageService {
                     filterGroup?.name
                 ) === normalizedName
             );
-
         });
-
     }
 
-
     static #normalizeMatches(uuids) {
-
         const matches = [
             ...new Set(
                 Array.from(uuids ?? [])
@@ -112,17 +104,13 @@ export class TableProfileStorageService {
         ];
 
         matches.sort();
-
         return matches;
-
     }
-
 
     static #normalizePositiveInteger(
         value,
         fallback = null
     ) {
-
         const parsed =
             Number.parseInt(value, 10);
 
@@ -132,12 +120,23 @@ export class TableProfileStorageService {
         )
             ? parsed
             : fallback;
-
     }
 
+    static #normalizePositiveNumber(
+        value,
+        fallback = null
+    ) {
+        const parsed = Number(value);
+
+        return (
+            Number.isFinite(parsed) &&
+            parsed > 0
+        )
+            ? parsed
+            : fallback;
+    }
 
     static #normalizeProfileWeights(profile) {
-
         if (
             profile?.version !== 2 ||
             profile?.type === "nested"
@@ -175,16 +174,14 @@ export class TableProfileStorageService {
                 ...currentRarity
             })
         ) {
-
             const value =
-                this.#normalizePositiveInteger(
+                this.#normalizePositiveNumber(
                     rawValue
                 );
 
             if (value !== null) {
                 rarity[key] = value;
             }
-
         }
 
         const currentOverrides =
@@ -198,43 +195,220 @@ export class TableProfileStorageService {
 
         for (
             const [uuid, rawValue]
-            of Object.entries(
-                currentOverrides
-            )
+            of Object.entries(currentOverrides)
         ) {
-
             const value =
-                this.#normalizePositiveInteger(
+                this.#normalizePositiveNumber(
                     rawValue
                 );
 
-            if (
-                uuid &&
-                value !== null
-            ) {
+            if (uuid && value !== null) {
                 overrides[uuid] = value;
             }
-
         }
 
         profile.weights = {
             default:
-                this.#normalizePositiveInteger(
+                this.#normalizePositiveNumber(
                     current.default,
                     1
                 ),
             rarity,
             overrides
         };
-
     }
 
+    static #automaticGroupId(
+        criterion,
+        key
+    ) {
+        return `auto:${criterion}:${encodeURIComponent(key)}`;
+    }
+
+    static #normalizeProfileDistribution(profile) {
+        if (
+            profile?.version !== 2 ||
+            profile?.type === "nested"
+        ) {
+            return;
+        }
+
+        this.#normalizeProfileWeights(profile);
+
+        const source =
+            profile.distribution &&
+            typeof profile.distribution === "object" &&
+            !Array.isArray(profile.distribution)
+                ? profile.distribution
+                : {};
+
+        const mode =
+            DISTRIBUTION_MODES.has(source.mode)
+                ? source.mode
+                : "grouped";
+
+        const sourceIndividual =
+            source.individual &&
+            typeof source.individual === "object" &&
+            !Array.isArray(source.individual)
+                ? source.individual
+                : {};
+
+        const sourceIndividualWeights =
+            sourceIndividual.weights &&
+            typeof sourceIndividual.weights === "object" &&
+            !Array.isArray(sourceIndividual.weights)
+                ? sourceIndividual.weights
+                : profile.weights?.overrides ?? {};
+
+        const individualWeights = {};
+
+        for (
+            const [uuid, rawWeight]
+            of Object.entries(sourceIndividualWeights)
+        ) {
+            const weight =
+                this.#normalizePositiveNumber(
+                    rawWeight
+                );
+
+            if (uuid && weight !== null) {
+                individualWeights[uuid] = weight;
+            }
+        }
+
+        const sourceGrouped =
+            source.grouped &&
+            typeof source.grouped === "object" &&
+            !Array.isArray(source.grouped)
+                ? source.grouped
+                : {};
+
+        const sourceGrouping =
+            sourceGrouped.grouping &&
+            typeof sourceGrouped.grouping === "object" &&
+            !Array.isArray(sourceGrouped.grouping)
+                ? sourceGrouped.grouping
+                : {};
+
+        const grouping = {
+            type:
+                String(
+                    sourceGrouping.type ??
+                    DEFAULT_GROUPING.type
+                ),
+            criterion:
+                String(
+                    sourceGrouping.criterion ??
+                    DEFAULT_GROUPING.criterion
+                ),
+            field:
+                String(
+                    sourceGrouping.field ??
+                    DEFAULT_GROUPING.field
+                )
+        };
+
+        const sourceGroups =
+            sourceGrouped.groups &&
+            typeof sourceGrouped.groups === "object" &&
+            !Array.isArray(sourceGrouped.groups)
+                ? sourceGrouped.groups
+                : {};
+
+        const legacyGroupWeights =
+            profile.weights?.rarity ?? {};
+
+        const groupKeys = new Set([
+            ...Object.keys(sourceGroups),
+            ...Object.keys(legacyGroupWeights)
+        ]);
+
+        const groups = {};
+
+        for (const rawKey of groupKeys) {
+            const key =
+                String(rawKey ?? "").trim();
+
+            if (!key)
+                continue;
+
+            const sourceGroup =
+                sourceGroups[key] &&
+                typeof sourceGroups[key] === "object" &&
+                !Array.isArray(sourceGroups[key])
+                    ? sourceGroups[key]
+                    : {};
+
+            const weight =
+                this.#normalizePositiveNumber(
+                    sourceGroup.weight,
+                    this.#normalizePositiveNumber(
+                        legacyGroupWeights[key],
+                        1
+                    )
+                );
+
+            const internalDistribution =
+                sourceGroup.distribution &&
+                typeof sourceGroup.distribution === "object" &&
+                !Array.isArray(sourceGroup.distribution)
+                    ? foundry.utils.deepClone(
+                        sourceGroup.distribution
+                    )
+                    : { mode: "uniform" };
+
+            if (
+                !DISTRIBUTION_MODES.has(
+                    internalDistribution.mode
+                )
+            ) {
+                internalDistribution.mode =
+                    "uniform";
+            }
+
+            groups[key] = {
+                id:
+                    String(
+                        sourceGroup.id ??
+                        this.#automaticGroupId(
+                            grouping.criterion,
+                            key
+                        )
+                    ),
+                key,
+                weight,
+                distribution:
+                    internalDistribution
+            };
+        }
+
+        profile.distribution = {
+            version: 1,
+            mode,
+            individual: {
+                defaultWeight:
+                    this.#normalizePositiveNumber(
+                        sourceIndividual.defaultWeight,
+                        this.#normalizePositiveNumber(
+                            profile.weights?.default,
+                            1
+                        )
+                    ),
+                weights:
+                    individualWeights
+            },
+            grouped: {
+                grouping,
+                groups
+            }
+        };
+    }
 
     static #createFilterGroupRecord(
         storage,
         filterGroup
     ) {
-
         const name =
             String(filterGroup?.name ?? "").trim();
 
@@ -258,7 +432,6 @@ export class TableProfileStorageService {
         storage.filterGroups ??= {};
 
         let id;
-
         do {
             id = foundry.utils.randomID();
         }
@@ -284,12 +457,9 @@ export class TableProfileStorageService {
             storedGroup;
 
         return storedGroup;
-
     }
 
-
     static #normalizeStorage(rawStorage) {
-
         const source =
             foundry.utils.deepClone(
                 rawStorage ?? {
@@ -300,7 +470,7 @@ export class TableProfileStorageService {
 
         const storage = {
             ...source,
-            version: 3,
+            version: 4,
             profiles: {},
             filterGroups:
                 foundry.utils.deepClone(
@@ -310,11 +480,8 @@ export class TableProfileStorageService {
 
         for (
             const [groupId, sourceGroup]
-            of Object.entries(
-                storage.filterGroups
-            )
+            of Object.entries(storage.filterGroups)
         ) {
-
             storage.filterGroups[groupId] = {
                 ...sourceGroup,
                 id: groupId,
@@ -323,7 +490,6 @@ export class TableProfileStorageService {
                         sourceGroup?.revision ?? 1
                     )
             };
-
         }
 
         const usedGroupIds =
@@ -337,7 +503,6 @@ export class TableProfileStorageService {
                 source.profiles ?? {}
             )
         ) {
-
             if (
                 !sourceProfile ||
                 typeof sourceProfile !== "object"
@@ -350,12 +515,6 @@ export class TableProfileStorageService {
                     sourceProfile
                 );
 
-            /*
-             * La clave del almacenamiento es
-             * siempre el ID canónico. Esto evita
-             * perfiles fantasma si una versión
-             * antigua dejó un id interno distinto.
-             */
             profile.id = profileId;
 
             let filterGroupIds = [];
@@ -365,7 +524,6 @@ export class TableProfileStorageService {
                     profile.filterGroupIds
                 )
             ) {
-
                 filterGroupIds =
                     profile.filterGroupIds
                         .map(id =>
@@ -376,19 +534,16 @@ export class TableProfileStorageService {
                                 storage.filterGroups?.[id]
                             )
                         );
-
             }
             else if (
                 Array.isArray(
                     profile.filterGroups
                 )
             ) {
-
                 for (
                     const sourceGroup
                     of profile.filterGroups
                 ) {
-
                     if (
                         !sourceGroup ||
                         typeof sourceGroup !== "object"
@@ -405,7 +560,6 @@ export class TableProfileStorageService {
                         !groupId ||
                         usedGroupIds.has(groupId)
                     ) {
-
                         do {
                             groupId =
                                 foundry.utils.randomID();
@@ -413,7 +567,6 @@ export class TableProfileStorageService {
                         while (
                             usedGroupIds.has(groupId)
                         );
-
                     }
 
                     usedGroupIds.add(groupId);
@@ -430,9 +583,7 @@ export class TableProfileStorageService {
                     };
 
                     filterGroupIds.push(groupId);
-
                 }
-
             }
 
             profile.filterGroupIds = [
@@ -441,29 +592,37 @@ export class TableProfileStorageService {
 
             delete profile.filterGroups;
 
-            /*
-             * Perfiles creados antes del modelo de
-             * pesos v2 guardaban las rarezas en
-             * grouping.weights. Las copiamos al
-             * esquema actual sin borrar el dato
-             * heredado, para mantener compatibilidad.
-             */
-            this.#normalizeProfileWeights(
+            this.#normalizeProfileDistribution(
                 profile
             );
 
+            profile.generation ??= {};
+            profile.generation.rootUuid ??=
+                profile.generation.masterUuid ??
+                null;
+
+            if (
+                !profile.generation.nodes ||
+                typeof profile.generation.nodes !== "object" ||
+                Array.isArray(profile.generation.nodes)
+            ) {
+                profile.generation.nodes = {};
+            }
+
+            profile.generation.generatedRevision =
+                Number(
+                    profile.generation
+                        .generatedRevision ?? 0
+                );
+
             storage.profiles[profileId] =
                 profile;
-
         }
 
         return storage;
-
     }
 
-
     static #hydrateProfile(profile, storage) {
-
         if (!profile)
             return null;
 
@@ -487,12 +646,9 @@ export class TableProfileStorageService {
                 );
 
         return hydrated;
-
     }
 
-
     static async migrateStorage() {
-
         const current =
             game.settings.get(
                 MODULE_ID,
@@ -521,13 +677,11 @@ export class TableProfileStorageService {
         );
 
         console.info(
-            "Compendium Curator | Perfiles de tabla migrados al formato v3."
+            "Compendium Curator | Perfiles de tabla migrados al formato v4."
         );
 
         return true;
-
     }
-
 
     static async updateFilterGroupMatches(
         profileId,
@@ -535,7 +689,6 @@ export class TableProfileStorageService {
         uuids,
         browserFilters = null
     ) {
-
         const storage =
             foundry.utils.deepClone(
                 this.getStorage()
@@ -590,7 +743,6 @@ export class TableProfileStorageService {
         let filtersChanged = false;
 
         if (browserFilters !== null) {
-
             const previousFilters =
                 filterGroup.browser?.filters ?? {};
 
@@ -605,7 +757,6 @@ export class TableProfileStorageService {
                 foundry.utils.deepClone(
                     browserFilters
                 );
-
         }
 
         filterGroup.matches = matches;
@@ -615,7 +766,6 @@ export class TableProfileStorageService {
             matchesChanged || filtersChanged;
 
         if (changed) {
-
             filterGroup.revision =
                 Number(
                     filterGroup.revision ?? 1
@@ -627,7 +777,6 @@ export class TableProfileStorageService {
                     storage.profiles ?? {}
                 )
             ) {
-
                 if (
                     !Array.from(
                         usedProfile.filterGroupIds ?? []
@@ -640,9 +789,7 @@ export class TableProfileStorageService {
                     Number(
                         usedProfile.revision ?? 1
                     ) + 1;
-
             }
-
         }
 
         await game.settings.set(
@@ -665,16 +812,13 @@ export class TableProfileStorageService {
                 ),
             changed
         };
-
     }
-
 
     static isFilterGroupNameTaken(
         profileId,
         name,
         excludeId = null
     ) {
-
         void profileId;
 
         return this.#isFilterGroupNameTakenInStorage(
@@ -682,15 +826,12 @@ export class TableProfileStorageService {
             name,
             excludeId
         );
-
     }
-
 
     static async setManualExcludes(
         profileId,
         uuids
     ) {
-
         const storage =
             foundry.utils.deepClone(
                 this.getStorage()
@@ -737,15 +878,12 @@ export class TableProfileStorageService {
         );
 
         return profile;
-
     }
-
 
     static async setManualIncludes(
         profileId,
         uuids
     ) {
-
         const storage =
             foundry.utils.deepClone(
                 this.getStorage()
@@ -792,28 +930,78 @@ export class TableProfileStorageService {
         );
 
         return profile;
-
     }
 
-
-    static async setRarityWeight(
+    static async setDistributionMode(
         profileId,
-        rarity,
-        weight
+        mode
     ) {
+        const normalizedMode =
+            String(mode ?? "").trim();
 
-        const key =
-            String(rarity ?? "").trim();
+        if (!DISTRIBUTION_MODES.has(normalizedMode)) {
+            throw new Error(
+                "INVALID_TABLE_DISTRIBUTION_MODE"
+            );
+        }
 
-        const normalizedWeight =
-            this.#normalizePositiveInteger(
-                weight
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
             );
 
+        const profile =
+            storage.profiles?.[profileId];
+
         if (
-            !key ||
-            normalizedWeight === null
+            !profile ||
+            profile.version !== 2 ||
+            profile.type === "nested"
         ) {
+            throw new Error(
+                "TABLE_PROFILE_NOT_FOUND"
+            );
+        }
+
+        this.#normalizeProfileDistribution(profile);
+
+        if (profile.distribution.mode === normalizedMode) {
+            return this.#hydrateProfile(
+                profile,
+                storage
+            );
+        }
+
+        profile.distribution.mode =
+            normalizedMode;
+
+        profile.revision =
+            Number(profile.revision ?? 1) + 1;
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return this.#hydrateProfile(
+            profile,
+            storage
+        );
+    }
+
+    static async setDistributionGroupWeight(
+        profileId,
+        groupKey,
+        weight
+    ) {
+        const key =
+            String(groupKey ?? "").trim();
+
+        const normalizedWeight =
+            this.#normalizePositiveNumber(weight);
+
+        if (!key || normalizedWeight === null) {
             throw new Error(
                 "INVALID_TABLE_WEIGHT"
             );
@@ -837,25 +1025,54 @@ export class TableProfileStorageService {
             );
         }
 
-        this.#normalizeProfileWeights(
-            profile
-        );
+        this.#normalizeProfileDistribution(profile);
 
-        const previous =
-            this.#normalizePositiveInteger(
-                profile.weights
-                    ?.rarity
-                    ?.[key],
-                profile.weights?.default ?? 1
+        const grouped =
+            profile.distribution.grouped;
+
+        const previousGroup =
+            grouped.groups?.[key];
+
+        const previousWeight =
+            this.#normalizePositiveNumber(
+                previousGroup?.weight,
+                1
             );
 
-        if (previous === normalizedWeight) {
+        if (previousWeight === normalizedWeight) {
             return this.#hydrateProfile(
                 profile,
                 storage
             );
         }
 
+        grouped.groups ??= {};
+
+        grouped.groups[key] = {
+            id:
+                String(
+                    previousGroup?.id ??
+                    this.#automaticGroupId(
+                        grouped.grouping?.criterion ??
+                        "group",
+                        key
+                    )
+                ),
+            key,
+            weight: normalizedWeight,
+            distribution:
+                foundry.utils.deepClone(
+                    previousGroup?.distribution ??
+                    { mode: "uniform" }
+                )
+        };
+
+        profile.weights ??= {
+            default: 1,
+            rarity: {},
+            overrides: {}
+        };
+        profile.weights.rarity ??= {};
         profile.weights.rarity[key] =
             normalizedWeight;
 
@@ -872,16 +1089,13 @@ export class TableProfileStorageService {
             profile,
             storage
         );
-
     }
 
-
-    static async setObjectWeight(
+    static async setDistributionIndividualWeight(
         profileId,
         uuid,
         weight = null
     ) {
-
         const normalizedUuid =
             String(uuid ?? "").trim();
 
@@ -909,15 +1123,15 @@ export class TableProfileStorageService {
             );
         }
 
-        this.#normalizeProfileWeights(
-            profile
-        );
+        this.#normalizeProfileDistribution(profile);
+
+        const weights =
+            profile.distribution
+                .individual.weights;
 
         const previous =
-            this.#normalizePositiveInteger(
-                profile.weights
-                    ?.overrides
-                    ?.[normalizedUuid]
+            this.#normalizePositiveNumber(
+                weights[normalizedUuid]
             );
 
         const clearOverride =
@@ -926,7 +1140,6 @@ export class TableProfileStorageService {
             weight === "";
 
         if (clearOverride) {
-
             if (previous === null) {
                 return this.#hydrateProfile(
                     profile,
@@ -934,14 +1147,16 @@ export class TableProfileStorageService {
                 );
             }
 
-            delete profile.weights
-                .overrides[normalizedUuid];
+            delete weights[normalizedUuid];
 
+            if (profile.weights?.overrides) {
+                delete profile.weights
+                    .overrides[normalizedUuid];
+            }
         }
         else {
-
             const normalizedWeight =
-                this.#normalizePositiveInteger(
+                this.#normalizePositiveNumber(
                     weight
                 );
 
@@ -958,10 +1173,18 @@ export class TableProfileStorageService {
                 );
             }
 
+            weights[normalizedUuid] =
+                normalizedWeight;
+
+            profile.weights ??= {
+                default: 1,
+                rarity: {},
+                overrides: {}
+            };
+            profile.weights.overrides ??= {};
             profile.weights
                 .overrides[normalizedUuid] =
                 normalizedWeight;
-
         }
 
         profile.revision =
@@ -977,12 +1200,33 @@ export class TableProfileStorageService {
             profile,
             storage
         );
-
     }
 
+    static async setRarityWeight(
+        profileId,
+        rarity,
+        weight
+    ) {
+        return this.setDistributionGroupWeight(
+            profileId,
+            rarity,
+            weight
+        );
+    }
+
+    static async setObjectWeight(
+        profileId,
+        uuid,
+        weight = null
+    ) {
+        return this.setDistributionIndividualWeight(
+            profileId,
+            uuid,
+            weight
+        );
+    }
 
     static async createFilterGroup(filterGroup) {
-
         const storage =
             foundry.utils.deepClone(
                 this.getStorage()
@@ -1003,15 +1247,12 @@ export class TableProfileStorageService {
         return foundry.utils.deepClone(
             storedGroup
         );
-
     }
-
 
     static async addFilterGroup(
         profileId,
         filterGroup
     ) {
-
         const storage =
             foundry.utils.deepClone(
                 this.getStorage()
@@ -1059,12 +1300,9 @@ export class TableProfileStorageService {
         return foundry.utils.deepClone(
             storedGroup
         );
-
     }
 
-
     static getStorage() {
-
         const storage =
             game.settings.get(
                 MODULE_ID,
@@ -1075,12 +1313,9 @@ export class TableProfileStorageService {
             };
 
         return this.#normalizeStorage(storage);
-
     }
 
-
     static getProfiles() {
-
         const storage = this.getStorage();
 
         return Object.fromEntries(
@@ -1094,29 +1329,20 @@ export class TableProfileStorageService {
                 )
             ])
         );
-
     }
-
 
     static getFilterGroups() {
-
         return this.getStorage()
             .filterGroups ?? {};
-
     }
 
-
     static getFilterGroup(filterGroupId) {
-
         return this.getFilterGroups()?.[
             filterGroupId
         ] ?? null;
-
     }
 
-
     static getFilterGroupUsage(filterGroupId) {
-
         const storage = this.getStorage();
 
         return Object.values(
@@ -1132,15 +1358,12 @@ export class TableProfileStorageService {
                 name: profile.name,
                 type: profile.type
             }));
-
     }
-
 
     static async renameFilterGroup(
         filterGroupId,
         name
     ) {
-
         const normalizedName =
             String(name ?? "").trim();
 
@@ -1192,15 +1415,12 @@ export class TableProfileStorageService {
         return foundry.utils.deepClone(
             filterGroup
         );
-
     }
-
 
     static async duplicateFilterGroup(
         filterGroupId,
         name
     ) {
-
         const normalizedName =
             String(name ?? "").trim();
 
@@ -1238,7 +1458,6 @@ export class TableProfileStorageService {
         }
 
         let id;
-
         do {
             id = foundry.utils.randomID();
         }
@@ -1263,14 +1482,11 @@ export class TableProfileStorageService {
         return foundry.utils.deepClone(
             duplicate
         );
-
     }
-
 
     static async deleteGlobalFilterGroup(
         filterGroupId
     ) {
-
         const storage =
             foundry.utils.deepClone(
                 this.getStorage()
@@ -1315,26 +1531,20 @@ export class TableProfileStorageService {
         return foundry.utils.deepClone(
             filterGroup
         );
-
     }
-
 
     static isNameTaken(
         name,
         excludeId = null
     ) {
-
         return this.#isProfileNameTakenInStorage(
             this.getStorage(),
             name,
             excludeId
         );
-
     }
 
-
     static async create(profile) {
-
         const name =
             String(profile?.name ?? "").trim();
 
@@ -1360,12 +1570,11 @@ export class TableProfileStorageService {
             );
         }
 
-        storage.version = 3;
+        storage.version = 4;
         storage.profiles ??= {};
         storage.filterGroups ??= {};
 
         let id;
-
         do {
             id = foundry.utils.randomID();
         }
@@ -1390,15 +1599,12 @@ export class TableProfileStorageService {
             normalizedStorage.profiles[id],
             normalizedStorage
         );
-
     }
-
 
     static async renameProfile(
         profileId,
         name
     ) {
-
         const normalizedName =
             String(name ?? "").trim();
 
@@ -1451,15 +1657,12 @@ export class TableProfileStorageService {
         return foundry.utils.deepClone(
             profile
         );
-
     }
-
 
     static async duplicateProfile(
         profileId,
         name
     ) {
-
         const normalizedName =
             String(name ?? "").trim();
 
@@ -1498,7 +1701,6 @@ export class TableProfileStorageService {
         }
 
         let id;
-
         do {
             id = foundry.utils.randomID();
         }
@@ -1521,6 +1723,8 @@ export class TableProfileStorageService {
         duplicate.generation = {
             masterUuid: null,
             groupUuids: {},
+            rootUuid: null,
+            nodes: {},
             generatedRevision: 0
         };
 
@@ -1535,12 +1739,9 @@ export class TableProfileStorageService {
         return foundry.utils.deepClone(
             duplicate
         );
-
     }
 
-
     static async removeProfile(profileId) {
-
         const storage =
             foundry.utils.deepClone(
                 this.getStorage()
@@ -1567,15 +1768,12 @@ export class TableProfileStorageService {
         );
 
         return foundry.utils.deepClone(profile);
-
     }
-
 
     static async removeFilterGroup(
         profileId,
         filterGroupId
     ) {
-
         const storage =
             foundry.utils.deepClone(
                 this.getStorage()
@@ -1629,7 +1827,6 @@ export class TableProfileStorageService {
             profile,
             storage
         );
-
     }
 
 }

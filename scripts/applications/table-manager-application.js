@@ -45,6 +45,12 @@ const CONTENT_INSPECTOR_RARITY_LABELS = {
     artifact: "RarityArtifact"
 };
 
+const DISTRIBUTION_MODES = new Set([
+    "uniform",
+    "individual",
+    "grouped"
+]);
+
 function getRefreshSectionTitle(key, count) {
     const text = game.i18n.format(
         `COMPENDIUM_CURATOR.${key}`,
@@ -202,9 +208,22 @@ function normalizeManagerSearchText(value) {
         .toLocaleLowerCase();
 }
 
+function normalizeInspectorWeight(
+    value,
+    fallback = null
+) {
+    const parsed = Number(value);
+
+    return (
+        Number.isFinite(parsed) &&
+        parsed > 0
+    )
+        ? parsed
+        : fallback;
+}
+
 function getIndexedDocument(uuid) {
     const value = String(uuid ?? "");
-
     const parts = value.split(".");
 
     if (
@@ -213,7 +232,6 @@ function getIndexedDocument(uuid) {
     ) {
         const collection =
             `${parts[1]}.${parts[2]}`;
-
         const documentId =
             parts.at(-1);
 
@@ -259,80 +277,73 @@ function getInspectorRarityLabel(key) {
         : key;
 }
 
-function getInspectorRarityWeight(
+function getInspectorDistributionMode(profile) {
+    const mode = String(
+        profile?.distribution?.mode ?? ""
+    );
+
+    return DISTRIBUTION_MODES.has(mode)
+        ? mode
+        : "grouped";
+}
+
+function getInspectorGroupWeight(
     profile,
     key
 ) {
-    const defaultWeight =
-        Number.parseInt(
-            profile?.weights?.default,
-            10
+    const modern =
+        normalizeInspectorWeight(
+            profile?.distribution
+                ?.grouped
+                ?.groups?.[key]
+                ?.weight
         );
 
-    const fallback =
-        Number.isInteger(defaultWeight) &&
-        defaultWeight >= 1
-            ? defaultWeight
-            : 1;
+    if (modern !== null)
+        return modern;
 
-    const modernWeight =
-        Number.parseInt(
-            profile?.weights
-                ?.rarity?.[key],
-            10
-        );
-
-    if (
-        Number.isInteger(modernWeight) &&
-        modernWeight >= 1
-    ) {
-        return modernWeight;
-    }
-
-    const legacyWeight =
-        Number.parseInt(
-            profile?.grouping
-                ?.weights?.[key],
-            10
-        );
-
-    return (
-        Number.isInteger(legacyWeight) &&
-        legacyWeight >= 1
-    )
-        ? legacyWeight
-        : fallback;
+    return normalizeInspectorWeight(
+        profile?.weights?.rarity?.[key],
+        1
+    );
 }
 
-function getInspectorObjectWeight(
+function getInspectorIndividualWeight(
     profile,
-    rarity,
     uuid
 ) {
-    const inheritedWeight =
-        getInspectorRarityWeight(
-            profile,
-            rarity
+    const defaultWeight =
+        normalizeInspectorWeight(
+            profile?.distribution
+                ?.individual
+                ?.defaultWeight,
+            normalizeInspectorWeight(
+                profile?.weights?.default,
+                1
+            )
         );
 
     const overrideWeight =
-        Number.parseInt(
-            profile?.weights
-                ?.overrides?.[uuid],
-            10
+        normalizeInspectorWeight(
+            profile?.distribution
+                ?.individual
+                ?.weights?.[uuid],
+            normalizeInspectorWeight(
+                profile?.weights
+                    ?.overrides?.[uuid]
+            )
         );
 
     const hasOverride =
-        Number.isInteger(overrideWeight) &&
-        overrideWeight >= 1;
+        overrideWeight !== null;
 
     return {
-        inheritedWeight,
+        defaultWeight,
         hasOverride,
         weight:
             hasOverride
                 ? overrideWeight
-                : inheritedWeight
+                : defaultWeight
     };
 }
 
@@ -374,10 +385,10 @@ function formatInspectorProbability(
     return formatter.format(ratio);
 }
 
-function refreshRenderedObjectWeightControls(
+function refreshRenderedIndividualWeightControls(
     profileElement,
     profile,
-    rarity = null
+    onlyUuid = null
 ) {
     if (!profileElement || !profile)
         return;
@@ -385,38 +396,31 @@ function refreshRenderedObjectWeightControls(
     for (
         const input
         of profileElement.querySelectorAll(
-            "[data-cc-object-weight]"
+            "[data-cc-individual-weight]"
         )
     ) {
-        const inputRarity =
-            String(
-                input.dataset?.rarity ?? ""
-            ).trim();
-
-        if (
-            rarity &&
-            inputRarity !== rarity
-        ) {
-            continue;
-        }
-
         const uuid =
             String(
                 input.dataset?.uuid ?? ""
             ).trim();
 
-        if (!uuid || !inputRarity)
+        if (
+            !uuid ||
+            (
+                onlyUuid &&
+                uuid !== onlyUuid
+            )
+        ) {
             continue;
+        }
 
         const info =
-            getInspectorObjectWeight(
+            getInspectorIndividualWeight(
                 profile,
-                inputRarity,
                 uuid
             );
 
-        input.value =
-            String(info.weight);
+        input.value = String(info.weight);
         input.dataset.hasOverride =
             info.hasOverride
                 ? "true"
@@ -425,7 +429,7 @@ function refreshRenderedObjectWeightControls(
         const resetButton =
             input.parentElement
                 ?.querySelector(
-                    "[data-cc-reset-object-weight]"
+                    "[data-cc-reset-individual-weight]"
                 );
 
         if (resetButton) {
@@ -544,8 +548,7 @@ function buildContentInspector(profile) {
             StorageService.getHiddenUuids()
         );
 
-    const finalUuids =
-        new Set();
+    const finalUuids = new Set();
 
     for (
         const group
@@ -587,18 +590,16 @@ function buildContentInspector(profile) {
         finalUuids.delete(uuid);
     }
 
-    const byRarity =
-        new Map();
+    const byRarity = new Map();
 
     for (const uuid of finalUuids) {
         const rarity =
             getInspectorRarity(uuid);
-
-        const entries =
+        const uuids =
             byRarity.get(rarity) ?? [];
 
-        entries.push(uuid);
-        byRarity.set(rarity, entries);
+        uuids.push(uuid);
+        byRarity.set(rarity, uuids);
     }
 
     const orderedKeys = [
@@ -618,107 +619,154 @@ function buildContentInspector(profile) {
             )
     ];
 
-    const preparedRarityGroups =
+    const mode =
+        getInspectorDistributionMode(profile);
+
+    const isUniform = mode === "uniform";
+    const isIndividual = mode === "individual";
+    const isGrouped = mode === "grouped";
+
+    const preparedGroups =
         orderedKeys.map(key => {
             const uuids =
                 byRarity.get(key) ?? [];
 
             const allEntries =
-                prepareDnd5eIndexedEntries(
-                    uuids
-                )
+                prepareDnd5eIndexedEntries(uuids)
                     .map(entry => {
-                        const weightInfo =
-                            getInspectorObjectWeight(
+                        const individual =
+                            getInspectorIndividualWeight(
                                 profile,
-                                key,
                                 entry.uuid
                             );
 
                         return {
                             ...entry,
-                            ...weightInfo
+                            weight:
+                                isIndividual
+                                    ? individual.weight
+                                    : 1,
+                            hasOverride:
+                                isIndividual &&
+                                individual.hasOverride,
+                            isIndividual
                         };
                     });
 
-            const totalWeight =
-                uuids.reduce(
-                    (sum, uuid) =>
-                        sum +
-                        getInspectorObjectWeight(
-                            profile,
-                            key,
-                            uuid
-                        ).weight,
-                    0
+            const groupWeight =
+                getInspectorGroupWeight(
+                    profile,
+                    key
                 );
+
+            let probabilityWeight;
+
+            if (isUniform) {
+                probabilityWeight =
+                    uuids.length;
+            }
+            else if (isIndividual) {
+                probabilityWeight =
+                    uuids.reduce(
+                        (sum, uuid) =>
+                            sum +
+                            getInspectorIndividualWeight(
+                                profile,
+                                uuid
+                            ).weight,
+                        0
+                    );
+            }
+            else {
+                probabilityWeight =
+                    groupWeight;
+            }
 
             return {
                 key,
                 label:
                     getInspectorRarityLabel(key),
-                count:
-                    uuids.length,
-                weight:
-                    getInspectorRarityWeight(
-                        profile,
-                        key
-                    ),
-                totalWeight,
-                allEntries
+                count: uuids.length,
+                weight: groupWeight,
+                probabilityWeight,
+                allEntries,
+                isGrouped,
+                isIndividual
             };
         });
 
     const totalWeight =
-        preparedRarityGroups.reduce(
+        preparedGroups.reduce(
             (sum, group) =>
-                sum + group.totalWeight,
+                sum + group.probabilityWeight,
             0
         );
 
     const rarityGroups =
-        preparedRarityGroups.map(group => {
+        preparedGroups.map(group => {
+            const itemProbabilityWeight =
+                isGrouped && group.count > 0
+                    ? group.weight / group.count
+                    : 1;
+
             const entries =
                 group.allEntries
                     .slice(
                         0,
                         CONTENT_INSPECTOR_ENTRY_LIMIT
                     )
-                    .map(entry => ({
-                        ...entry,
-                        probability:
-                            formatInspectorProbability(
-                                entry.weight,
-                                totalWeight
-                            )
-                    }));
+                    .map(entry => {
+                        let probabilityWeight;
+
+                        if (isIndividual) {
+                            probabilityWeight =
+                                entry.weight;
+                        }
+                        else if (isGrouped) {
+                            probabilityWeight =
+                                itemProbabilityWeight;
+                        }
+                        else {
+                            probabilityWeight = 1;
+                        }
+
+                        return {
+                            ...entry,
+                            probability:
+                                formatInspectorProbability(
+                                    probabilityWeight,
+                                    totalWeight
+                                )
+                        };
+                    });
 
             return {
                 key: group.key,
                 label: group.label,
                 count: group.count,
                 weight: group.weight,
-                totalWeight: group.totalWeight,
                 probability:
                     formatInspectorProbability(
-                        group.totalWeight,
+                        group.probabilityWeight,
                         totalWeight
                     ),
+                isGrouped,
+                isIndividual,
                 entries,
-                previewCount:
-                    entries.length,
+                previewCount: entries.length,
                 truncated:
-                    group.count >
-                    entries.length
+                    group.count > entries.length
             };
         });
 
     return {
-        finalCount:
-            finalUuids.size,
+        mode,
+        isUniform,
+        isIndividual,
+        isGrouped,
+        finalCount: finalUuids.size,
         totalWeight,
-        hasObjects:
-            finalUuids.size > 0,
+        hasObjects: finalUuids.size > 0,
         rarityGroups
     };
 }
@@ -745,8 +793,10 @@ export class TableManagerApplication
         this._profileActionsViewportHandler = null;
         this._activeTab = "content";
         this._searchQuery = "";
-        this._weightSaveQueue =
+        this._distributionSaveQueue =
             Promise.resolve();
+        this._openContentInspectors =
+            new Set();
     }
 
 
@@ -952,6 +1002,10 @@ export class TableManagerApplication
                         filterGroupCount,
                         filterGroups,
                         inspector,
+                        inspectorOpen:
+                            isContent &&
+                            this._openContentInspectors
+                                .has(profile.id),
                         status,
                         searchText: [
                             profile.name,
@@ -1134,12 +1188,12 @@ export class TableManagerApplication
             options
         );
 
-        const input =
+        const searchInput =
             this.element.querySelector(
                 '[name="managerSearch"]'
             );
 
-        input?.addEventListener(
+        searchInput?.addEventListener(
             "input",
             event => {
                 this._searchQuery =
@@ -1151,52 +1205,169 @@ export class TableManagerApplication
         );
 
         for (
-            const weightInput
+            const details
             of this.element.querySelectorAll(
-                "[data-cc-rarity-weight]"
+                "[data-cc-content-inspector]"
             )
         ) {
+            const profileId =
+                details.closest(
+                    "[data-profile-id]"
+                )?.dataset?.profileId;
 
-            weightInput.addEventListener(
+            if (!profileId)
+                continue;
+
+            if (details.open) {
+                this._openContentInspectors.add(
+                    profileId
+                );
+            }
+
+            details.addEventListener(
+                "toggle",
+                () => {
+                    if (details.open) {
+                        this._openContentInspectors
+                            .add(profileId);
+                    }
+                    else {
+                        this._openContentInspectors
+                            .delete(profileId);
+                    }
+                }
+            );
+        }
+
+        for (
+            const modeSelect
+            of this.element.querySelectorAll(
+                "[data-cc-distribution-mode]"
+            )
+        ) {
+            modeSelect.addEventListener(
                 "change",
                 event => {
-
                     const target =
                         event.currentTarget;
-
                     const profileElement =
                         target.closest(
                             "[data-profile-id]"
                         );
-
                     const profileId =
                         profileElement
                             ?.dataset?.profileId;
-
-                    const rarity =
+                    const mode =
                         String(
-                            target.dataset
-                                ?.rarity ?? ""
+                            target.value ?? ""
                         ).trim();
-
-                    const weight =
-                        Number.parseInt(
-                            target.value,
-                            10
-                        );
 
                     if (
                         !profileId ||
-                        !rarity
+                        !DISTRIBUTION_MODES.has(mode)
                     ) {
                         return;
                     }
 
-                    if (
-                        !Number.isInteger(weight) ||
-                        weight < 1
-                    ) {
+                    target.disabled = true;
+                    this._openContentInspectors.add(
+                        profileId
+                    );
 
+                    this._distributionSaveQueue =
+                        this._distributionSaveQueue
+                            .catch(() => {})
+                            .then(async () => {
+                                const updatedProfile =
+                                    await TableProfileStorageService
+                                        .setDistributionMode(
+                                            profileId,
+                                            mode
+                                        );
+
+                                updateRenderedProfileStatus(
+                                    profileElement,
+                                    updatedProfile
+                                );
+
+                                if (
+                                    this._profilePreview
+                                        ?.rendered &&
+                                    this._profilePreview
+                                        .profileId === profileId
+                                ) {
+                                    this._profilePreview.render({
+                                        force: true
+                                    });
+                                }
+
+                                this.render({
+                                    force: true
+                                });
+                            })
+                            .catch(error => {
+                                console.error(
+                                    "Compendium Curator | Error cambiando el modo de distribución.",
+                                    error
+                                );
+
+                                const profile =
+                                    TableProfileStorageService
+                                        .getProfiles()
+                                        ?.[profileId];
+
+                                if (
+                                    target.isConnected &&
+                                    profile
+                                ) {
+                                    target.value =
+                                        getInspectorDistributionMode(
+                                            profile
+                                        );
+                                }
+                            })
+                            .finally(() => {
+                                if (target.isConnected) {
+                                    target.disabled = false;
+                                }
+                            });
+                }
+            );
+        }
+
+        for (
+            const groupWeightInput
+            of this.element.querySelectorAll(
+                "[data-cc-group-weight]"
+            )
+        ) {
+            groupWeightInput.addEventListener(
+                "change",
+                event => {
+                    const target =
+                        event.currentTarget;
+                    const profileElement =
+                        target.closest(
+                            "[data-profile-id]"
+                        );
+                    const profileId =
+                        profileElement
+                            ?.dataset?.profileId;
+                    const groupKey =
+                        String(
+                            target.dataset
+                                ?.groupKey ?? ""
+                        ).trim();
+                    const weight =
+                        Number(target.value);
+
+                    if (!profileId || !groupKey)
+                        return;
+
+                    if (
+                        !Number.isFinite(weight) ||
+                        weight <= 0
+                    ) {
                         const profile =
                             TableProfileStorageService
                                 .getProfiles()
@@ -1204,9 +1375,9 @@ export class TableManagerApplication
 
                         target.value =
                             String(
-                                getInspectorRarityWeight(
+                                getInspectorGroupWeight(
                                     profile,
-                                    rarity
+                                    groupKey
                                 )
                             );
 
@@ -1218,41 +1389,31 @@ export class TableManagerApplication
 
                         target.focus();
                         return;
-
                     }
 
                     target.disabled = true;
 
-                    this._weightSaveQueue =
-                        this._weightSaveQueue
+                    this._distributionSaveQueue =
+                        this._distributionSaveQueue
                             .catch(() => {})
                             .then(async () => {
-
                                 const updatedProfile =
                                     await TableProfileStorageService
-                                        .setRarityWeight(
+                                        .setDistributionGroupWeight(
                                             profileId,
-                                            rarity,
+                                            groupKey,
                                             weight
                                         );
 
-                                if (
-                                    target.isConnected
-                                ) {
+                                if (target.isConnected) {
                                     target.value =
                                         String(
-                                            getInspectorRarityWeight(
+                                            getInspectorGroupWeight(
                                                 updatedProfile,
-                                                rarity
+                                                groupKey
                                             )
                                         );
                                 }
-
-                                refreshRenderedObjectWeightControls(
-                                    profileElement,
-                                    updatedProfile,
-                                    rarity
-                                );
 
                                 refreshRenderedProbabilityControls(
                                     profileElement,
@@ -1274,12 +1435,10 @@ export class TableManagerApplication
                                         force: true
                                     });
                                 }
-
                             })
                             .catch(error => {
-
                                 console.error(
-                                    "Compendium Curator | Error guardando el peso de rareza.",
+                                    "Compendium Curator | Error guardando el peso del grupo.",
                                     error
                                 );
 
@@ -1289,56 +1448,43 @@ export class TableManagerApplication
                                         ?.[profileId];
 
                                 if (
-                                    target.isConnected
+                                    target.isConnected &&
+                                    profile
                                 ) {
                                     target.value =
                                         String(
-                                            getInspectorRarityWeight(
+                                            getInspectorGroupWeight(
                                                 profile,
-                                                rarity
+                                                groupKey
                                             )
                                         );
                                 }
-
-                                refreshRenderedObjectWeightControls(
-                                    profileElement,
-                                    profile,
-                                    rarity
-                                );
 
                                 refreshRenderedProbabilityControls(
                                     profileElement,
                                     profile
                                 );
-
                             })
                             .finally(() => {
-
-                                if (
-                                    target.isConnected
-                                ) {
+                                if (target.isConnected) {
                                     target.disabled = false;
                                 }
-
                             });
-
                 }
             );
-
         }
 
         for (
-            const objectWeightInput
+            const individualInput
             of this.element.querySelectorAll(
-                "[data-cc-object-weight]"
+                "[data-cc-individual-weight]"
             )
         ) {
-            objectWeightInput.addEventListener(
+            individualInput.addEventListener(
                 "change",
                 event => {
                     const target =
                         event.currentTarget;
-
                     const profileElement =
                         target.closest(
                             "[data-profile-id]"
@@ -1351,38 +1497,23 @@ export class TableManagerApplication
                             target.dataset
                                 ?.uuid ?? ""
                         ).trim();
-                    const rarity =
-                        String(
-                            target.dataset
-                                ?.rarity ?? ""
-                        ).trim();
                     const weight =
-                        Number.parseInt(
-                            target.value,
-                            10
-                        );
+                        Number(target.value);
 
-                    if (
-                        !profileId ||
-                        !uuid ||
-                        !rarity
-                    ) {
+                    if (!profileId || !uuid)
                         return;
-                    }
 
                     if (
-                        !Number.isInteger(weight) ||
-                        weight < 1
+                        !Number.isFinite(weight) ||
+                        weight <= 0
                     ) {
                         const profile =
                             TableProfileStorageService
                                 .getProfiles()
                                 ?.[profileId];
-
                         const info =
-                            getInspectorObjectWeight(
+                            getInspectorIndividualWeight(
                                 profile,
-                                rarity,
                                 uuid
                             );
 
@@ -1402,29 +1533,29 @@ export class TableManagerApplication
                     const resetButton =
                         target.parentElement
                             ?.querySelector(
-                                "[data-cc-reset-object-weight]"
+                                "[data-cc-reset-individual-weight]"
                             );
 
                     target.disabled = true;
                     if (resetButton)
                         resetButton.disabled = true;
 
-                    this._weightSaveQueue =
-                        this._weightSaveQueue
+                    this._distributionSaveQueue =
+                        this._distributionSaveQueue
                             .catch(() => {})
                             .then(async () => {
                                 const updatedProfile =
                                     await TableProfileStorageService
-                                        .setObjectWeight(
+                                        .setDistributionIndividualWeight(
                                             profileId,
                                             uuid,
                                             weight
                                         );
 
-                                refreshRenderedObjectWeightControls(
+                                refreshRenderedIndividualWeightControls(
                                     profileElement,
                                     updatedProfile,
-                                    rarity
+                                    uuid
                                 );
 
                                 refreshRenderedProbabilityControls(
@@ -1459,10 +1590,10 @@ export class TableManagerApplication
                                         .getProfiles()
                                         ?.[profileId];
 
-                                refreshRenderedObjectWeightControls(
+                                refreshRenderedIndividualWeightControls(
                                     profileElement,
                                     profile,
-                                    rarity
+                                    uuid
                                 );
 
                                 refreshRenderedProbabilityControls(
@@ -1491,7 +1622,7 @@ export class TableManagerApplication
         for (
             const resetButton
             of this.element.querySelectorAll(
-                "[data-cc-reset-object-weight]"
+                "[data-cc-reset-individual-weight]"
             )
         ) {
             resetButton.addEventListener(
@@ -1514,21 +1645,15 @@ export class TableManagerApplication
                             target.dataset
                                 ?.uuid ?? ""
                         ).trim();
-                    const rarity =
-                        String(
-                            target.dataset
-                                ?.rarity ?? ""
-                        ).trim();
                     const input =
                         target.parentElement
                             ?.querySelector(
-                                "[data-cc-object-weight]"
+                                "[data-cc-individual-weight]"
                             );
 
                     if (
                         !profileId ||
                         !uuid ||
-                        !rarity ||
                         !input
                     ) {
                         return;
@@ -1537,22 +1662,22 @@ export class TableManagerApplication
                     input.disabled = true;
                     target.disabled = true;
 
-                    this._weightSaveQueue =
-                        this._weightSaveQueue
+                    this._distributionSaveQueue =
+                        this._distributionSaveQueue
                             .catch(() => {})
                             .then(async () => {
                                 const updatedProfile =
                                     await TableProfileStorageService
-                                        .setObjectWeight(
+                                        .setDistributionIndividualWeight(
                                             profileId,
                                             uuid,
                                             null
                                         );
 
-                                refreshRenderedObjectWeightControls(
+                                refreshRenderedIndividualWeightControls(
                                     profileElement,
                                     updatedProfile,
-                                    rarity
+                                    uuid
                                 );
 
                                 refreshRenderedProbabilityControls(
@@ -1578,7 +1703,7 @@ export class TableManagerApplication
                             })
                             .catch(error => {
                                 console.error(
-                                    "Compendium Curator | Error restaurando el peso heredado.",
+                                    "Compendium Curator | Error restaurando el peso individual predeterminado.",
                                     error
                                 );
 
@@ -1587,10 +1712,10 @@ export class TableManagerApplication
                                         .getProfiles()
                                         ?.[profileId];
 
-                                refreshRenderedObjectWeightControls(
+                                refreshRenderedIndividualWeightControls(
                                     profileElement,
                                     profile,
-                                    rarity
+                                    uuid
                                 );
 
                                 refreshRenderedProbabilityControls(
@@ -2336,6 +2461,10 @@ export class TableManagerApplication
 
             this[property] = null;
         }
+
+        this._openContentInspectors.delete(
+            profileId
+        );
 
         await TableProfileStorageService
             .removeProfile(profileId);
