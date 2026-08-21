@@ -447,8 +447,17 @@
                                                         id="cc-distribution-grouping-{{id}}"
                                                         data-cc-grouping-criterion
                                                     >
-                                                        <option value="rarity" selected>
+                                                        <option
+                                                            value="rarity"
+                                                            {{#if inspector.isGroupingRarity}}selected{{/if}}
+                                                        >
                                                             {{localize "COMPENDIUM_CURATOR.GroupByRarity"}}
+                                                        </option>
+                                                        <option
+                                                            value="type"
+                                                            {{#if inspector.isGroupingType}}selected{{/if}}
+                                                        >
+                                                            {{localize "COMPENDIUM_CURATOR.GroupByType"}}
                                                         </option>
                                                     </select>
                                                 {{/if}}
@@ -470,13 +479,13 @@
                                         <div class="cc-table-filter-detail-block">
                                             <div class="cc-table-filter-detail-heading">
                                                 <strong>
-                                                    {{localize "COMPENDIUM_CURATOR.ObjectsByRarity"}}
+                                                    {{inspector.groupSectionLabel}}
                                                 </strong>
                                             </div>
 
                                             {{#if inspector.hasObjects}}
                                                 <div class="cc-table-filter-detail-choices">
-                                                    {{#each inspector.rarityGroups}}
+                                                    {{#each inspector.groups}}
                                                         <div
                                                             class="cc-table-filter-detail-choice"
                                                             style="align-items: center;"
@@ -520,8 +529,8 @@
                                                                 {{/if}}
 
                                                                 <strong
-                                                                    data-cc-rarity-probability
-                                                                    data-rarity="{{key}}"
+                                                                    data-cc-group-probability
+                                                                    data-group-key="{{key}}"
                                                                     style="min-width: 58px; text-align: right;"
                                                                 >
                                                                     {{probability}}
@@ -562,7 +571,7 @@
                                         </div>
 
                                         {{#if inspector.hasObjects}}
-                                            {{#each inspector.rarityGroups}}
+                                            {{#each inspector.groups}}
                                                 <details
                                                     style="
                                                         background: rgb(0 0 0 / 12%);
@@ -602,8 +611,8 @@
                                                             <strong>{{count}}</strong>
                                                             <span
                                                                 class="hint"
-                                                                data-cc-rarity-probability
-                                                                data-rarity="{{key}}"
+                                                                data-cc-group-probability
+                                                                data-group-key="{{key}}"
                                                                 style="min-width: 58px; text-align: right;"
                                                             >
                                                                 {{probability}}

@@ -51,6 +51,11 @@ const DISTRIBUTION_MODES = new Set([
     "grouped"
 ]);
 
+const GROUPING_CRITERIA = new Set([
+    "rarity",
+    "type"
+]);
+
 function getRefreshSectionTitle(key, count) {
     const text = game.i18n.format(
         `COMPENDIUM_CURATOR.${key}`,
@@ -277,6 +282,42 @@ function getInspectorRarityLabel(key) {
         : key;
 }
 
+function getInspectorDocumentType(uuid) {
+    const document =
+        getIndexedDocument(uuid);
+
+    const type =
+        String(document?.type ?? "").trim();
+
+    return type || "unclassified";
+}
+
+function getInspectorDocumentTypeLabel(key) {
+    if (key === "unclassified") {
+        return game.i18n.localize(
+            "COMPENDIUM_CURATOR.GroupUnclassified"
+        );
+    }
+
+    const systemType =
+        CONFIG.DND5E?.itemTypes?.[key];
+
+    const localizationKey = [
+        CONFIG.Item?.typeLabels?.[key],
+        CONFIG.Actor?.typeLabels?.[key],
+        typeof systemType === "string"
+            ? systemType
+            : systemType?.label
+    ].find(value =>
+        typeof value === "string" &&
+        value.trim()
+    );
+
+    return localizationKey
+        ? game.i18n.localize(localizationKey)
+        : key;
+}
+
 function getInspectorDistributionMode(profile) {
     const mode = String(
         profile?.distribution?.mode ?? ""
@@ -285,6 +326,85 @@ function getInspectorDistributionMode(profile) {
     return DISTRIBUTION_MODES.has(mode)
         ? mode
         : "grouped";
+}
+
+function getInspectorGroupingCriterion(profile) {
+    const criterion =
+        String(
+            profile?.distribution
+                ?.grouped
+                ?.grouping
+                ?.criterion ?? ""
+        ).trim();
+
+    return GROUPING_CRITERIA.has(criterion)
+        ? criterion
+        : "rarity";
+}
+
+function getInspectorGroupingLabel(criterion) {
+    return game.i18n.localize(
+        criterion === "type"
+            ? "COMPENDIUM_CURATOR.GroupByType"
+            : "COMPENDIUM_CURATOR.GroupByRarity"
+    );
+}
+
+function getInspectorGroupingKey(
+    uuid,
+    criterion
+) {
+    return criterion === "type"
+        ? getInspectorDocumentType(uuid)
+        : getInspectorRarity(uuid);
+}
+
+function getInspectorGroupingGroupLabel(
+    criterion,
+    key
+) {
+    return criterion === "type"
+        ? getInspectorDocumentTypeLabel(key)
+        : getInspectorRarityLabel(key);
+}
+
+function getInspectorOrderedGroupKeys(
+    groups,
+    criterion
+) {
+    if (criterion === "rarity") {
+        return [
+            ...CONTENT_INSPECTOR_RARITY_ORDER
+                .filter(key => groups.has(key)),
+            ...[...groups.keys()]
+                .filter(key =>
+                    !CONTENT_INSPECTOR_RARITY_ORDER
+                        .includes(key)
+                )
+                .sort((a, b) =>
+                    String(a).localeCompare(
+                        String(b),
+                        game.i18n.lang,
+                        { sensitivity: "base" }
+                    )
+                )
+        ];
+    }
+
+    return [...groups.keys()]
+        .sort((a, b) =>
+            getInspectorGroupingGroupLabel(
+                criterion,
+                a
+            ).localeCompare(
+                getInspectorGroupingGroupLabel(
+                    criterion,
+                    b
+                ),
+                game.i18n.lang,
+                { sensitivity: "base" }
+            )
+        );
 }
 
 function getInspectorGroupWeight(
@@ -302,10 +422,17 @@ function getInspectorGroupWeight(
     if (modern !== null)
         return modern;
 
-    return normalizeInspectorWeight(
-        profile?.weights?.rarity?.[key],
-        1
-    );
+    if (
+        getInspectorGroupingCriterion(profile) ===
+        "rarity"
+    ) {
+        return normalizeInspectorWeight(
+            profile?.weights?.rarity?.[key],
+            1
+        );
+    }
+
+    return 1;
 }
 
 function getInspectorGroupEnabled(
@@ -459,9 +586,9 @@ function refreshRenderedProbabilityControls(
     const inspector =
         buildContentInspector(profile);
 
-    const rarityGroups =
+    const groups =
         new Map(
-            inspector.rarityGroups.map(
+            inspector.groups.map(
                 group => [group.key, group]
             )
         );
@@ -469,22 +596,22 @@ function refreshRenderedProbabilityControls(
     for (
         const element
         of profileElement.querySelectorAll(
-            "[data-cc-rarity-probability]"
+            "[data-cc-group-probability]"
         )
     ) {
-        const rarity =
+        const groupKey =
             String(
-                element.dataset?.rarity ?? ""
+                element.dataset?.groupKey ?? ""
             ).trim();
 
         element.textContent =
-            rarityGroups.get(rarity)
+            groups.get(groupKey)
                 ?.probability ?? "0%";
     }
 
     const entries = new Map();
 
-    for (const group of inspector.rarityGroups) {
+    for (const group of inspector.groups) {
         for (const entry of group.entries) {
             entries.set(entry.uuid, entry);
         }
@@ -600,34 +727,28 @@ function buildContentInspector(profile) {
         finalUuids.delete(uuid);
     }
 
-    const byRarity = new Map();
+    const groupingCriterion =
+        getInspectorGroupingCriterion(profile);
+    const byGroup = new Map();
 
     for (const uuid of finalUuids) {
-        const rarity =
-            getInspectorRarity(uuid);
+        const key =
+            getInspectorGroupingKey(
+                uuid,
+                groupingCriterion
+            );
         const uuids =
-            byRarity.get(rarity) ?? [];
+            byGroup.get(key) ?? [];
 
         uuids.push(uuid);
-        byRarity.set(rarity, uuids);
+        byGroup.set(key, uuids);
     }
 
-    const orderedKeys = [
-        ...CONTENT_INSPECTOR_RARITY_ORDER
-            .filter(key => byRarity.has(key)),
-        ...[...byRarity.keys()]
-            .filter(key =>
-                !CONTENT_INSPECTOR_RARITY_ORDER
-                    .includes(key)
-            )
-            .sort((a, b) =>
-                String(a).localeCompare(
-                    String(b),
-                    game.i18n.lang,
-                    { sensitivity: "base" }
-                )
-            )
-    ];
+    const orderedKeys =
+        getInspectorOrderedGroupKeys(
+            byGroup,
+            groupingCriterion
+        );
 
     const mode =
         getInspectorDistributionMode(profile);
@@ -639,7 +760,7 @@ function buildContentInspector(profile) {
     const preparedGroups =
         orderedKeys.map(key => {
             const uuids =
-                byRarity.get(key) ?? [];
+                byGroup.get(key) ?? [];
 
             const allEntries =
                 prepareDnd5eIndexedEntries(uuids)
@@ -702,7 +823,10 @@ function buildContentInspector(profile) {
             return {
                 key,
                 label:
-                    getInspectorRarityLabel(key),
+                    getInspectorGroupingGroupLabel(
+                        groupingCriterion,
+                        key
+                    ),
                 count: uuids.length,
                 enabled,
                 weight: groupWeight,
@@ -720,7 +844,7 @@ function buildContentInspector(profile) {
             0
         );
 
-    const rarityGroups =
+    const groups =
         preparedGroups.map(group => {
             const itemProbabilityWeight =
                 isGrouped &&
@@ -794,16 +918,35 @@ function buildContentInspector(profile) {
             )
             : finalUuids.size;
 
+    const groupingLabel =
+        getInspectorGroupingLabel(
+            groupingCriterion
+        );
+
     return {
         mode,
         isUniform,
         isIndividual,
         isGrouped,
+        groupingCriterion,
+        isGroupingRarity:
+            groupingCriterion === "rarity",
+        isGroupingType:
+            groupingCriterion === "type",
+        groupSectionLabel:
+            game.i18n.format(
+                "COMPENDIUM_CURATOR.ObjectsByGrouping",
+                {
+                    criterion:
+                        groupingLabel
+                            .toLocaleLowerCase()
+                }
+            ),
         finalCount: activeCount,
         sourceCount: finalUuids.size,
         totalWeight,
         hasObjects: finalUuids.size > 0,
-        rarityGroups
+        groups
     };
 }
 
@@ -1358,6 +1501,104 @@ export class TableManagerApplication
                                 ) {
                                     target.value =
                                         getInspectorDistributionMode(
+                                            profile
+                                        );
+                                }
+                            })
+                            .finally(() => {
+                                if (target.isConnected) {
+                                    target.disabled = false;
+                                }
+                            });
+                }
+            );
+        }
+
+        for (
+            const groupingSelect
+            of this.element.querySelectorAll(
+                "[data-cc-grouping-criterion]"
+            )
+        ) {
+            groupingSelect.addEventListener(
+                "change",
+                event => {
+                    const target =
+                        event.currentTarget;
+                    const profileElement =
+                        target.closest(
+                            "[data-profile-id]"
+                        );
+                    const profileId =
+                        profileElement
+                            ?.dataset?.profileId;
+                    const criterion =
+                        String(
+                            target.value ?? ""
+                        ).trim();
+
+                    if (
+                        !profileId ||
+                        !GROUPING_CRITERIA.has(
+                            criterion
+                        )
+                    ) {
+                        return;
+                    }
+
+                    target.disabled = true;
+                    this._openContentInspectors.add(
+                        profileId
+                    );
+
+                    this._distributionSaveQueue =
+                        this._distributionSaveQueue
+                            .catch(() => {})
+                            .then(async () => {
+                                const updatedProfile =
+                                    await TableProfileStorageService
+                                        .setDistributionGroupingCriterion(
+                                            profileId,
+                                            criterion
+                                        );
+
+                                updateRenderedProfileStatus(
+                                    profileElement,
+                                    updatedProfile
+                                );
+
+                                if (
+                                    this._profilePreview
+                                        ?.rendered &&
+                                    this._profilePreview
+                                        .profileId === profileId
+                                ) {
+                                    this._profilePreview.render({
+                                        force: true
+                                    });
+                                }
+
+                                this.render({
+                                    force: true
+                                });
+                            })
+                            .catch(error => {
+                                console.error(
+                                    "Compendium Curator | Error cambiando el criterio de agrupación.",
+                                    error
+                                );
+
+                                const profile =
+                                    TableProfileStorageService
+                                        .getProfiles()
+                                        ?.[profileId];
+
+                                if (
+                                    target.isConnected &&
+                                    profile
+                                ) {
+                                    target.value =
+                                        getInspectorGroupingCriterion(
                                             profile
                                         );
                                 }

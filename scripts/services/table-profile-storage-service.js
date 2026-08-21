@@ -9,11 +9,21 @@ const DISTRIBUTION_MODES = new Set([
     "grouped"
 ]);
 
-const DEFAULT_GROUPING = {
-    type: "field",
-    criterion: "rarity",
-    field: "system.rarity"
+const GROUPING_CRITERIA = {
+    rarity: {
+        type: "field",
+        criterion: "rarity",
+        field: "system.rarity"
+    },
+    type: {
+        type: "field",
+        criterion: "type",
+        field: "type"
+    }
 };
+
+const DEFAULT_GROUPING =
+    GROUPING_CRITERIA.rarity;
 
 export class TableProfileStorageService {
 
@@ -218,11 +228,144 @@ export class TableProfileStorageService {
         };
     }
 
+    static #normalizeGroupingCriterion(value) {
+        const criterion =
+            String(value ?? "").trim();
+
+        return Object.prototype.hasOwnProperty.call(
+            GROUPING_CRITERIA,
+            criterion
+        )
+            ? criterion
+            : DEFAULT_GROUPING.criterion;
+    }
+
+    static #getGroupingDefinition(criterion) {
+        return foundry.utils.deepClone(
+            GROUPING_CRITERIA[
+                this.#normalizeGroupingCriterion(
+                    criterion
+                )
+            ]
+        );
+    }
+
     static #automaticGroupId(
         criterion,
         key
     ) {
         return `auto:${criterion}:${encodeURIComponent(key)}`;
+    }
+
+    static #normalizeDistributionGroups(
+        sourceGroups,
+        criterion,
+        legacyGroupWeights = {}
+    ) {
+        const normalizedCriterion =
+            this.#normalizeGroupingCriterion(
+                criterion
+            );
+
+        const source =
+            sourceGroups &&
+            typeof sourceGroups === "object" &&
+            !Array.isArray(sourceGroups)
+                ? sourceGroups
+                : {};
+
+        const legacy =
+            normalizedCriterion === "rarity" &&
+            legacyGroupWeights &&
+            typeof legacyGroupWeights === "object" &&
+            !Array.isArray(legacyGroupWeights)
+                ? legacyGroupWeights
+                : {};
+
+        const groupKeys = new Set([
+            ...Object.keys(source),
+            ...Object.keys(legacy)
+        ]);
+
+        const groups = {};
+
+        for (const rawKey of groupKeys) {
+            const key =
+                String(rawKey ?? "").trim();
+
+            if (!key)
+                continue;
+
+            const sourceGroup =
+                source[key] &&
+                typeof source[key] === "object" &&
+                !Array.isArray(source[key])
+                    ? source[key]
+                    : {};
+
+            const weight =
+                this.#normalizePositiveNumber(
+                    sourceGroup.weight,
+                    this.#normalizePositiveNumber(
+                        legacy[key],
+                        1
+                    )
+                );
+
+            const internalDistribution =
+                sourceGroup.distribution &&
+                typeof sourceGroup.distribution === "object" &&
+                !Array.isArray(sourceGroup.distribution)
+                    ? foundry.utils.deepClone(
+                        sourceGroup.distribution
+                    )
+                    : { mode: "uniform" };
+
+            if (
+                !DISTRIBUTION_MODES.has(
+                    internalDistribution.mode
+                )
+            ) {
+                internalDistribution.mode =
+                    "uniform";
+            }
+
+            groups[key] = {
+                id:
+                    String(
+                        sourceGroup.id ??
+                        this.#automaticGroupId(
+                            normalizedCriterion,
+                            key
+                        )
+                    ),
+                key,
+                enabled:
+                    sourceGroup.enabled !== false,
+                weight,
+                distribution:
+                    internalDistribution
+            };
+        }
+
+        return groups;
+    }
+
+    static #syncActiveDistributionConfiguration(
+        grouped
+    ) {
+        const criterion =
+            this.#normalizeGroupingCriterion(
+                grouped?.grouping?.criterion
+            );
+
+        grouped.configurations ??= {};
+        grouped.configurations[criterion] = {
+            groups:
+                foundry.utils.deepClone(
+                    grouped.groups ?? {}
+                )
+        };
     }
 
     static #normalizeProfileDistribution(profile) {
@@ -291,23 +434,15 @@ export class TableProfileStorageService {
                 ? sourceGrouped.grouping
                 : {};
 
-        const grouping = {
-            type:
-                String(
-                    sourceGrouping.type ??
-                    DEFAULT_GROUPING.type
-                ),
-            criterion:
-                String(
-                    sourceGrouping.criterion ??
-                    DEFAULT_GROUPING.criterion
-                ),
-            field:
-                String(
-                    sourceGrouping.field ??
-                    DEFAULT_GROUPING.field
-                )
-        };
+        const activeCriterion =
+            this.#normalizeGroupingCriterion(
+                sourceGrouping.criterion
+            );
+
+        const grouping =
+            this.#getGroupingDefinition(
+                activeCriterion
+            );
 
         const sourceGroups =
             sourceGrouped.groups &&
@@ -316,77 +451,54 @@ export class TableProfileStorageService {
                 ? sourceGrouped.groups
                 : {};
 
+        const sourceConfigurations =
+            sourceGrouped.configurations &&
+            typeof sourceGrouped.configurations === "object" &&
+            !Array.isArray(sourceGrouped.configurations)
+                ? sourceGrouped.configurations
+                : {};
+
         const legacyGroupWeights =
             profile.weights?.rarity ?? {};
 
-        const groupKeys = new Set([
-            ...Object.keys(sourceGroups),
-            ...Object.keys(legacyGroupWeights)
-        ]);
+        const configurations = {};
 
-        const groups = {};
-
-        for (const rawKey of groupKeys) {
-            const key =
-                String(rawKey ?? "").trim();
-
-            if (!key)
-                continue;
-
-            const sourceGroup =
-                sourceGroups[key] &&
-                typeof sourceGroups[key] === "object" &&
-                !Array.isArray(sourceGroups[key])
-                    ? sourceGroups[key]
+        for (
+            const criterion
+            of Object.keys(GROUPING_CRITERIA)
+        ) {
+            const sourceConfiguration =
+                sourceConfigurations[criterion] &&
+                typeof sourceConfigurations[criterion] === "object" &&
+                !Array.isArray(
+                    sourceConfigurations[criterion]
+                )
+                    ? sourceConfigurations[criterion]
                     : {};
 
-            const weight =
-                this.#normalizePositiveNumber(
-                    sourceGroup.weight,
-                    this.#normalizePositiveNumber(
-                        legacyGroupWeights[key],
-                        1
+            const configurationGroups =
+                criterion === activeCriterion
+                    ? sourceGroups
+                    : sourceConfiguration.groups;
+
+            configurations[criterion] = {
+                groups:
+                    this.#normalizeDistributionGroups(
+                        configurationGroups,
+                        criterion,
+                        legacyGroupWeights
                     )
-                );
-
-            const internalDistribution =
-                sourceGroup.distribution &&
-                typeof sourceGroup.distribution === "object" &&
-                !Array.isArray(sourceGroup.distribution)
-                    ? foundry.utils.deepClone(
-                        sourceGroup.distribution
-                    )
-                    : { mode: "uniform" };
-
-            if (
-                !DISTRIBUTION_MODES.has(
-                    internalDistribution.mode
-                )
-            ) {
-                internalDistribution.mode =
-                    "uniform";
-            }
-
-            groups[key] = {
-                id:
-                    String(
-                        sourceGroup.id ??
-                        this.#automaticGroupId(
-                            grouping.criterion,
-                            key
-                        )
-                    ),
-                key,
-                enabled:
-                    sourceGroup.enabled !== false,
-                weight,
-                distribution:
-                    internalDistribution
             };
         }
 
+        const groups =
+            foundry.utils.deepClone(
+                configurations[activeCriterion]
+                    ?.groups ?? {}
+            );
+
         profile.distribution = {
-            version: 1,
+            version: 2,
             mode,
             individual: {
                 defaultWeight:
@@ -402,7 +514,8 @@ export class TableProfileStorageService {
             },
             grouped: {
                 grouping,
-                groups
+                groups,
+                configurations
             }
         };
     }
@@ -992,6 +1105,95 @@ export class TableProfileStorageService {
         );
     }
 
+    static async setDistributionGroupingCriterion(
+        profileId,
+        criterion
+    ) {
+        const requestedCriterion =
+            String(criterion ?? "").trim();
+
+        if (
+            !Object.prototype.hasOwnProperty.call(
+                GROUPING_CRITERIA,
+                requestedCriterion
+            )
+        ) {
+            throw new Error(
+                "INVALID_TABLE_GROUPING_CRITERION"
+            );
+        }
+
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+
+        const profile =
+            storage.profiles?.[profileId];
+
+        if (
+            !profile ||
+            profile.version !== 2 ||
+            profile.type === "nested"
+        ) {
+            throw new Error(
+                "TABLE_PROFILE_NOT_FOUND"
+            );
+        }
+
+        this.#normalizeProfileDistribution(profile);
+
+        const grouped =
+            profile.distribution.grouped;
+        const currentCriterion =
+            this.#normalizeGroupingCriterion(
+                grouped.grouping?.criterion
+            );
+
+        if (currentCriterion === requestedCriterion) {
+            return this.#hydrateProfile(
+                profile,
+                storage
+            );
+        }
+
+        this.#syncActiveDistributionConfiguration(
+            grouped
+        );
+
+        const nextConfiguration =
+            grouped.configurations?.[
+                requestedCriterion
+            ] ?? { groups: {} };
+
+        grouped.grouping =
+            this.#getGroupingDefinition(
+                requestedCriterion
+            );
+        grouped.groups =
+            foundry.utils.deepClone(
+                nextConfiguration.groups ?? {}
+            );
+
+        this.#syncActiveDistributionConfiguration(
+            grouped
+        );
+
+        profile.revision =
+            Number(profile.revision ?? 1) + 1;
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return this.#hydrateProfile(
+            profile,
+            storage
+        );
+    }
+
     static async setDistributionGroupWeight(
         profileId,
         groupKey,
@@ -1031,6 +1233,10 @@ export class TableProfileStorageService {
 
         const grouped =
             profile.distribution.grouped;
+        const criterion =
+            this.#normalizeGroupingCriterion(
+                grouped.grouping?.criterion
+            );
 
         const previousGroup =
             grouped.groups?.[key];
@@ -1055,8 +1261,7 @@ export class TableProfileStorageService {
                 String(
                     previousGroup?.id ??
                     this.#automaticGroupId(
-                        grouped.grouping?.criterion ??
-                        "group",
+                        criterion,
                         key
                     )
                 ),
@@ -1071,14 +1276,20 @@ export class TableProfileStorageService {
                 )
         };
 
-        profile.weights ??= {
-            default: 1,
-            rarity: {},
-            overrides: {}
-        };
-        profile.weights.rarity ??= {};
-        profile.weights.rarity[key] =
-            normalizedWeight;
+        this.#syncActiveDistributionConfiguration(
+            grouped
+        );
+
+        if (criterion === "rarity") {
+            profile.weights ??= {
+                default: 1,
+                rarity: {},
+                overrides: {}
+            };
+            profile.weights.rarity ??= {};
+            profile.weights.rarity[key] =
+                normalizedWeight;
+        }
 
         profile.revision =
             Number(profile.revision ?? 1) + 1;
@@ -1131,6 +1342,10 @@ export class TableProfileStorageService {
 
         const grouped =
             profile.distribution.grouped;
+        const criterion =
+            this.#normalizeGroupingCriterion(
+                grouped.grouping?.criterion
+            );
 
         grouped.groups ??= {};
 
@@ -1148,13 +1363,17 @@ export class TableProfileStorageService {
             );
         }
 
+        const legacyWeight =
+            criterion === "rarity"
+                ? profile.weights?.rarity?.[key]
+                : null;
+
         grouped.groups[key] = {
             id:
                 String(
                     previousGroup?.id ??
                     this.#automaticGroupId(
-                        grouped.grouping?.criterion ??
-                        "group",
+                        criterion,
                         key
                     )
                 ),
@@ -1164,7 +1383,7 @@ export class TableProfileStorageService {
                 this.#normalizePositiveNumber(
                     previousGroup?.weight,
                     this.#normalizePositiveNumber(
-                        profile.weights?.rarity?.[key],
+                        legacyWeight,
                         1
                     )
                 ),
@@ -1174,6 +1393,10 @@ export class TableProfileStorageService {
                     { mode: "uniform" }
                 )
         };
+
+        this.#syncActiveDistributionConfiguration(
+            grouped
+        );
 
         profile.revision =
             Number(profile.revision ?? 1) + 1;

@@ -560,17 +560,23 @@
 
 /* Shared D&D5e form fields */
 
-.cc-table-defaults-app input,
+.cc-table-defaults-app
+    input:not([type="checkbox"]):not([type="radio"]),
 .cc-table-defaults-app select,
-.cc-table-filter-group-app input,
+.cc-table-filter-group-app
+    input:not([type="checkbox"]):not([type="radio"]),
 .cc-table-filter-group-app select,
-.cc-table-profile-editor-app input,
+.cc-table-profile-editor-app
+    input:not([type="checkbox"]):not([type="radio"]),
 .cc-table-profile-editor-app select,
-.cc-table-profile-inclusions-app input,
+.cc-table-profile-inclusions-app
+    input:not([type="checkbox"]):not([type="radio"]),
 .cc-table-profile-inclusions-app select,
-.cc-table-profile-exclusions-app input,
+.cc-table-profile-exclusions-app
+    input:not([type="checkbox"]):not([type="radio"]),
 .cc-table-profile-exclusions-app select,
-.cc-table-manager-app input,
+.cc-table-manager-app
+    input:not([type="checkbox"]):not([type="radio"]),
 .cc-table-manager-app select {
     background: var(--dnd5e-background-card);
 
@@ -586,17 +592,23 @@
     outline: none;
 }
 
-.cc-table-defaults-app input:focus,
+.cc-table-defaults-app
+    input:not([type="checkbox"]):not([type="radio"]):focus,
 .cc-table-defaults-app select:focus,
-.cc-table-filter-group-app input:focus,
+.cc-table-filter-group-app
+    input:not([type="checkbox"]):not([type="radio"]):focus,
 .cc-table-filter-group-app select:focus,
-.cc-table-profile-editor-app input:focus,
+.cc-table-profile-editor-app
+    input:not([type="checkbox"]):not([type="radio"]):focus,
 .cc-table-profile-editor-app select:focus,
-.cc-table-profile-inclusions-app input:focus,
+.cc-table-profile-inclusions-app
+    input:not([type="checkbox"]):not([type="radio"]):focus,
 .cc-table-profile-inclusions-app select:focus,
-.cc-table-profile-exclusions-app input:focus,
+.cc-table-profile-exclusions-app
+    input:not([type="checkbox"]):not([type="radio"]):focus,
 .cc-table-profile-exclusions-app select:focus,
-.cc-table-manager-app input:focus,
+.cc-table-manager-app
+    input:not([type="checkbox"]):not([type="radio"]):focus,
 .cc-table-manager-app select:focus {
     border-color: var(--dnd5e-color-gold);
 
