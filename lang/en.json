@@ -71,6 +71,7 @@
     "CreateTableProfile": "Create profile",
     "CreateFilterGroup": "Create filter group",
     "ManageFilterGroups": "Manage filter groups",
+    "EditContent": "Edit content",
     "NoTableProfiles": "There are no table profiles yet.",
     "NewTableProfile": "New table profile",
     "LivePreview": "Live preview",

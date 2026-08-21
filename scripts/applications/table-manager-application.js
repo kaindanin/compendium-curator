@@ -6,8 +6,13 @@ import { TableProfilePreviewApplication } from "./table-profile-preview-applicat
 import { TableProfileExclusionsApplication } from "./table-profile-exclusions-application.js";
 import { TableProfileInclusionsApplication } from "./table-profile-inclusions-application.js";
 import { TableProfileService } from "../services/table-profile-service.js";
+import { StorageService } from "../services/storage-service.js";
 import { TableFilterGroupDetailsApplication } from "./table-filter-group-details-application.js";
-import { activateDnd5eDocumentEntries, prepareDnd5eDocumentEntries } from "../ui/dnd5e-document-list.js";
+import {
+    activateDnd5eDocumentEntries,
+    prepareDnd5eDocumentEntries,
+    prepareDnd5eIndexedEntries
+} from "../ui/dnd5e-document-list.js";
 
 const {
     ApplicationV2,
@@ -17,6 +22,28 @@ const {
 const TABLE_DIALOG_CLASSES = [
     "cc-table-dialog"
 ];
+
+const CONTENT_INSPECTOR_ENTRY_LIMIT = 150;
+
+const CONTENT_INSPECTOR_RARITY_ORDER = [
+    "mundane",
+    "common",
+    "uncommon",
+    "rare",
+    "veryRare",
+    "legendary",
+    "artifact"
+];
+
+const CONTENT_INSPECTOR_RARITY_LABELS = {
+    mundane: "RarityMundane",
+    common: "RarityCommon",
+    uncommon: "RarityUncommon",
+    rare: "RarityRare",
+    veryRare: "RarityVeryRare",
+    legendary: "RarityLegendary",
+    artifact: "RarityArtifact"
+};
 
 function getRefreshSectionTitle(key, count) {
     const text = game.i18n.format(
@@ -173,6 +200,183 @@ function normalizeManagerSearchText(value) {
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .toLocaleLowerCase();
+}
+
+function getIndexedDocument(uuid) {
+    const value = String(uuid ?? "");
+
+    const parts = value.split(".");
+
+    if (
+        parts[0] === "Compendium" &&
+        parts.length >= 4
+    ) {
+        const collection =
+            `${parts[1]}.${parts[2]}`;
+
+        const documentId =
+            parts.at(-1);
+
+        const indexed =
+            game.packs
+                ?.get(collection)
+                ?.index
+                ?.get(documentId);
+
+        if (indexed)
+            return indexed;
+    }
+
+    if (
+        typeof fromUuidSync === "function"
+    ) {
+        return fromUuidSync(value) ?? null;
+    }
+
+    return null;
+}
+
+function getInspectorRarity(uuid) {
+    const document =
+        getIndexedDocument(uuid);
+
+    const rarity =
+        String(
+            document?.system?.rarity ?? ""
+        ).trim();
+
+    return rarity || "mundane";
+}
+
+function getInspectorRarityLabel(key) {
+    const localizationKey =
+        CONTENT_INSPECTOR_RARITY_LABELS[key];
+
+    return localizationKey
+        ? game.i18n.localize(
+            `COMPENDIUM_CURATOR.${localizationKey}`
+        )
+        : key;
+}
+
+function buildContentInspector(profile) {
+    const hiddenUuids =
+        new Set(
+            StorageService.getHiddenUuids()
+        );
+
+    const finalUuids =
+        new Set();
+
+    for (
+        const group
+        of profile?.filterGroups ?? []
+    ) {
+        for (
+            const uuid
+            of group?.matches ?? []
+        ) {
+            if (
+                uuid &&
+                !hiddenUuids.has(uuid)
+            ) {
+                finalUuids.add(uuid);
+            }
+        }
+    }
+
+    for (
+        const uuid
+        of profile?.manualIncludes ?? []
+    ) {
+        if (
+            uuid &&
+            !hiddenUuids.has(uuid)
+        ) {
+            finalUuids.add(uuid);
+        }
+    }
+
+    for (
+        const uuid
+        of profile?.manualExcludes ?? []
+    ) {
+        finalUuids.delete(uuid);
+    }
+
+    for (const uuid of hiddenUuids) {
+        finalUuids.delete(uuid);
+    }
+
+    const byRarity =
+        new Map();
+
+    for (const uuid of finalUuids) {
+        const rarity =
+            getInspectorRarity(uuid);
+
+        const entries =
+            byRarity.get(rarity) ?? [];
+
+        entries.push(uuid);
+        byRarity.set(rarity, entries);
+    }
+
+    const orderedKeys = [
+        ...CONTENT_INSPECTOR_RARITY_ORDER
+            .filter(key => byRarity.has(key)),
+        ...[...byRarity.keys()]
+            .filter(key =>
+                !CONTENT_INSPECTOR_RARITY_ORDER
+                    .includes(key)
+            )
+            .sort((a, b) =>
+                String(a).localeCompare(
+                    String(b),
+                    game.i18n.lang,
+                    { sensitivity: "base" }
+                )
+            )
+    ];
+
+    const rarityGroups =
+        orderedKeys.map(key => {
+            const uuids =
+                byRarity.get(key) ?? [];
+
+            const allEntries =
+                prepareDnd5eIndexedEntries(
+                    uuids
+                );
+
+            const entries =
+                allEntries.slice(
+                    0,
+                    CONTENT_INSPECTOR_ENTRY_LIMIT
+                );
+
+            return {
+                key,
+                label:
+                    getInspectorRarityLabel(key),
+                count:
+                    uuids.length,
+                entries,
+                previewCount:
+                    entries.length,
+                truncated:
+                    uuids.length >
+                    entries.length
+            };
+        });
+
+    return {
+        finalCount:
+            finalUuids.size,
+        hasObjects:
+            finalUuids.size > 0,
+        rarityGroups
+    };
 }
 
 export class TableManagerApplication
@@ -382,6 +586,13 @@ export class TableManagerApplication
                             `COMPENDIUM_CURATOR.${statusKey}`
                         );
 
+                    const inspector =
+                        isContent
+                            ? buildContentInspector(
+                                profile
+                            )
+                            : null;
+
                     return {
                         id: profile.id,
                         name: profile.name,
@@ -394,6 +605,7 @@ export class TableManagerApplication
                         childCount,
                         filterGroupCount,
                         filterGroups,
+                        inspector,
                         status,
                         searchText: [
                             profile.name,
@@ -590,6 +802,10 @@ export class TableManagerApplication
                     );
                 this._applyManagerSearch();
             }
+        );
+
+        activateDnd5eDocumentEntries(
+            this.element
         );
 
         this._applyManagerSearch();
