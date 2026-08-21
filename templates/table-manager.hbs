@@ -607,14 +607,55 @@
 
                                                         <div
                                                             class="cc-table-filter-detail-choice"
+                                                            style="align-items: center;"
                                                         >
                                                             <span>
                                                                 {{label}}
                                                             </span>
 
-                                                            <strong>
-                                                                {{count}}
-                                                            </strong>
+                                                            <div
+                                                                style="
+                                                                    display: flex;
+                                                                    align-items: center;
+                                                                    justify-content: flex-end;
+                                                                    gap: 0.6rem;
+                                                                    flex: 0 0 auto;
+                                                                "
+                                                            >
+                                                                <span class="hint">
+                                                                    {{localize
+                                                                        "COMPENDIUM_CURATOR.GroupObjectCount"
+                                                                        count=count
+                                                                    }}
+                                                                </span>
+
+                                                                <label
+                                                                    class="hint"
+                                                                    for="cc-rarity-weight-{{../id}}-{{key}}"
+                                                                    style="margin: 0; white-space: nowrap;"
+                                                                >
+                                                                    {{localize
+                                                                        "COMPENDIUM_CURATOR.WeightPerObject"
+                                                                    }}
+                                                                </label>
+
+                                                                <input
+                                                                    id="cc-rarity-weight-{{../id}}-{{key}}"
+                                                                    type="number"
+                                                                    min="1"
+                                                                    step="1"
+                                                                    value="{{weight}}"
+                                                                    data-cc-rarity-weight
+                                                                    data-rarity="{{key}}"
+                                                                    aria-label="{{localize 'COMPENDIUM_CURATOR.WeightPerObject'}}: {{label}}"
+                                                                    style="
+                                                                        flex: 0 0 64px;
+                                                                        width: 64px;
+                                                                        height: 28px;
+                                                                        text-align: right;
+                                                                    "
+                                                                >
+                                                            </div>
                                                         </div>
 
                                                     {{/each}}

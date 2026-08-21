@@ -95,6 +95,7 @@
     "RarityLegendary": "Legendary",
     "RarityArtifact": "Artifact",
     "Weight": "Weight",
+    "WeightPerObject": "Weight per object",
     "GroupObjectCount": "{count} objects",
     "TableDefaults": "Defaults",
     "TableDefaultsTitle": "Table defaults",

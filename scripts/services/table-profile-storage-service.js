@@ -118,6 +118,118 @@ export class TableProfileStorageService {
     }
 
 
+    static #normalizePositiveInteger(
+        value,
+        fallback = null
+    ) {
+
+        const parsed =
+            Number.parseInt(value, 10);
+
+        return (
+            Number.isInteger(parsed) &&
+            parsed >= 1
+        )
+            ? parsed
+            : fallback;
+
+    }
+
+
+    static #normalizeProfileWeights(profile) {
+
+        if (
+            profile?.version !== 2 ||
+            profile?.type === "nested"
+        ) {
+            return;
+        }
+
+        const current =
+            profile.weights &&
+            typeof profile.weights === "object" &&
+            !Array.isArray(profile.weights)
+                ? profile.weights
+                : {};
+
+        const legacyRarity =
+            profile.grouping?.weights &&
+            typeof profile.grouping.weights === "object" &&
+            !Array.isArray(profile.grouping.weights)
+                ? profile.grouping.weights
+                : {};
+
+        const currentRarity =
+            current.rarity &&
+            typeof current.rarity === "object" &&
+            !Array.isArray(current.rarity)
+                ? current.rarity
+                : {};
+
+        const rarity = {};
+
+        for (
+            const [key, rawValue]
+            of Object.entries({
+                ...legacyRarity,
+                ...currentRarity
+            })
+        ) {
+
+            const value =
+                this.#normalizePositiveInteger(
+                    rawValue
+                );
+
+            if (value !== null) {
+                rarity[key] = value;
+            }
+
+        }
+
+        const currentOverrides =
+            current.overrides &&
+            typeof current.overrides === "object" &&
+            !Array.isArray(current.overrides)
+                ? current.overrides
+                : {};
+
+        const overrides = {};
+
+        for (
+            const [uuid, rawValue]
+            of Object.entries(
+                currentOverrides
+            )
+        ) {
+
+            const value =
+                this.#normalizePositiveInteger(
+                    rawValue
+                );
+
+            if (
+                uuid &&
+                value !== null
+            ) {
+                overrides[uuid] = value;
+            }
+
+        }
+
+        profile.weights = {
+            default:
+                this.#normalizePositiveInteger(
+                    current.default,
+                    1
+                ),
+            rarity,
+            overrides
+        };
+
+    }
+
+
     static #createFilterGroupRecord(
         storage,
         filterGroup
@@ -328,6 +440,17 @@ export class TableProfileStorageService {
             ];
 
             delete profile.filterGroups;
+
+            /*
+             * Perfiles creados antes del modelo de
+             * pesos v2 guardaban las rarezas en
+             * grouping.weights. Las copiamos al
+             * esquema actual sin borrar el dato
+             * heredado, para mantener compatibilidad.
+             */
+            this.#normalizeProfileWeights(
+                profile
+            );
 
             storage.profiles[profileId] =
                 profile;
@@ -669,6 +792,86 @@ export class TableProfileStorageService {
         );
 
         return profile;
+
+    }
+
+
+    static async setRarityWeight(
+        profileId,
+        rarity,
+        weight
+    ) {
+
+        const key =
+            String(rarity ?? "").trim();
+
+        const normalizedWeight =
+            this.#normalizePositiveInteger(
+                weight
+            );
+
+        if (
+            !key ||
+            normalizedWeight === null
+        ) {
+            throw new Error(
+                "INVALID_TABLE_WEIGHT"
+            );
+        }
+
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+
+        const profile =
+            storage.profiles?.[profileId];
+
+        if (
+            !profile ||
+            profile.version !== 2 ||
+            profile.type === "nested"
+        ) {
+            throw new Error(
+                "TABLE_PROFILE_NOT_FOUND"
+            );
+        }
+
+        this.#normalizeProfileWeights(
+            profile
+        );
+
+        const previous =
+            this.#normalizePositiveInteger(
+                profile.weights
+                    ?.rarity
+                    ?.[key],
+                profile.weights?.default ?? 1
+            );
+
+        if (previous === normalizedWeight) {
+            return this.#hydrateProfile(
+                profile,
+                storage
+            );
+        }
+
+        profile.weights.rarity[key] =
+            normalizedWeight;
+
+        profile.revision =
+            Number(profile.revision ?? 1) + 1;
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return this.#hydrateProfile(
+            profile,
+            storage
+        );
 
     }
 

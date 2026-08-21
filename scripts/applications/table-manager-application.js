@@ -259,6 +259,51 @@ function getInspectorRarityLabel(key) {
         : key;
 }
 
+function getInspectorRarityWeight(
+    profile,
+    key
+) {
+    const defaultWeight =
+        Number.parseInt(
+            profile?.weights?.default,
+            10
+        );
+
+    const fallback =
+        Number.isInteger(defaultWeight) &&
+        defaultWeight >= 1
+            ? defaultWeight
+            : 1;
+
+    const modernWeight =
+        Number.parseInt(
+            profile?.weights
+                ?.rarity?.[key],
+            10
+        );
+
+    if (
+        Number.isInteger(modernWeight) &&
+        modernWeight >= 1
+    ) {
+        return modernWeight;
+    }
+
+    const legacyWeight =
+        Number.parseInt(
+            profile?.grouping
+                ?.weights?.[key],
+            10
+        );
+
+    return (
+        Number.isInteger(legacyWeight) &&
+        legacyWeight >= 1
+    )
+        ? legacyWeight
+        : fallback;
+}
+
 function buildContentInspector(profile) {
     const hiddenUuids =
         new Set(
@@ -361,6 +406,11 @@ function buildContentInspector(profile) {
                     getInspectorRarityLabel(key),
                 count:
                     uuids.length,
+                weight:
+                    getInspectorRarityWeight(
+                        profile,
+                        key
+                    ),
                 entries,
                 previewCount:
                     entries.length,
@@ -401,6 +451,8 @@ export class TableManagerApplication
         this._profileActionsViewportHandler = null;
         this._activeTab = "content";
         this._searchQuery = "";
+        this._weightSaveQueue =
+            Promise.resolve();
     }
 
 
@@ -803,6 +855,202 @@ export class TableManagerApplication
                 this._applyManagerSearch();
             }
         );
+
+        for (
+            const weightInput
+            of this.element.querySelectorAll(
+                "[data-cc-rarity-weight]"
+            )
+        ) {
+
+            weightInput.addEventListener(
+                "change",
+                event => {
+
+                    const target =
+                        event.currentTarget;
+
+                    const profileElement =
+                        target.closest(
+                            "[data-profile-id]"
+                        );
+
+                    const profileId =
+                        profileElement
+                            ?.dataset?.profileId;
+
+                    const rarity =
+                        String(
+                            target.dataset
+                                ?.rarity ?? ""
+                        ).trim();
+
+                    const weight =
+                        Number.parseInt(
+                            target.value,
+                            10
+                        );
+
+                    if (
+                        !profileId ||
+                        !rarity
+                    ) {
+                        return;
+                    }
+
+                    if (
+                        !Number.isInteger(weight) ||
+                        weight < 1
+                    ) {
+
+                        const profile =
+                            TableProfileStorageService
+                                .getProfiles()
+                                ?.[profileId];
+
+                        target.value =
+                            String(
+                                getInspectorRarityWeight(
+                                    profile,
+                                    rarity
+                                )
+                            );
+
+                        ui.notifications.warn(
+                            game.i18n.localize(
+                                "COMPENDIUM_CURATOR.InvalidTableWeight"
+                            )
+                        );
+
+                        target.focus();
+                        return;
+
+                    }
+
+                    target.disabled = true;
+
+                    this._weightSaveQueue =
+                        this._weightSaveQueue
+                            .catch(() => {})
+                            .then(async () => {
+
+                                const updatedProfile =
+                                    await TableProfileStorageService
+                                        .setRarityWeight(
+                                            profileId,
+                                            rarity,
+                                            weight
+                                        );
+
+                                if (
+                                    target.isConnected
+                                ) {
+                                    target.value =
+                                        String(
+                                            getInspectorRarityWeight(
+                                                updatedProfile,
+                                                rarity
+                                            )
+                                        );
+                                }
+
+                                const statusElement =
+                                    profileElement
+                                        ?.querySelector(
+                                            ".cc-table-manager-profile-status"
+                                        );
+
+                                if (statusElement) {
+
+                                    const revision =
+                                        Number(
+                                            updatedProfile
+                                                ?.revision ?? 1
+                                        );
+
+                                    const generatedRevision =
+                                        Number(
+                                            updatedProfile
+                                                ?.generation
+                                                ?.generatedRevision ?? 0
+                                        );
+
+                                    let statusKey =
+                                        "TableProfileNeverGenerated";
+
+                                    if (
+                                        generatedRevision > 0 &&
+                                        generatedRevision < revision
+                                    ) {
+                                        statusKey =
+                                            "TableProfilePendingChanges";
+                                    }
+                                    else if (
+                                        generatedRevision > 0 &&
+                                        generatedRevision === revision
+                                    ) {
+                                        statusKey =
+                                            "TableProfileUpToDate";
+                                    }
+
+                                    statusElement.textContent =
+                                        game.i18n.localize(
+                                            `COMPENDIUM_CURATOR.${statusKey}`
+                                        );
+
+                                }
+
+                                if (
+                                    this._profilePreview
+                                        ?.rendered &&
+                                    this._profilePreview
+                                        .profileId === profileId
+                                ) {
+                                    this._profilePreview.render({
+                                        force: true
+                                    });
+                                }
+
+                            })
+                            .catch(error => {
+
+                                console.error(
+                                    "Compendium Curator | Error guardando el peso de rareza.",
+                                    error
+                                );
+
+                                const profile =
+                                    TableProfileStorageService
+                                        .getProfiles()
+                                        ?.[profileId];
+
+                                if (
+                                    target.isConnected
+                                ) {
+                                    target.value =
+                                        String(
+                                            getInspectorRarityWeight(
+                                                profile,
+                                                rarity
+                                            )
+                                        );
+                                }
+
+                            })
+                            .finally(() => {
+
+                                if (
+                                    target.isConnected
+                                ) {
+                                    target.disabled = false;
+                                }
+
+                            });
+
+                }
+            );
+
+        }
 
         activateDnd5eDocumentEntries(
             this.element
