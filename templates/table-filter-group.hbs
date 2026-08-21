@@ -4,7 +4,7 @@
 
         <div
             class="cc-table-filter-group-content"
-            style="overflow-y: auto;"
+            style="overflow-y: auto; gap: 0.8rem;"
         >
 
             <header>
@@ -78,7 +78,16 @@
 
             <section>
 
-                <h3>
+                <h3
+                    style="
+                        margin: 0 0 0.55rem;
+                        padding-bottom: 0.4rem;
+                        border-bottom: 1px solid rgb(255 255 255 / 10%);
+                        font-family: var(--dnd5e-font-roboto-slab);
+                        font-size: 1.05rem;
+                        line-height: 1.2;
+                    "
+                >
                     {{localize
                         "COMPENDIUM_CURATOR.LivePreview"
                     }}
@@ -168,13 +177,26 @@
             <section
                 class="cc-table-filter-group-matches"
                 data-cc-live-preview
+                style="min-height: 0;"
             >
 
                 <div
                     class="cc-table-filter-group-matches-title"
+                    style="
+                        margin-bottom: 0.55rem;
+                        padding-bottom: 0.4rem;
+                        border-bottom: 1px solid rgb(255 255 255 / 10%);
+                    "
                 >
 
-                    <h3>
+                    <h3
+                        style="
+                            margin: 0;
+                            font-family: var(--dnd5e-font-roboto-slab);
+                            font-size: 1.05rem;
+                            line-height: 1.2;
+                        "
+                    >
                         {{localize
                             "COMPENDIUM_CURATOR.FinalObjects"
                         }}
@@ -215,16 +237,29 @@
                 {{#if hasMatches}}
 
                     <ol
-                        class="
-                            cc-table-profile-results
-                            cc-table-filter-group-live-results
+                        class="cc-table-filter-group-live-results"
+                        style="
+                            max-height: 320px;
+                            margin: 0;
+                            padding: 0.25rem 0.65rem 0.25rem 2.75rem;
+                            background: var(--dnd5e-background-card);
+                            border: 0;
+                            border-radius: 5px;
+                            overflow-x: hidden;
+                            overflow-y: auto;
+                            scrollbar-gutter: stable;
                         "
                     >
 
                         {{#each matches}}
 
                             <li
-                                class="cc-table-profile-result"
+                                style="
+                                    min-height: 32px;
+                                    padding: 0.35rem 0.3rem;
+                                    border-bottom: 1px solid rgb(255 255 255 / 5%);
+                                    line-height: 1.25;
+                                "
                             >
                                 <span>
                                     {{name}}
