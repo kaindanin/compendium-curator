@@ -1,271 +1,123 @@
 <section class="cc-table-profile-editor">
 
-    {{#if isPreviewStep}}
+    <header class="cc-table-profile-editor-header">
 
-        <header class="cc-table-profile-editor-header">
+        <h2>
+            {{localize
+                "COMPENDIUM_CURATOR.TableProfileConfiguration"
+            }}
+        </h2>
 
-            <h2>
-                {{localize
-                    "COMPENDIUM_CURATOR.LivePreview"
-                }}
-            </h2>
+    </header>
 
-            <p class="hint">
-                {{localize
-                    "COMPENDIUM_CURATOR.LivePreviewHint"
-                }}
-            </p>
 
-        </header>
+    <div class="cc-table-profile-configuration">
 
-        <div class="cc-table-profile-preview">
+        <section class="cc-table-profile-editor-section">
 
-            <p class="cc-table-profile-count">
-                {{localize
-                    "COMPENDIUM_CURATOR.MatchingObjects"
-                    count=candidateCount
-                }}
-            </p>
-
-            {{#if hasCandidates}}
-
-                <ol class="cc-table-profile-results">
-
-                    {{#each candidates}}
-
-                        <li
-                            class="cc-table-profile-result"
-                            data-uuid="{{uuid}}"
-                        >
-                            <span>{{name}}</span>
-                        </li>
-
-                    {{/each}}
-
-                </ol>
-
-            {{else}}
-
-                <p class="hint">
-                    {{localize
-                        "COMPENDIUM_CURATOR.NoMatchingObjects"
-                    }}
-                </p>
-
-            {{/if}}
-
-        </div>
-
-        <footer class="cc-table-profile-footer">
-
-            <button
-                type="button"
-                data-action="next"
-                {{#unless hasCandidates}}disabled{{/unless}}
+            <div
+                class="
+                    cc-table-filter-detail-block
+                    cc-table-profile-editor-general
+                "
             >
-                {{localize
-                    "COMPENDIUM_CURATOR.Next"
-                }}
-
-                <i class="fa-solid fa-chevron-right"></i>
-            </button>
-
-        </footer>
-
-    {{else}}
-
-        <header class="cc-table-profile-editor-header">
-
-            <h2>
-                {{localize
-                    "COMPENDIUM_CURATOR.TableProfileConfiguration"
-                }}
-            </h2>
-
-        </header>
-
-
-        <div class="cc-table-profile-configuration">
-
-            <section class="cc-table-profile-editor-section">
 
                 <div
                     class="
-                        cc-table-filter-detail-block
-                        cc-table-profile-editor-general
+                        cc-table-filter-detail-choice
+                        cc-table-profile-editor-row
                     "
                 >
 
-                    <div
-                        class="
-                            cc-table-filter-detail-choice
-                            cc-table-profile-editor-row
-                        "
-                    >
+                    <label for="cc-table-profile-name">
+                        {{localize
+                            "COMPENDIUM_CURATOR.TableProfileName"
+                        }}
+                    </label>
 
-                        <label for="cc-table-profile-name">
-                            {{localize
-                                "COMPENDIUM_CURATOR.TableProfileName"
-                            }}
-                        </label>
+                    <div class="form-fields">
 
-                        <div class="form-fields">
-
-                            <input
-                                id="cc-table-profile-name"
-                                type="text"
-                                name="profileName"
-                                autocomplete="off"
-                            >
-
-                        </div>
-
-                    </div>
-
-
-                    <div
-                        class="
-                            cc-table-filter-detail-choice
-                            cc-table-profile-editor-row
-                        "
-                    >
-
-                        <label for="cc-table-profile-type">
-                            {{localize
-                                "COMPENDIUM_CURATOR.TableProfileType"
-                            }}
-                        </label>
-
-                        <div class="form-fields">
-
-                            <select
-                                id="cc-table-profile-type"
-                                name="profileType"
-                            >
-
-                                {{#each profileTypes}}
-
-                                    <option value="{{value}}">
-                                        {{localize label}}
-                                    </option>
-
-                                {{/each}}
-
-                            </select>
-
-                        </div>
-
-                    </div>
-
-
-                    <div
-                        class="
-                            cc-table-filter-detail-choice
-                            cc-table-profile-editor-row
-                        "
-                    >
-
-                        <label for="cc-table-profile-grouping">
-                            {{localize
-                                "COMPENDIUM_CURATOR.GroupBy"
-                            }}
-                        </label>
-
-                        <div class="form-fields">
-
-                            <select
-                                id="cc-table-profile-grouping"
-                                name="grouping"
-                            >
-
-                                {{#each groupingOptions}}
-
-                                    <option value="{{value}}">
-                                        {{localize label}}
-                                    </option>
-
-                                {{/each}}
-
-                            </select>
-
-                        </div>
+                        <input
+                            id="cc-table-profile-name"
+                            type="text"
+                            name="profileName"
+                            autocomplete="off"
+                            autofocus
+                        >
 
                     </div>
 
                 </div>
 
-            </section>
-
-
-            <section class="cc-table-profile-editor-section">
-
-                <h3>
-                    {{localize
-                        "COMPENDIUM_CURATOR.DefaultRarityWeights"
-                    }}
-                </h3>
-
 
                 <div
                     class="
-                        cc-table-filter-detail-block
-                        cc-table-profile-editor-weights
+                        cc-table-filter-detail-choice
+                        cc-table-profile-editor-row
                     "
                 >
 
-                    {{#each rarityGroups}}
+                    <label for="cc-table-profile-type">
+                        {{localize
+                            "COMPENDIUM_CURATOR.TableProfileType"
+                        }}
+                    </label>
 
-                        <div
-                            class="
-                                cc-table-filter-detail-choice
-                                cc-table-profile-editor-weight-row
-                            "
-                            data-group="{{key}}"
+                    <div class="form-fields">
+
+                        <select
+                            id="cc-table-profile-type"
+                            name="profileType"
                         >
 
-                            <label for="cc-table-profile-weight-{{key}}">
-                                {{label}}
-                            </label>
+                            {{#each profileTypes}}
 
-                            <div class="form-fields">
-
-                                <input
-                                    id="cc-table-profile-weight-{{key}}"
-                                    type="number"
-                                    name="weight.{{key}}"
-                                    value="{{weight}}"
-                                    min="1"
-                                    step="1"
+                                <option
+                                    value="{{value}}"
+                                    {{#if selected}}selected{{/if}}
                                 >
+                                    {{localize label}}
+                                </option>
 
-                            </div>
+                            {{/each}}
 
-                        </div>
+                        </select>
 
-                    {{/each}}
+                    </div>
 
                 </div>
 
-            </section>
+            </div>
 
-        </div>
+        </section>
+
+    </div>
 
 
-        <footer class="cc-table-profile-footer">
+    <footer class="cc-table-profile-footer">
 
-            <button
-                type="button"
-                data-action="save"
-            >
-                <i class="fas fa-floppy-disk"></i>
+        <button
+            type="button"
+            data-action="cancel"
+        >
+            <i class="fas fa-xmark"></i>
 
-                {{localize
-                    "COMPENDIUM_CURATOR.SaveTableProfile"
-                }}
-            </button>
+            {{localize
+                "COMPENDIUM_CURATOR.Cancel"
+            }}
+        </button>
 
-        </footer>
+        <button
+            type="button"
+            data-action="save"
+        >
+            <i class="fas fa-plus"></i>
 
-    {{/if}}
+            {{localize
+                "COMPENDIUM_CURATOR.Create"
+            }}
+        </button>
+
+    </footer>
 
 </section>
