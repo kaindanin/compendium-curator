@@ -10,15 +10,102 @@ import {
     TableProfileFilterGroupLinkService
 } from "../services/table-profile-filter-group-link-service.js";
 
-import {
-    activateDnd5eDocumentEntries,
-    prepareDnd5eDocumentEntries
-} from "../ui/dnd5e-document-list.js";
-
 const {
     ApplicationV2,
     HandlebarsApplicationMixin
 } = foundry.applications.api;
+
+const LIVE_PREVIEW_LIMIT = 300;
+
+function prepareLivePreviewEntries(uuids) {
+
+    const entries =
+        Array.from(
+            new Set(
+                uuids ?? []
+            )
+        )
+            .map(uuid => {
+
+                const value =
+                    String(uuid ?? "");
+
+                let name = "";
+
+                const parts =
+                    value.split(".");
+
+                if (
+                    parts[0] ===
+                        "Compendium" &&
+                    parts.length >= 4
+                ) {
+
+                    const collection =
+                        `${parts[1]}.${parts[2]}`;
+
+                    const documentId =
+                        parts.at(-1);
+
+                    const indexEntry =
+                        game.packs
+                            ?.get(collection)
+                            ?.index
+                            ?.get(documentId);
+
+                    name =
+                        String(
+                            indexEntry?.name ??
+                            ""
+                        );
+
+                }
+
+                if (
+                    !name &&
+                    typeof fromUuidSync ===
+                        "function"
+                ) {
+
+                    name =
+                        String(
+                            fromUuidSync(value)
+                                ?.name ??
+                            ""
+                        );
+
+                }
+
+                return {
+                    uuid: value,
+                    name: name || value
+                };
+
+            })
+            .filter(entry =>
+                Boolean(entry.uuid)
+            )
+            .sort((a, b) =>
+                a.name.localeCompare(
+                    b.name,
+                    game.i18n.lang,
+                    {
+                        sensitivity: "base"
+                    }
+                )
+            );
+
+    return {
+        entries:
+            entries.slice(
+                0,
+                LIVE_PREVIEW_LIMIT
+            ),
+        total:
+            entries.length
+    };
+
+}
 
 export class TableFilterGroupApplication
     extends HandlebarsApplicationMixin(
@@ -69,10 +156,20 @@ export class TableFilterGroupApplication
 
         this._draftName = "";
         this._draft = null;
+
+        this._previewSnapshot = null;
+        this._previewGeneration = 0;
+        this._previewRunning = false;
+        this._previewPending = false;
+        this._previewLoading = createMode;
+        this._previewError = false;
+
         this._ccRefreshTimer = null;
         this._didInitialFocus = false;
+
         this._browserRenderHook = null;
         this._closeApplicationHook = null;
+        this._browserFilterInputHandler = null;
 
         if (this.isCreateMode) {
 
@@ -106,6 +203,58 @@ export class TableFilterGroupApplication
                         }
 
                     }
+                );
+
+            this._browserFilterInputHandler =
+                event => {
+
+                    const target =
+                        event.target;
+
+                    if (
+                        !(target instanceof Element)
+                    ) {
+                        return;
+                    }
+
+                    const insideFilters =
+                        Boolean(
+                            target.closest(
+                                '[data-application-part="types"], ' +
+                                '[data-application-part="filters"]'
+                            )
+                        );
+
+                    const searchField =
+                        target.matches(
+                            'search > input[name="name"]'
+                        );
+
+                    if (
+                        !insideFilters &&
+                        !searchField
+                    ) {
+                        return;
+                    }
+
+                    this.scheduleRefresh();
+
+                };
+
+            this.browserApp
+                ?.element
+                ?.addEventListener(
+                    "input",
+                    this._browserFilterInputHandler,
+                    true
+                );
+
+            this.browserApp
+                ?.element
+                ?.addEventListener(
+                    "change",
+                    this._browserFilterInputHandler,
+                    true
                 );
 
         }
@@ -193,10 +342,27 @@ export class TableFilterGroupApplication
     }
 
 
-    scheduleRefresh() {
+    scheduleRefresh({
+        immediate = false
+    } = {}) {
 
         if (!this.isCreateMode)
             return;
+
+        this._previewGeneration++;
+        this._previewPending = true;
+        this._previewError = false;
+
+        this._setPreviewLoading(true);
+
+        /*
+         * Un render del Browser puede destruir el
+         * enlace sobre el que D&D5e estaba preparando
+         * un tooltip. Limpiamos cualquier tooltip
+         * pendiente antes de que cambie el DOM.
+         */
+        game.tooltip?.clearPending?.();
+        game.tooltip?.deactivate?.();
 
         clearTimeout(
             this._ccRefreshTimer
@@ -210,11 +376,255 @@ export class TableFilterGroupApplication
                 if (!this.rendered)
                     return;
 
-                this.render({
-                    force: true
-                });
+                void this._refreshLivePreview();
 
-            }, 120);
+            }, immediate ? 0 : 180);
+
+    }
+
+
+    _setPreviewLoading(loading) {
+
+        this._previewLoading =
+            loading === true;
+
+        if (!this.rendered)
+            return;
+
+        const indicator =
+            this.element.querySelector(
+                "[data-cc-preview-loading]"
+            );
+
+        if (indicator) {
+            indicator.hidden =
+                !this._previewLoading;
+        }
+
+        const preview =
+            this.element.querySelector(
+                "[data-cc-live-preview]"
+            );
+
+        preview?.classList.toggle(
+            "is-loading",
+            this._previewLoading
+        );
+
+        if (preview) {
+            preview.setAttribute(
+                "aria-busy",
+                this._previewLoading
+                    ? "true"
+                    : "false"
+            );
+
+            const results =
+                preview.querySelector(
+                    ".cc-table-filter-group-live-results"
+                );
+
+            if (results) {
+                results.style.opacity =
+                    this._previewLoading
+                        ? "0.45"
+                        : "";
+            }
+        }
+
+        const createButton =
+            this.element.querySelector(
+                '[data-action="create"]'
+            );
+
+        if (createButton) {
+
+            createButton.disabled =
+                this._previewLoading ||
+                !this._previewSnapshot
+                    ?.hasMatches;
+
+        }
+
+    }
+
+
+    async _refreshLivePreview() {
+
+        if (
+            !this.isCreateMode ||
+            !this.rendered
+        ) {
+            return;
+        }
+
+        /*
+         * Nunca ejecutamos dos consultas del
+         * Browser a la vez. Si llega otro cambio
+         * mientras una está trabajando, dejamos
+         * marcada una nueva pasada y descartamos
+         * el resultado antiguo.
+         */
+        if (this._previewRunning) {
+
+            this._previewPending = true;
+
+            return;
+
+        }
+
+        this._previewRunning = true;
+
+        try {
+
+            while (
+                this.rendered &&
+                this._previewPending
+            ) {
+
+                this._previewPending =
+                    false;
+
+                const generation =
+                    this._previewGeneration;
+
+                let draft;
+
+                try {
+
+                    draft =
+                        await TableProfileService
+                            .createContentDraft(
+                                this.browserApp
+                            );
+
+                }
+                catch (error) {
+
+                    if (
+                        generation !==
+                        this._previewGeneration
+                    ) {
+                        this._previewPending =
+                            true;
+
+                        continue;
+                    }
+
+                    console.error(
+                        "Compendium Curator | Error actualizando la vista previa del grupo de filtros.",
+                        error
+                    );
+
+                    this._draft = null;
+                    this._previewSnapshot = null;
+                    this._previewError = true;
+
+                    break;
+
+                }
+
+                if (
+                    !this.rendered
+                ) {
+                    return;
+                }
+
+                if (
+                    generation !==
+                    this._previewGeneration
+                ) {
+
+                    this._previewPending =
+                        true;
+
+                    continue;
+
+                }
+
+                const filterGroups =
+                    TableProfileService
+                        .getFilterDisplayGroups(
+                            this.browserApp,
+                            draft?.browser
+                                ?.filters ?? {}
+                        );
+
+                /*
+                 * La lista viva usa únicamente los índices
+                 * ya cargados por el Compendium Browser.
+                 * No hacemos fromUuid() ni traducciones
+                 * completas para cientos de documentos.
+                 */
+                const preview =
+                    prepareLivePreviewEntries(
+                        draft?.matches ?? []
+                    );
+
+                if (
+                    generation !==
+                    this._previewGeneration
+                ) {
+
+                    this._previewPending =
+                        true;
+
+                    continue;
+
+                }
+
+                const matchCount =
+                    Number(
+                        draft?.includedCount ??
+                        preview.total
+                    );
+
+                this._draft =
+                    draft ?? null;
+
+                this._previewSnapshot = {
+                    filterGroups,
+                    hasFilters:
+                        filterGroups.length > 0,
+                    matches:
+                        preview.entries,
+                    previewCount:
+                        preview.entries.length,
+                    previewTruncated:
+                        matchCount >
+                        preview.entries.length,
+                    matchCount,
+                    hasMatches:
+                        matchCount > 0
+                };
+
+            }
+
+        }
+        finally {
+
+            this._previewRunning =
+                false;
+
+            if (!this.rendered)
+                return;
+
+            if (this._previewPending) {
+
+                void this
+                    ._refreshLivePreview();
+
+                return;
+
+            }
+
+            this._setPreviewLoading(false);
+
+            this.render({
+                force: true
+            });
+
+        }
 
     }
 
@@ -228,14 +638,6 @@ export class TableFilterGroupApplication
             this.isCreateMode;
 
         if (this.isCreateMode) {
-
-            const draft =
-                await TableProfileService
-                    .createContentDraft(
-                        this.browserApp
-                    );
-
-            this._draft = draft ?? null;
 
             context.filterGroupName =
                 this._draftName;
@@ -254,35 +656,41 @@ export class TableFilterGroupApplication
             context.linkToProfile =
                 Boolean(profile);
 
+            const snapshot =
+                this._previewSnapshot ?? {
+                    filterGroups: [],
+                    hasFilters: false,
+                    matches: [],
+                    previewCount: 0,
+                    previewTruncated: false,
+                    matchCount: 0,
+                    hasMatches: false
+                };
+
             context.filterGroups =
-                TableProfileService
-                    .getFilterDisplayGroups(
-                        this.browserApp,
-                        draft?.browser
-                            ?.filters ?? {}
-                    );
+                snapshot.filterGroups;
 
             context.hasFilters =
-                context.filterGroups.length > 0;
-
-            const matchUuids =
-                Array.from(
-                    draft?.matches ?? []
-                );
+                snapshot.hasFilters;
 
             context.matches =
-                await prepareDnd5eDocumentEntries(
-                    matchUuids
-                );
+                snapshot.matches;
+
+            context.previewCount =
+                snapshot.previewCount;
+
+            context.previewTruncated =
+                snapshot.previewTruncated;
 
             context.matchCount =
-                Number(
-                    draft?.includedCount ??
-                    matchUuids.length
-                );
+                snapshot.matchCount;
 
             context.hasMatches =
-                context.matchCount > 0;
+                snapshot.hasMatches;
+
+            context.isPreviewLoading =
+                this._previewLoading ||
+                !this._previewSnapshot;
 
             return context;
 
@@ -393,9 +801,20 @@ export class TableFilterGroupApplication
                 nameInput?.focus();
             }
 
-            activateDnd5eDocumentEntries(
-                this.element
+            this._setPreviewLoading(
+                context.isPreviewLoading
             );
+
+            if (
+                !this._previewSnapshot &&
+                !this._previewError &&
+                !this._previewRunning &&
+                this._ccRefreshTimer === null
+            ) {
+                this.scheduleRefresh({
+                    immediate: true
+                });
+            }
 
             return;
 
@@ -546,16 +965,22 @@ export class TableFilterGroupApplication
         }
 
         /*
-         * Volvemos a capturar el estado justo al
-         * guardar para que el grupo corresponda
-         * exactamente a los filtros que están
-         * visibles en ese momento.
+         * Mientras haya una consulta pendiente
+         * no permitimos guardar una instantánea
+         * que ya no corresponde a los filtros
+         * visibles.
          */
+        if (
+            this._previewLoading ||
+            this._previewRunning ||
+            this._previewPending ||
+            !this._draft
+        ) {
+            return;
+        }
+
         const draft =
-            await TableProfileService
-                .createContentDraft(
-                    this.browserApp
-                );
+            this._draft;
 
         if (
             (draft?.includedCount ?? 0) === 0
@@ -663,6 +1088,9 @@ export class TableFilterGroupApplication
             this._ccRefreshTimer
         );
 
+        this._previewGeneration++;
+        this._previewPending = false;
+
         if (
             this._browserRenderHook !== null
         ) {
@@ -681,6 +1109,31 @@ export class TableFilterGroupApplication
                 this._closeApplicationHook
             );
             this._closeApplicationHook = null;
+        }
+
+        if (
+            this._browserFilterInputHandler
+        ) {
+
+            this.browserApp
+                ?.element
+                ?.removeEventListener(
+                    "input",
+                    this._browserFilterInputHandler,
+                    true
+                );
+
+            this.browserApp
+                ?.element
+                ?.removeEventListener(
+                    "change",
+                    this._browserFilterInputHandler,
+                    true
+                );
+
+            this._browserFilterInputHandler =
+                null;
+
         }
 
         if (
