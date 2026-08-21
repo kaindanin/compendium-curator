@@ -23,12 +23,13 @@ export class TableProfileEditorApplication
         this.browserApp = browserApp;
 
         /*
-         * El Gestor ya separa Contenido y
-         * Subtablas. Usamos la pestaña activa
-         * como valor inicial, pero el usuario
-         * puede cambiarlo en el selector.
+         * El tipo lo decide la pestaña desde la
+         * que se abrió el editor. Ya no existe un
+         * selector dentro de la ventana, evitando
+         * crear accidentalmente un recurso de otro
+         * tipo distinto al que representa la pestaña.
          */
-        this.initialType =
+        this.profileType =
             browserApp
                 ?._ccTableManager
                 ?._activeTab === "nested"
@@ -61,8 +62,8 @@ export class TableProfileEditorApplication
         },
 
         position: {
-            width: 520,
-            height: 330
+            width: 480,
+            height: 250
         }
 
     };
@@ -94,22 +95,10 @@ export class TableProfileEditorApplication
                 options
             );
 
-        context.profileTypes = [
-            {
-                value: "content",
-                label:
-                    "COMPENDIUM_CURATOR.TableProfileTypeContent",
-                selected:
-                    this.initialType === "content"
-            },
-            {
-                value: "nested",
-                label:
-                    "COMPENDIUM_CURATOR.TableProfileTypeNested",
-                selected:
-                    this.initialType === "nested"
-            }
-        ];
+        context.profileTypeLabel =
+            this.profileType === "nested"
+                ? "COMPENDIUM_CURATOR.TableProfileTypeNested"
+                : "COMPENDIUM_CURATOR.TableProfileTypeContent";
 
         return context;
 
@@ -121,11 +110,6 @@ export class TableProfileEditorApplication
         const nameInput =
             this.element.querySelector(
                 '[name="profileName"]'
-            );
-
-        const typeInput =
-            this.element.querySelector(
-                '[name="profileType"]'
             );
 
         const name =
@@ -148,7 +132,7 @@ export class TableProfileEditorApplication
         }
 
         const profileType =
-            typeInput?.value === "nested"
+            this.profileType === "nested"
                 ? "nested"
                 : "content";
 
@@ -189,8 +173,8 @@ export class TableProfileEditorApplication
                  * Los pesos ya no se configuran
                  * al crear el perfil. Heredamos
                  * los valores predeterminados y
-                 * se editarán desde el futuro
-                 * inspector de contenido.
+                 * se editarán desde el inspector
+                 * de contenido.
                  */
                 weights: {
                     default: 1,
@@ -247,11 +231,6 @@ export class TableProfileEditorApplication
 
         if (tableManager?.rendered) {
 
-            /*
-             * Si el usuario cambió el tipo en
-             * el selector, mostramos la pestaña
-             * correspondiente al cerrar.
-             */
             tableManager._activeTab =
                 profileType === "nested"
                     ? "nested"
