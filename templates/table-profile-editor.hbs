@@ -54,14 +54,16 @@
     </div>
 
 
-    <footer class="cc-table-profile-footer">
+    <footer
+        class="cc-table-profile-footer"
+        style="justify-content: flex-end; gap: 0.5rem;"
+    >
 
         <button
             type="button"
             data-action="cancel"
+            style="flex: 0 0 auto; width: auto; min-width: 96px; padding-inline: 1rem;"
         >
-            <i class="fas fa-xmark"></i>
-
             {{localize
                 "COMPENDIUM_CURATOR.Cancel"
             }}
@@ -70,9 +72,8 @@
         <button
             type="button"
             data-action="save"
+            style="flex: 0 0 auto; width: auto; min-width: 96px; padding-inline: 1rem;"
         >
-            <i class="fas fa-plus"></i>
-
             {{localize
                 "COMPENDIUM_CURATOR.Create"
             }}
