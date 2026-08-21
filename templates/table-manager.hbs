@@ -459,6 +459,18 @@
                                                         >
                                                             {{localize "COMPENDIUM_CURATOR.GroupByType"}}
                                                         </option>
+                                                        <option
+                                                            value="source"
+                                                            {{#if inspector.isGroupingSource}}selected{{/if}}
+                                                        >
+                                                            {{localize "COMPENDIUM_CURATOR.GroupBySource"}}
+                                                        </option>
+                                                        <option
+                                                            value="cr"
+                                                            {{#if inspector.isGroupingCr}}selected{{/if}}
+                                                        >
+                                                            {{localize "COMPENDIUM_CURATOR.GroupByChallengeRating"}}
+                                                        </option>
                                                     </select>
                                                 {{/if}}
                                             </div>

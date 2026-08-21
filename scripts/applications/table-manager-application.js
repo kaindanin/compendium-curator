@@ -45,6 +45,25 @@ const CONTENT_INSPECTOR_RARITY_LABELS = {
     artifact: "RarityArtifact"
 };
 
+const CONTENT_INSPECTOR_CR_ORDER = [
+    "0-1",
+    "2-4",
+    "5-8",
+    "9-12",
+    "13-16",
+    "17-plus",
+    "unclassified"
+];
+
+const CONTENT_INSPECTOR_CR_LABELS = {
+    "0-1": "CR 0–1",
+    "2-4": "CR 2–4",
+    "5-8": "CR 5–8",
+    "9-12": "CR 9–12",
+    "13-16": "CR 13–16",
+    "17-plus": "CR 17+"
+};
+
 const DISTRIBUTION_MODES = new Set([
     "uniform",
     "individual",
@@ -53,7 +72,9 @@ const DISTRIBUTION_MODES = new Set([
 
 const GROUPING_CRITERIA = new Set([
     "rarity",
-    "type"
+    "type",
+    "source",
+    "cr"
 ]);
 
 function getRefreshSectionTitle(key, count) {
@@ -318,6 +339,120 @@ function getInspectorDocumentTypeLabel(key) {
         : key;
 }
 
+function getInspectorDocumentSource(uuid) {
+    const document =
+        getIndexedDocument(uuid);
+    const source =
+        document?.system?.source;
+
+    if (!source)
+        return "unclassified";
+
+    if (typeof source === "string") {
+        return source.trim() ||
+            "unclassified";
+    }
+
+    const value =
+        String(
+            source.value ??
+            source.book ??
+            source.label ??
+            ""
+        ).trim();
+
+    return value || "unclassified";
+}
+
+function getInspectorDocumentSourceLabel(key) {
+    return key === "unclassified"
+        ? game.i18n.localize(
+            "COMPENDIUM_CURATOR.GroupNoSource"
+        )
+        : key;
+}
+
+function normalizeInspectorChallengeRating(value) {
+    if (
+        typeof value === "number" &&
+        Number.isFinite(value)
+    ) {
+        return value >= 0
+            ? value
+            : null;
+    }
+
+    const text =
+        String(value ?? "").trim();
+
+    if (!text)
+        return null;
+
+    const fraction =
+        text.match(
+            /^(\d+)\s*\/\s*(\d+)$/
+        );
+
+    if (fraction) {
+        const numerator =
+            Number(fraction[1]);
+        const denominator =
+            Number(fraction[2]);
+
+        if (
+            denominator > 0 &&
+            Number.isFinite(numerator)
+        ) {
+            return numerator / denominator;
+        }
+    }
+
+    const parsed =
+        Number(text.replace(",", "."));
+
+    return (
+        Number.isFinite(parsed) &&
+        parsed >= 0
+    )
+        ? parsed
+        : null;
+}
+
+function getInspectorChallengeRatingKey(uuid) {
+    const document =
+        getIndexedDocument(uuid);
+    const cr =
+        normalizeInspectorChallengeRating(
+            document?.system?.details?.cr
+        );
+
+    if (cr === null)
+        return "unclassified";
+
+    if (cr < 2)
+        return "0-1";
+    if (cr < 5)
+        return "2-4";
+    if (cr < 9)
+        return "5-8";
+    if (cr < 13)
+        return "9-12";
+    if (cr < 17)
+        return "13-16";
+
+    return "17-plus";
+}
+
+function getInspectorChallengeRatingLabel(key) {
+    if (key === "unclassified") {
+        return game.i18n.localize(
+            "COMPENDIUM_CURATOR.GroupNoChallengeRating"
+        );
+    }
+
+    return CONTENT_INSPECTOR_CR_LABELS[key] ?? key;
+}
+
 function getInspectorDistributionMode(profile) {
     const mode = String(
         profile?.distribution?.mode ?? ""
@@ -343,10 +478,17 @@ function getInspectorGroupingCriterion(profile) {
 }
 
 function getInspectorGroupingLabel(criterion) {
+    let key = "GroupByRarity";
+
+    if (criterion === "type")
+        key = "GroupByType";
+    else if (criterion === "source")
+        key = "GroupBySource";
+    else if (criterion === "cr")
+        key = "GroupByChallengeRating";
+
     return game.i18n.localize(
-        criterion === "type"
-            ? "COMPENDIUM_CURATOR.GroupByType"
-            : "COMPENDIUM_CURATOR.GroupByRarity"
+        `COMPENDIUM_CURATOR.${key}`
     );
 }
 
@@ -354,18 +496,44 @@ function getInspectorGroupingKey(
     uuid,
     criterion
 ) {
-    return criterion === "type"
-        ? getInspectorDocumentType(uuid)
-        : getInspectorRarity(uuid);
+    if (criterion === "type")
+        return getInspectorDocumentType(uuid);
+
+    if (criterion === "source")
+        return getInspectorDocumentSource(uuid);
+
+    if (criterion === "cr") {
+        return getInspectorChallengeRatingKey(
+            uuid
+        );
+    }
+
+    return getInspectorRarity(uuid);
 }
 
 function getInspectorGroupingGroupLabel(
     criterion,
     key
 ) {
-    return criterion === "type"
-        ? getInspectorDocumentTypeLabel(key)
-        : getInspectorRarityLabel(key);
+    if (criterion === "type") {
+        return getInspectorDocumentTypeLabel(
+            key
+        );
+    }
+
+    if (criterion === "source") {
+        return getInspectorDocumentSourceLabel(
+            key
+        );
+    }
+
+    if (criterion === "cr") {
+        return getInspectorChallengeRatingLabel(
+            key
+        );
+    }
+
+    return getInspectorRarityLabel(key);
 }
 
 function getInspectorOrderedGroupKeys(
@@ -388,6 +556,19 @@ function getInspectorOrderedGroupKeys(
                         { sensitivity: "base" }
                     )
                 )
+        ];
+    }
+
+    if (criterion === "cr") {
+        return [
+            ...CONTENT_INSPECTOR_CR_ORDER
+                .filter(key => groups.has(key)),
+            ...[...groups.keys()]
+                .filter(key =>
+                    !CONTENT_INSPECTOR_CR_ORDER
+                        .includes(key)
+                )
+                .sort()
         ];
     }
 
@@ -933,6 +1114,10 @@ function buildContentInspector(profile) {
             groupingCriterion === "rarity",
         isGroupingType:
             groupingCriterion === "type",
+        isGroupingSource:
+            groupingCriterion === "source",
+        isGroupingCr:
+            groupingCriterion === "cr",
         groupSectionLabel:
             game.i18n.format(
                 "COMPENDIUM_CURATOR.ObjectsByGrouping",
@@ -978,58 +1163,36 @@ export class TableManagerApplication
             new Set();
     }
 
-
     static DEFAULT_OPTIONS = {
-        id:
-            "compendium-curator-table-manager",
+        id: "compendium-curator-table-manager",
         classes: [
             "dnd5e2",
             "compendium-curator",
             "cc-table-manager-app"
         ],
         actions: {
-            changeManagerTab:
-                this.#onChangeManagerTab,
-            clearManagerSearch:
-                this.#onClearManagerSearch,
-            createProfile:
-                this.#onCreateProfile,
-            configureDefaults:
-                this.#onConfigureDefaults,
-            addCurrentFilters:
-                this.#onAddCurrentFilters,
-            previewProfile:
-                this.#onPreviewProfile,
-            manualInclusions:
-                this.#onManualInclusions,
-            manualExclusions:
-                this.#onManualExclusions,
-            renameProfile:
-                this.#onRenameProfile,
-            duplicateProfile:
-                this.#onDuplicateProfile,
-            deleteProfile:
-                this.#onDeleteProfile,
-            renameFilterGroup:
-                this.#onRenameFilterGroup,
-            duplicateFilterGroup:
-                this.#onDuplicateFilterGroup,
-            deleteGlobalFilterGroup:
-                this.#onDeleteGlobalFilterGroup,
-            toggleProfileActions:
-                this.#onToggleProfileActions,
-            filterGroupDetails:
-                this.#onFilterGroupDetails,
-            refreshFilterGroup:
-                this.#onRefreshFilterGroup,
-            loadFilterGroup:
-                this.#onLoadFilterGroup,
-            unlinkFilterGroup:
-                this.#onUnlinkFilterGroup
+            changeManagerTab: this.#onChangeManagerTab,
+            clearManagerSearch: this.#onClearManagerSearch,
+            createProfile: this.#onCreateProfile,
+            configureDefaults: this.#onConfigureDefaults,
+            addCurrentFilters: this.#onAddCurrentFilters,
+            previewProfile: this.#onPreviewProfile,
+            manualInclusions: this.#onManualInclusions,
+            manualExclusions: this.#onManualExclusions,
+            renameProfile: this.#onRenameProfile,
+            duplicateProfile: this.#onDuplicateProfile,
+            deleteProfile: this.#onDeleteProfile,
+            renameFilterGroup: this.#onRenameFilterGroup,
+            duplicateFilterGroup: this.#onDuplicateFilterGroup,
+            deleteGlobalFilterGroup: this.#onDeleteGlobalFilterGroup,
+            toggleProfileActions: this.#onToggleProfileActions,
+            filterGroupDetails: this.#onFilterGroupDetails,
+            refreshFilterGroup: this.#onRefreshFilterGroup,
+            loadFilterGroup: this.#onLoadFilterGroup,
+            unlinkFilterGroup: this.#onUnlinkFilterGroup
         },
         window: {
-            title:
-                "COMPENDIUM_CURATOR.TableManagerTitle",
+            title: "COMPENDIUM_CURATOR.TableManagerTitle",
             resizable: true
         },
         position: {
@@ -1038,347 +1201,253 @@ export class TableManagerApplication
         }
     };
 
-
     static PARTS = {
         body: {
-            template:
-                "modules/compendium-curator/templates/table-manager.hbs"
+            template: "modules/compendium-curator/templates/table-manager.hbs"
         }
     };
 
-
     async _prepareContext(options) {
-        const context =
-            await super._prepareContext(options);
+        const context = await super._prepareContext(options);
 
-        await TableProfileStorageService
-            .migrateStorage();
+        await TableProfileStorageService.migrateStorage();
 
-        const profiles =
-            Object.values(
-                TableProfileStorageService
-                    .getProfiles()
-            )
-                .filter(profile =>
-                    profile?.version === 2
-                )
-                .map(profile => {
-                    const filterGroupCount =
-                        Array.isArray(
-                            profile.filterGroups
-                        )
-                            ? profile.filterGroups.length
-                            : 0;
+        const profiles = Object.values(
+            TableProfileStorageService.getProfiles()
+        )
+            .filter(profile => profile?.version === 2)
+            .map(profile => {
+                const filterGroupCount = Array.isArray(profile.filterGroups)
+                    ? profile.filterGroups.length
+                    : 0;
 
-                    const filterGroups =
-                        Array.isArray(
-                            profile.filterGroups
-                        )
-                            ? profile.filterGroups
-                                .map(group => ({
-                                    id: group.id,
-                                    name: group.name
-                                }))
-                                .sort((a, b) =>
-                                    String(a.name ?? "")
-                                        .localeCompare(
-                                            String(b.name ?? ""),
-                                            game.i18n.lang,
-                                            {
-                                                sensitivity: "base"
-                                            }
-                                        )
-                                )
-                            : [];
-
-                    const type =
-                        profile.type === "nested"
-                            ? "nested"
-                            : "content";
-
-                    const isContent =
-                        type === "content";
-                    const isNested =
-                        type === "nested";
-
-                    const childCount =
-                        Array.isArray(profile.children)
-                            ? profile.children.length
-                            : 0;
-
-                    const typeLabel =
-                        game.i18n.localize(
-                            isNested
-                                ? "COMPENDIUM_CURATOR.TableProfileTypeNested"
-                                : "COMPENDIUM_CURATOR.TableProfileTypeContent"
-                        );
-
-                    const typeIcon =
-                        isNested
-                            ? "fas fa-table-list"
-                            : "fas fa-boxes-stacked";
-
-                    const summary =
-                        isNested
-                            ? game.i18n.format(
-                                "COMPENDIUM_CURATOR.SubtableCount",
-                                { count: childCount }
+                const filterGroups = Array.isArray(profile.filterGroups)
+                    ? profile.filterGroups
+                        .map(group => ({
+                            id: group.id,
+                            name: group.name
+                        }))
+                        .sort((a, b) =>
+                            String(a.name ?? "").localeCompare(
+                                String(b.name ?? ""),
+                                game.i18n.lang,
+                                { sensitivity: "base" }
                             )
-                            : game.i18n.format(
-                                "COMPENDIUM_CURATOR.FilterGroupCount",
-                                { count: filterGroupCount }
-                            );
+                        )
+                    : [];
 
-                    const revision =
-                        Number(profile.revision ?? 1);
+                const type = profile.type === "nested"
+                    ? "nested"
+                    : "content";
+                const isContent = type === "content";
+                const isNested = type === "nested";
 
-                    const generatedRevision =
-                        Number(
-                            profile.generation
-                                ?.generatedRevision ?? 0
-                        );
+                const childCount = Array.isArray(profile.children)
+                    ? profile.children.length
+                    : 0;
 
-                    let statusKey =
-                        "TableProfileNeverGenerated";
+                const typeLabel = game.i18n.localize(
+                    isNested
+                        ? "COMPENDIUM_CURATOR.TableProfileTypeNested"
+                        : "COMPENDIUM_CURATOR.TableProfileTypeContent"
+                );
 
-                    if (
-                        generatedRevision > 0 &&
-                        generatedRevision < revision
-                    ) {
-                        statusKey =
-                            "TableProfilePendingChanges";
-                    }
-                    else if (
-                        generatedRevision > 0 &&
-                        generatedRevision === revision
-                    ) {
-                        statusKey =
-                            "TableProfileUpToDate";
-                    }
+                const typeIcon = isNested
+                    ? "fas fa-table-list"
+                    : "fas fa-boxes-stacked";
 
-                    const status =
-                        game.i18n.localize(
-                            `COMPENDIUM_CURATOR.${statusKey}`
-                        );
+                const summary = isNested
+                    ? game.i18n.format(
+                        "COMPENDIUM_CURATOR.SubtableCount",
+                        { count: childCount }
+                    )
+                    : game.i18n.format(
+                        "COMPENDIUM_CURATOR.FilterGroupCount",
+                        { count: filterGroupCount }
+                    );
 
-                    const inspector =
-                        isContent
-                            ? buildContentInspector(
-                                profile
-                            )
-                            : null;
+                const revision = Number(profile.revision ?? 1);
+                const generatedRevision = Number(
+                    profile.generation?.generatedRevision ?? 0
+                );
 
-                    return {
-                        id: profile.id,
-                        name: profile.name,
-                        type,
-                        isContent,
-                        isNested,
+                let statusKey = "TableProfileNeverGenerated";
+
+                if (
+                    generatedRevision > 0 &&
+                    generatedRevision < revision
+                ) {
+                    statusKey = "TableProfilePendingChanges";
+                }
+                else if (
+                    generatedRevision > 0 &&
+                    generatedRevision === revision
+                ) {
+                    statusKey = "TableProfileUpToDate";
+                }
+
+                const status = game.i18n.localize(
+                    `COMPENDIUM_CURATOR.${statusKey}`
+                );
+
+                const inspector = isContent
+                    ? buildContentInspector(profile)
+                    : null;
+
+                return {
+                    id: profile.id,
+                    name: profile.name,
+                    type,
+                    isContent,
+                    isNested,
+                    typeLabel,
+                    typeIcon,
+                    summary,
+                    childCount,
+                    filterGroupCount,
+                    filterGroups,
+                    inspector,
+                    inspectorOpen:
+                        isContent &&
+                        this._openContentInspectors.has(profile.id),
+                    status,
+                    searchText: [
+                        profile.name,
                         typeLabel,
-                        typeIcon,
-                        summary,
-                        childCount,
-                        filterGroupCount,
-                        filterGroups,
-                        inspector,
-                        inspectorOpen:
-                            isContent &&
-                            this._openContentInspectors
-                                .has(profile.id),
                         status,
-                        searchText: [
-                            profile.name,
-                            typeLabel,
-                            status,
-                            ...filterGroups.map(
-                                group => group.name
-                            )
-                        ]
-                            .filter(Boolean)
-                            .join(" ")
-                    };
-                })
-                .sort((a, b) =>
-                    String(a.name ?? "")
-                        .localeCompare(
-                            String(b.name ?? ""),
-                            game.i18n.lang,
-                            {
-                                sensitivity: "base"
-                            }
-                        )
-                );
-
-        const contentProfiles =
-            profiles.filter(
-                profile => profile.isContent
+                        ...filterGroups.map(group => group.name)
+                    ]
+                        .filter(Boolean)
+                        .join(" ")
+                };
+            })
+            .sort((a, b) =>
+                String(a.name ?? "").localeCompare(
+                    String(b.name ?? ""),
+                    game.i18n.lang,
+                    { sensitivity: "base" }
+                )
             );
 
-        const nestedProfiles =
-            profiles.filter(
-                profile => profile.isNested
-            );
+        const contentProfiles = profiles.filter(
+            profile => profile.isContent
+        );
+        const nestedProfiles = profiles.filter(
+            profile => profile.isNested
+        );
 
-        const filterGroups =
-            Object.values(
-                TableProfileStorageService
-                    .getFilterGroups()
-            )
-                .map(filterGroup => {
-                    const usedBy =
-                        profiles
-                            .filter(profile =>
-                                profile.filterGroups
-                                    .some(group =>
-                                        group.id ===
-                                            filterGroup.id
-                                    )
-                            )
-                            .map(profile => ({
-                                id: profile.id,
-                                name: profile.name
-                            }))
-                            .sort((a, b) =>
-                                String(a.name ?? "")
-                                    .localeCompare(
-                                        String(b.name ?? ""),
-                                        game.i18n.lang,
-                                        {
-                                            sensitivity: "base"
-                                        }
-                                    )
-                            );
-
-                    const matchCount =
-                        Array.isArray(
-                            filterGroup.matches
+        const filterGroups = Object.values(
+            TableProfileStorageService.getFilterGroups()
+        )
+            .map(filterGroup => {
+                const usedBy = profiles
+                    .filter(profile =>
+                        profile.filterGroups.some(group =>
+                            group.id === filterGroup.id
                         )
-                            ? filterGroup.matches.length
-                            : 0;
-
-                    const useCount =
-                        usedBy.length;
-
-                    return {
-                        id: filterGroup.id,
-                        name: filterGroup.name,
-                        matchCount,
-                        useCount,
-                        usedBy,
-                        matchesLabel:
-                            game.i18n.format(
-                                "COMPENDIUM_CURATOR.CurrentFilterMatches",
-                                { count: matchCount }
-                            ),
-                        usageLabel:
-                            `${useCount} ${game.i18n.localize(
-                                "COMPENDIUM_CURATOR.TableProfiles"
-                            ).toLocaleLowerCase()}`,
-                        searchText: [
-                            filterGroup.name,
-                            ...usedBy.map(
-                                profile => profile.name
-                            )
-                        ]
-                            .filter(Boolean)
-                            .join(" ")
-                    };
-                })
-                .sort((a, b) =>
-                    String(a.name ?? "")
-                        .localeCompare(
+                    )
+                    .map(profile => ({
+                        id: profile.id,
+                        name: profile.name
+                    }))
+                    .sort((a, b) =>
+                        String(a.name ?? "").localeCompare(
                             String(b.name ?? ""),
                             game.i18n.lang,
-                            {
-                                sensitivity: "base"
-                            }
+                            { sensitivity: "base" }
                         )
-                );
+                    );
 
-        if (
-            ![
-                "content",
-                "nested",
-                "filters"
-            ].includes(this._activeTab)
-        ) {
+                const matchCount = Array.isArray(filterGroup.matches)
+                    ? filterGroup.matches.length
+                    : 0;
+                const useCount = usedBy.length;
+
+                return {
+                    id: filterGroup.id,
+                    name: filterGroup.name,
+                    matchCount,
+                    useCount,
+                    usedBy,
+                    matchesLabel: game.i18n.format(
+                        "COMPENDIUM_CURATOR.CurrentFilterMatches",
+                        { count: matchCount }
+                    ),
+                    usageLabel: `${useCount} ${game.i18n.localize(
+                        "COMPENDIUM_CURATOR.TableProfiles"
+                    ).toLocaleLowerCase()}`,
+                    searchText: [
+                        filterGroup.name,
+                        ...usedBy.map(profile => profile.name)
+                    ]
+                        .filter(Boolean)
+                        .join(" ")
+                };
+            })
+            .sort((a, b) =>
+                String(a.name ?? "").localeCompare(
+                    String(b.name ?? ""),
+                    game.i18n.lang,
+                    { sensitivity: "base" }
+                )
+            );
+
+        if (![
+            "content",
+            "nested",
+            "filters"
+        ].includes(this._activeTab)) {
             this._activeTab = "content";
         }
 
-        const isContentTab =
-            this._activeTab === "content";
-        const isNestedTab =
-            this._activeTab === "nested";
-        const isFilterGroupsTab =
-            this._activeTab === "filters";
+        const isContentTab = this._activeTab === "content";
+        const isNestedTab = this._activeTab === "nested";
+        const isFilterGroupsTab = this._activeTab === "filters";
 
         context.isContentTab = isContentTab;
         context.isNestedTab = isNestedTab;
-        context.isFilterGroupsTab =
-            isFilterGroupsTab;
+        context.isFilterGroupsTab = isFilterGroupsTab;
 
-        context.contentTabClass =
-            isContentTab ? "active" : "";
-        context.nestedTabClass =
-            isNestedTab ? "active" : "";
-        context.filterGroupsTabClass =
-            isFilterGroupsTab ? "active" : "";
+        context.contentTabClass = isContentTab ? "active" : "";
+        context.nestedTabClass = isNestedTab ? "active" : "";
+        context.filterGroupsTabClass = isFilterGroupsTab ? "active" : "";
 
-        context.contentProfileCount =
-            contentProfiles.length;
-        context.nestedProfileCount =
-            nestedProfiles.length;
-        context.filterGroupCount =
-            filterGroups.length;
+        context.contentProfileCount = contentProfiles.length;
+        context.nestedProfileCount = nestedProfiles.length;
+        context.filterGroupCount = filterGroups.length;
 
-        context.profiles =
-            isNestedTab
-                ? nestedProfiles
-                : contentProfiles;
+        context.profiles = isNestedTab
+            ? nestedProfiles
+            : contentProfiles;
 
-        context.hasProfiles =
-            context.profiles.length > 0;
-
+        context.hasProfiles = context.profiles.length > 0;
         context.filterGroups = filterGroups;
-        context.hasFilterGroups =
-            filterGroups.length > 0;
+        context.hasFilterGroups = filterGroups.length > 0;
+        context.searchQuery = this._searchQuery;
 
-        context.searchQuery =
-            this._searchQuery;
-
-        context.searchLabel =
-            this.browserApp
-                ?.element
-                ?.querySelector(
-                    'search > input[name="name"]'
-                )
-                ?.placeholder ??
-            game.i18n.localize(
+        context.searchLabel = this.browserApp
+            ?.element
+            ?.querySelector('search > input[name="name"]')
+            ?.placeholder ?? game.i18n.localize(
                 "COMPENDIUM_CURATOR.TableProfiles"
             );
 
         return context;
     }
 
-
     async _onRender(context, options) {
-        await super._onRender(
-            context,
-            options
-        );
+        await super._onRender(context, options);
 
-        const searchInput =
-            this.element.querySelector(
-                '[name="managerSearch"]'
-            );
+        const searchInput = this.element.querySelector(
+            '[name="managerSearch"]'
+        );
 
         searchInput?.addEventListener(
             "input",
             event => {
-                this._searchQuery =
-                    String(
-                        event.target?.value ?? ""
-                    );
+                this._searchQuery = String(
+                    event.target?.value ?? ""
+                );
                 this._applyManagerSearch();
             }
         );
@@ -1389,31 +1458,23 @@ export class TableManagerApplication
                 "[data-cc-content-inspector]"
             )
         ) {
-            const profileId =
-                details.closest(
-                    "[data-profile-id]"
-                )?.dataset?.profileId;
+            const profileId = details.closest(
+                "[data-profile-id]"
+            )?.dataset?.profileId;
 
             if (!profileId)
                 continue;
 
-            if (details.open) {
-                this._openContentInspectors.add(
-                    profileId
-                );
-            }
+            if (details.open)
+                this._openContentInspectors.add(profileId);
 
             details.addEventListener(
                 "toggle",
                 () => {
-                    if (details.open) {
-                        this._openContentInspectors
-                            .add(profileId);
-                    }
-                    else {
-                        this._openContentInspectors
-                            .delete(profileId);
-                    }
+                    if (details.open)
+                        this._openContentInspectors.add(profileId);
+                    else
+                        this._openContentInspectors.delete(profileId);
                 }
             );
         }
@@ -1427,89 +1488,62 @@ export class TableManagerApplication
             modeSelect.addEventListener(
                 "change",
                 event => {
-                    const target =
-                        event.currentTarget;
-                    const profileElement =
-                        target.closest(
-                            "[data-profile-id]"
-                        );
-                    const profileId =
-                        profileElement
-                            ?.dataset?.profileId;
-                    const mode =
-                        String(
-                            target.value ?? ""
-                        ).trim();
+                    const target = event.currentTarget;
+                    const profileElement = target.closest(
+                        "[data-profile-id]"
+                    );
+                    const profileId = profileElement?.dataset?.profileId;
+                    const mode = String(target.value ?? "").trim();
 
-                    if (
-                        !profileId ||
-                        !DISTRIBUTION_MODES.has(mode)
-                    ) {
+                    if (!profileId || !DISTRIBUTION_MODES.has(mode))
                         return;
-                    }
 
                     target.disabled = true;
-                    this._openContentInspectors.add(
-                        profileId
-                    );
+                    this._openContentInspectors.add(profileId);
 
-                    this._distributionSaveQueue =
-                        this._distributionSaveQueue
-                            .catch(() => {})
-                            .then(async () => {
-                                const updatedProfile =
-                                    await TableProfileStorageService
-                                        .setDistributionMode(
-                                            profileId,
-                                            mode
-                                        );
+                    this._distributionSaveQueue = this._distributionSaveQueue
+                        .catch(() => {})
+                        .then(async () => {
+                            const updatedProfile =
+                                await TableProfileStorageService
+                                    .setDistributionMode(
+                                        profileId,
+                                        mode
+                                    );
 
-                                updateRenderedProfileStatus(
-                                    profileElement,
-                                    updatedProfile
-                                );
+                            updateRenderedProfileStatus(
+                                profileElement,
+                                updatedProfile
+                            );
 
-                                if (
-                                    this._profilePreview
-                                        ?.rendered &&
-                                    this._profilePreview
-                                        .profileId === profileId
-                                ) {
-                                    this._profilePreview.render({
-                                        force: true
-                                    });
-                                }
+                            if (
+                                this._profilePreview?.rendered &&
+                                this._profilePreview.profileId === profileId
+                            ) {
+                                this._profilePreview.render({ force: true });
+                            }
 
-                                this.render({
-                                    force: true
-                                });
-                            })
-                            .catch(error => {
-                                console.error(
-                                    "Compendium Curator | Error cambiando el modo de distribución.",
-                                    error
-                                );
+                            this.render({ force: true });
+                        })
+                        .catch(error => {
+                            console.error(
+                                "Compendium Curator | Error cambiando el modo de distribución.",
+                                error
+                            );
 
-                                const profile =
-                                    TableProfileStorageService
-                                        .getProfiles()
-                                        ?.[profileId];
+                            const profile =
+                                TableProfileStorageService
+                                    .getProfiles()?.[profileId];
 
-                                if (
-                                    target.isConnected &&
-                                    profile
-                                ) {
-                                    target.value =
-                                        getInspectorDistributionMode(
-                                            profile
-                                        );
-                                }
-                            })
-                            .finally(() => {
-                                if (target.isConnected) {
-                                    target.disabled = false;
-                                }
-                            });
+                            if (target.isConnected && profile) {
+                                target.value =
+                                    getInspectorDistributionMode(profile);
+                            }
+                        })
+                        .finally(() => {
+                            if (target.isConnected)
+                                target.disabled = false;
+                        });
                 }
             );
         }
@@ -1523,91 +1557,68 @@ export class TableManagerApplication
             groupingSelect.addEventListener(
                 "change",
                 event => {
-                    const target =
-                        event.currentTarget;
-                    const profileElement =
-                        target.closest(
-                            "[data-profile-id]"
-                        );
-                    const profileId =
-                        profileElement
-                            ?.dataset?.profileId;
-                    const criterion =
-                        String(
-                            target.value ?? ""
-                        ).trim();
+                    const target = event.currentTarget;
+                    const profileElement = target.closest(
+                        "[data-profile-id]"
+                    );
+                    const profileId = profileElement?.dataset?.profileId;
+                    const criterion = String(
+                        target.value ?? ""
+                    ).trim();
 
                     if (
                         !profileId ||
-                        !GROUPING_CRITERIA.has(
-                            criterion
-                        )
+                        !GROUPING_CRITERIA.has(criterion)
                     ) {
                         return;
                     }
 
                     target.disabled = true;
-                    this._openContentInspectors.add(
-                        profileId
-                    );
+                    this._openContentInspectors.add(profileId);
 
-                    this._distributionSaveQueue =
-                        this._distributionSaveQueue
-                            .catch(() => {})
-                            .then(async () => {
-                                const updatedProfile =
-                                    await TableProfileStorageService
-                                        .setDistributionGroupingCriterion(
-                                            profileId,
-                                            criterion
-                                        );
+                    this._distributionSaveQueue = this._distributionSaveQueue
+                        .catch(() => {})
+                        .then(async () => {
+                            const updatedProfile =
+                                await TableProfileStorageService
+                                    .setDistributionGroupingCriterion(
+                                        profileId,
+                                        criterion
+                                    );
 
-                                updateRenderedProfileStatus(
-                                    profileElement,
-                                    updatedProfile
-                                );
+                            updateRenderedProfileStatus(
+                                profileElement,
+                                updatedProfile
+                            );
 
-                                if (
-                                    this._profilePreview
-                                        ?.rendered &&
-                                    this._profilePreview
-                                        .profileId === profileId
-                                ) {
-                                    this._profilePreview.render({
-                                        force: true
-                                    });
-                                }
+                            if (
+                                this._profilePreview?.rendered &&
+                                this._profilePreview.profileId === profileId
+                            ) {
+                                this._profilePreview.render({ force: true });
+                            }
 
-                                this.render({
-                                    force: true
-                                });
-                            })
-                            .catch(error => {
-                                console.error(
-                                    "Compendium Curator | Error cambiando el criterio de agrupación.",
-                                    error
-                                );
+                            this.render({ force: true });
+                        })
+                        .catch(error => {
+                            console.error(
+                                "Compendium Curator | Error cambiando el criterio de agrupación.",
+                                error
+                            );
 
-                                const profile =
-                                    TableProfileStorageService
-                                        .getProfiles()
-                                        ?.[profileId];
+                            const profile =
+                                TableProfileStorageService
+                                    .getProfiles()?.[profileId];
 
-                                if (
-                                    target.isConnected &&
-                                    profile
-                                ) {
-                                    target.value =
-                                        getInspectorGroupingCriterion(
-                                            profile
-                                        );
-                                }
-                            })
-                            .finally(() => {
-                                if (target.isConnected) {
-                                    target.disabled = false;
-                                }
-                            });
+                            if (target.isConnected && profile) {
+                                target.value =
+                                    getInspectorGroupingCriterion(profile);
+                            }
+                        })
+                        .finally(() => {
+                            if (target.isConnected)
+                                target.disabled = false;
+                        });
                 }
             );
         }
@@ -1621,91 +1632,70 @@ export class TableManagerApplication
             groupEnabledInput.addEventListener(
                 "change",
                 event => {
-                    const target =
-                        event.currentTarget;
-                    const profileElement =
-                        target.closest(
-                            "[data-profile-id]"
-                        );
-                    const profileId =
-                        profileElement
-                            ?.dataset?.profileId;
-                    const groupKey =
-                        String(
-                            target.dataset
-                                ?.groupKey ?? ""
-                        ).trim();
+                    const target = event.currentTarget;
+                    const profileElement = target.closest(
+                        "[data-profile-id]"
+                    );
+                    const profileId = profileElement?.dataset?.profileId;
+                    const groupKey = String(
+                        target.dataset?.groupKey ?? ""
+                    ).trim();
 
                     if (!profileId || !groupKey)
                         return;
 
-                    const enabled =
-                        Boolean(target.checked);
+                    const enabled = Boolean(target.checked);
 
                     target.disabled = true;
-                    this._openContentInspectors.add(
-                        profileId
-                    );
+                    this._openContentInspectors.add(profileId);
 
-                    this._distributionSaveQueue =
-                        this._distributionSaveQueue
-                            .catch(() => {})
-                            .then(async () => {
-                                const updatedProfile =
-                                    await TableProfileStorageService
-                                        .setDistributionGroupEnabled(
-                                            profileId,
-                                            groupKey,
-                                            enabled
-                                        );
+                    this._distributionSaveQueue = this._distributionSaveQueue
+                        .catch(() => {})
+                        .then(async () => {
+                            const updatedProfile =
+                                await TableProfileStorageService
+                                    .setDistributionGroupEnabled(
+                                        profileId,
+                                        groupKey,
+                                        enabled
+                                    );
 
-                                updateRenderedProfileStatus(
-                                    profileElement,
-                                    updatedProfile
-                                );
+                            updateRenderedProfileStatus(
+                                profileElement,
+                                updatedProfile
+                            );
 
-                                if (
-                                    this._profilePreview
-                                        ?.rendered &&
-                                    this._profilePreview
-                                        .profileId === profileId
-                                ) {
-                                    this._profilePreview.render({
-                                        force: true
-                                    });
-                                }
+                            if (
+                                this._profilePreview?.rendered &&
+                                this._profilePreview.profileId === profileId
+                            ) {
+                                this._profilePreview.render({ force: true });
+                            }
 
-                                this.render({
-                                    force: true
-                                });
-                            })
-                            .catch(error => {
-                                console.error(
-                                    "Compendium Curator | Error cambiando el estado del grupo.",
-                                    error
-                                );
+                            this.render({ force: true });
+                        })
+                        .catch(error => {
+                            console.error(
+                                "Compendium Curator | Error cambiando el estado del grupo.",
+                                error
+                            );
 
-                                const profile =
-                                    TableProfileStorageService
-                                        .getProfiles()
-                                        ?.[profileId];
+                            const profile =
+                                TableProfileStorageService
+                                    .getProfiles()?.[profileId];
 
-                                if (
-                                    target.isConnected &&
-                                    profile
-                                ) {
-                                    target.checked =
-                                        getInspectorGroupEnabled(
-                                            profile,
-                                            groupKey
-                                        );
-                                }
-                            })
-                            .finally(() => {
-                                if (target.isConnected) {
-                                    target.disabled = false;
-                                }
-                            });
+                            if (target.isConnected && profile) {
+                                target.checked =
+                                    getInspectorGroupEnabled(
+                                        profile,
+                                        groupKey
+                                    );
+                            }
+                        })
+                        .finally(() => {
+                            if (target.isConnected)
+                                target.disabled = false;
+                        });
                 }
             );
         }
@@ -1719,42 +1709,30 @@ export class TableManagerApplication
             groupWeightInput.addEventListener(
                 "change",
                 event => {
-                    const target =
-                        event.currentTarget;
-                    const profileElement =
-                        target.closest(
-                            "[data-profile-id]"
-                        );
-                    const profileId =
-                        profileElement
-                            ?.dataset?.profileId;
-                    const groupKey =
-                        String(
-                            target.dataset
-                                ?.groupKey ?? ""
-                        ).trim();
-                    const weight =
-                        Number(target.value);
+                    const target = event.currentTarget;
+                    const profileElement = target.closest(
+                        "[data-profile-id]"
+                    );
+                    const profileId = profileElement?.dataset?.profileId;
+                    const groupKey = String(
+                        target.dataset?.groupKey ?? ""
+                    ).trim();
+                    const weight = Number(target.value);
 
                     if (!profileId || !groupKey)
                         return;
 
-                    if (
-                        !Number.isFinite(weight) ||
-                        weight <= 0
-                    ) {
+                    if (!Number.isFinite(weight) || weight <= 0) {
                         const profile =
                             TableProfileStorageService
-                                .getProfiles()
-                                ?.[profileId];
+                                .getProfiles()?.[profileId];
 
-                        target.value =
-                            String(
-                                getInspectorGroupWeight(
-                                    profile,
-                                    groupKey
-                                )
-                            );
+                        target.value = String(
+                            getInspectorGroupWeight(
+                                profile,
+                                groupKey
+                            )
+                        );
 
                         ui.notifications.warn(
                             game.i18n.localize(
@@ -1768,83 +1746,71 @@ export class TableManagerApplication
 
                     target.disabled = true;
 
-                    this._distributionSaveQueue =
-                        this._distributionSaveQueue
-                            .catch(() => {})
-                            .then(async () => {
-                                const updatedProfile =
-                                    await TableProfileStorageService
-                                        .setDistributionGroupWeight(
-                                            profileId,
-                                            groupKey,
-                                            weight
-                                        );
+                    this._distributionSaveQueue = this._distributionSaveQueue
+                        .catch(() => {})
+                        .then(async () => {
+                            const updatedProfile =
+                                await TableProfileStorageService
+                                    .setDistributionGroupWeight(
+                                        profileId,
+                                        groupKey,
+                                        weight
+                                    );
 
-                                if (target.isConnected) {
-                                    target.value =
-                                        String(
-                                            getInspectorGroupWeight(
-                                                updatedProfile,
-                                                groupKey
-                                            )
-                                        );
-                                }
-
-                                refreshRenderedProbabilityControls(
-                                    profileElement,
-                                    updatedProfile
+                            if (target.isConnected) {
+                                target.value = String(
+                                    getInspectorGroupWeight(
+                                        updatedProfile,
+                                        groupKey
+                                    )
                                 );
+                            }
 
-                                updateRenderedProfileStatus(
-                                    profileElement,
-                                    updatedProfile
+                            refreshRenderedProbabilityControls(
+                                profileElement,
+                                updatedProfile
+                            );
+
+                            updateRenderedProfileStatus(
+                                profileElement,
+                                updatedProfile
+                            );
+
+                            if (
+                                this._profilePreview?.rendered &&
+                                this._profilePreview.profileId === profileId
+                            ) {
+                                this._profilePreview.render({ force: true });
+                            }
+                        })
+                        .catch(error => {
+                            console.error(
+                                "Compendium Curator | Error guardando el peso del grupo.",
+                                error
+                            );
+
+                            const profile =
+                                TableProfileStorageService
+                                    .getProfiles()?.[profileId];
+
+                            if (target.isConnected && profile) {
+                                target.value = String(
+                                    getInspectorGroupWeight(
+                                        profile,
+                                        groupKey
+                                    )
                                 );
+                            }
 
-                                if (
-                                    this._profilePreview
-                                        ?.rendered &&
-                                    this._profilePreview
-                                        .profileId === profileId
-                                ) {
-                                    this._profilePreview.render({
-                                        force: true
-                                    });
-                                }
-                            })
-                            .catch(error => {
-                                console.error(
-                                    "Compendium Curator | Error guardando el peso del grupo.",
-                                    error
-                                );
-
-                                const profile =
-                                    TableProfileStorageService
-                                        .getProfiles()
-                                        ?.[profileId];
-
-                                if (
-                                    target.isConnected &&
-                                    profile
-                                ) {
-                                    target.value =
-                                        String(
-                                            getInspectorGroupWeight(
-                                                profile,
-                                                groupKey
-                                            )
-                                        );
-                                }
-
-                                refreshRenderedProbabilityControls(
-                                    profileElement,
-                                    profile
-                                );
-                            })
-                            .finally(() => {
-                                if (target.isConnected) {
-                                    target.disabled = false;
-                                }
-                            });
+                            refreshRenderedProbabilityControls(
+                                profileElement,
+                                profile
+                            );
+                        })
+                        .finally(() => {
+                            if (target.isConnected)
+                                target.disabled = false;
+                        });
                 }
             );
         }
@@ -1858,42 +1824,27 @@ export class TableManagerApplication
             individualInput.addEventListener(
                 "change",
                 event => {
-                    const target =
-                        event.currentTarget;
-                    const profileElement =
-                        target.closest(
-                            "[data-profile-id]"
-                        );
-                    const profileId =
-                        profileElement
-                            ?.dataset?.profileId;
-                    const uuid =
-                        String(
-                            target.dataset
-                                ?.uuid ?? ""
-                        ).trim();
-                    const weight =
-                        Number(target.value);
+                    const target = event.currentTarget;
+                    const profileElement = target.closest(
+                        "[data-profile-id]"
+                    );
+                    const profileId = profileElement?.dataset?.profileId;
+                    const uuid = String(
+                        target.dataset?.uuid ?? ""
+                    ).trim();
+                    const weight = Number(target.value);
 
                     if (!profileId || !uuid)
                         return;
 
-                    if (
-                        !Number.isFinite(weight) ||
-                        weight <= 0
-                    ) {
+                    if (!Number.isFinite(weight) || weight <= 0) {
                         const profile =
                             TableProfileStorageService
-                                .getProfiles()
-                                ?.[profileId];
+                                .getProfiles()?.[profileId];
                         const info =
-                            getInspectorIndividualWeight(
-                                profile,
-                                uuid
-                            );
+                            getInspectorIndividualWeight(profile, uuid);
 
-                        target.value =
-                            String(info.weight);
+                        target.value = String(info.weight);
 
                         ui.notifications.warn(
                             game.i18n.localize(
@@ -1905,91 +1856,78 @@ export class TableManagerApplication
                         return;
                     }
 
-                    const resetButton =
-                        target.parentElement
-                            ?.querySelector(
-                                "[data-cc-reset-individual-weight]"
-                            );
+                    const resetButton = target.parentElement?.querySelector(
+                        "[data-cc-reset-individual-weight]"
+                    );
 
                     target.disabled = true;
                     if (resetButton)
                         resetButton.disabled = true;
 
-                    this._distributionSaveQueue =
-                        this._distributionSaveQueue
-                            .catch(() => {})
-                            .then(async () => {
-                                const updatedProfile =
-                                    await TableProfileStorageService
-                                        .setDistributionIndividualWeight(
-                                            profileId,
-                                            uuid,
-                                            weight
-                                        );
+                    this._distributionSaveQueue = this._distributionSaveQueue
+                        .catch(() => {})
+                        .then(async () => {
+                            const updatedProfile =
+                                await TableProfileStorageService
+                                    .setDistributionIndividualWeight(
+                                        profileId,
+                                        uuid,
+                                        weight
+                                    );
 
-                                refreshRenderedIndividualWeightControls(
-                                    profileElement,
-                                    updatedProfile,
-                                    uuid
-                                );
+                            refreshRenderedIndividualWeightControls(
+                                profileElement,
+                                updatedProfile,
+                                uuid
+                            );
 
-                                refreshRenderedProbabilityControls(
-                                    profileElement,
-                                    updatedProfile
-                                );
+                            refreshRenderedProbabilityControls(
+                                profileElement,
+                                updatedProfile
+                            );
 
-                                updateRenderedProfileStatus(
-                                    profileElement,
-                                    updatedProfile
-                                );
+                            updateRenderedProfileStatus(
+                                profileElement,
+                                updatedProfile
+                            );
 
-                                if (
-                                    this._profilePreview
-                                        ?.rendered &&
-                                    this._profilePreview
-                                        .profileId === profileId
-                                ) {
-                                    this._profilePreview.render({
-                                        force: true
-                                    });
-                                }
-                            })
-                            .catch(error => {
-                                console.error(
-                                    "Compendium Curator | Error guardando el peso individual.",
-                                    error
-                                );
+                            if (
+                                this._profilePreview?.rendered &&
+                                this._profilePreview.profileId === profileId
+                            ) {
+                                this._profilePreview.render({ force: true });
+                            }
+                        })
+                        .catch(error => {
+                            console.error(
+                                "Compendium Curator | Error guardando el peso individual.",
+                                error
+                            );
 
-                                const profile =
-                                    TableProfileStorageService
-                                        .getProfiles()
-                                        ?.[profileId];
+                            const profile =
+                                TableProfileStorageService
+                                    .getProfiles()?.[profileId];
 
-                                refreshRenderedIndividualWeightControls(
-                                    profileElement,
-                                    profile,
-                                    uuid
-                                );
+                            refreshRenderedIndividualWeightControls(
+                                profileElement,
+                                profile,
+                                uuid
+                            );
 
-                                refreshRenderedProbabilityControls(
-                                    profileElement,
-                                    profile
-                                );
-                            })
-                            .finally(() => {
-                                if (target.isConnected)
-                                    target.disabled = false;
+                            refreshRenderedProbabilityControls(
+                                profileElement,
+                                profile
+                            );
+                        })
+                        .finally(() => {
+                            if (target.isConnected)
+                                target.disabled = false;
 
-                                if (
-                                    resetButton
-                                        ?.isConnected
-                                ) {
-                                    resetButton.disabled =
-                                        target.dataset
-                                            .hasOverride !==
-                                        "true";
-                                }
-                            });
+                            if (resetButton?.isConnected) {
+                                resetButton.disabled =
+                                    target.dataset.hasOverride !== "true";
+                            }
+                        });
                 }
             );
         }
@@ -2006,126 +1944,98 @@ export class TableManagerApplication
                     event.preventDefault();
                     event.stopPropagation();
 
-                    const target =
-                        event.currentTarget;
-                    const profileElement =
-                        target.closest(
-                            "[data-profile-id]"
-                        );
-                    const profileId =
-                        profileElement
-                            ?.dataset?.profileId;
-                    const uuid =
-                        String(
-                            target.dataset
-                                ?.uuid ?? ""
-                        ).trim();
-                    const input =
-                        target.parentElement
-                            ?.querySelector(
-                                "[data-cc-individual-weight]"
-                            );
+                    const target = event.currentTarget;
+                    const profileElement = target.closest(
+                        "[data-profile-id]"
+                    );
+                    const profileId = profileElement?.dataset?.profileId;
+                    const uuid = String(
+                        target.dataset?.uuid ?? ""
+                    ).trim();
+                    const input = target.parentElement?.querySelector(
+                        "[data-cc-individual-weight]"
+                    );
 
-                    if (
-                        !profileId ||
-                        !uuid ||
-                        !input
-                    ) {
+                    if (!profileId || !uuid || !input)
                         return;
-                    }
 
                     input.disabled = true;
                     target.disabled = true;
 
-                    this._distributionSaveQueue =
-                        this._distributionSaveQueue
-                            .catch(() => {})
-                            .then(async () => {
-                                const updatedProfile =
-                                    await TableProfileStorageService
-                                        .setDistributionIndividualWeight(
-                                            profileId,
-                                            uuid,
-                                            null
-                                        );
+                    this._distributionSaveQueue = this._distributionSaveQueue
+                        .catch(() => {})
+                        .then(async () => {
+                            const updatedProfile =
+                                await TableProfileStorageService
+                                    .setDistributionIndividualWeight(
+                                        profileId,
+                                        uuid,
+                                        null
+                                    );
 
-                                refreshRenderedIndividualWeightControls(
-                                    profileElement,
-                                    updatedProfile,
-                                    uuid
-                                );
+                            refreshRenderedIndividualWeightControls(
+                                profileElement,
+                                updatedProfile,
+                                uuid
+                            );
 
-                                refreshRenderedProbabilityControls(
-                                    profileElement,
-                                    updatedProfile
-                                );
+                            refreshRenderedProbabilityControls(
+                                profileElement,
+                                updatedProfile
+                            );
 
-                                updateRenderedProfileStatus(
-                                    profileElement,
-                                    updatedProfile
-                                );
+                            updateRenderedProfileStatus(
+                                profileElement,
+                                updatedProfile
+                            );
 
-                                if (
-                                    this._profilePreview
-                                        ?.rendered &&
-                                    this._profilePreview
-                                        .profileId === profileId
-                                ) {
-                                    this._profilePreview.render({
-                                        force: true
-                                    });
-                                }
-                            })
-                            .catch(error => {
-                                console.error(
-                                    "Compendium Curator | Error restaurando el peso individual predeterminado.",
-                                    error
-                                );
+                            if (
+                                this._profilePreview?.rendered &&
+                                this._profilePreview.profileId === profileId
+                            ) {
+                                this._profilePreview.render({ force: true });
+                            }
+                        })
+                        .catch(error => {
+                            console.error(
+                                "Compendium Curator | Error restaurando el peso individual predeterminado.",
+                                error
+                            );
 
-                                const profile =
-                                    TableProfileStorageService
-                                        .getProfiles()
-                                        ?.[profileId];
+                            const profile =
+                                TableProfileStorageService
+                                    .getProfiles()?.[profileId];
 
-                                refreshRenderedIndividualWeightControls(
-                                    profileElement,
-                                    profile,
-                                    uuid
-                                );
+                            refreshRenderedIndividualWeightControls(
+                                profileElement,
+                                profile,
+                                uuid
+                            );
 
-                                refreshRenderedProbabilityControls(
-                                    profileElement,
-                                    profile
-                                );
-                            })
-                            .finally(() => {
-                                if (input.isConnected)
-                                    input.disabled = false;
+                            refreshRenderedProbabilityControls(
+                                profileElement,
+                                profile
+                            );
+                        })
+                        .finally(() => {
+                            if (input.isConnected)
+                                input.disabled = false;
 
-                                if (target.isConnected) {
-                                    target.disabled =
-                                        input.dataset
-                                            .hasOverride !==
-                                        "true";
-                                }
-                            });
+                            if (target.isConnected) {
+                                target.disabled =
+                                    input.dataset.hasOverride !== "true";
+                            }
+                        });
                 }
             );
         }
 
-        activateDnd5eDocumentEntries(
-            this.element
-        );
-
+        activateDnd5eDocumentEntries(this.element);
         this._applyManagerSearch();
     }
 
-
     _applyManagerSearch() {
-        const query =
-            normalizeManagerSearchText(
-                this._searchQuery
-            );
+        const query = normalizeManagerSearchText(this._searchQuery);
 
         for (
             const entry
@@ -2133,74 +2043,49 @@ export class TableManagerApplication
                 "[data-cc-search-text]"
             )
         ) {
-            const haystack =
-                normalizeManagerSearchText(
-                    entry.dataset.ccSearchText
-                );
+            const haystack = normalizeManagerSearchText(
+                entry.dataset.ccSearchText
+            );
 
-            entry.hidden =
-                Boolean(query) &&
-                !haystack.includes(query);
+            entry.hidden = Boolean(query) && !haystack.includes(query);
         }
     }
 
-
-    _refreshApplicationsForFilterGroup(
-        filterGroupId
-    ) {
-        const affectedProfiles =
-            new Set(
-                TableProfileStorageService
-                    .getFilterGroupUsage(
-                        filterGroupId
-                    )
-                    .map(profile => profile.id)
-            );
+    _refreshApplicationsForFilterGroup(filterGroupId) {
+        const affectedProfiles = new Set(
+            TableProfileStorageService
+                .getFilterGroupUsage(filterGroupId)
+                .map(profile => profile.id)
+        );
 
         if (
             this._profilePreview?.rendered &&
-            affectedProfiles.has(
-                this._profilePreview.profileId
-            )
+            affectedProfiles.has(this._profilePreview.profileId)
         ) {
-            this._profilePreview.render({
-                force: true
-            });
+            this._profilePreview.render({ force: true });
         }
 
         if (
             this._profileExclusions?.rendered &&
-            affectedProfiles.has(
-                this._profileExclusions.profileId
-            )
+            affectedProfiles.has(this._profileExclusions.profileId)
         ) {
-            this._profileExclusions.render({
-                force: true
-            });
+            this._profileExclusions.render({ force: true });
         }
 
         if (
             this._profileInclusions?.rendered &&
-            affectedProfiles.has(
-                this._profileInclusions.profileId
-            )
+            affectedProfiles.has(this._profileInclusions.profileId)
         ) {
-            this._profileInclusions.render({
-                force: true
-            });
+            this._profileInclusions.render({ force: true });
         }
 
         if (
             this._filterGroupDetails?.rendered &&
-            this._filterGroupDetails
-                .filterGroupId === filterGroupId
+            this._filterGroupDetails.filterGroupId === filterGroupId
         ) {
-            this._filterGroupDetails.render({
-                force: true
-            });
+            this._filterGroupDetails.render({ force: true });
         }
     }
-
 
     async _preClose(options) {
         this._closeProfileActionsPopover();
@@ -2219,48 +2104,30 @@ export class TableManagerApplication
             const application = this[property];
             this[property] = null;
 
-            if (application?.rendered) {
+            if (application?.rendered)
                 await application.close();
-            }
         }
 
         if (this.browserApp) {
-            this.browserApp._ccTableManagerLocked =
-                false;
+            this.browserApp._ccTableManagerLocked = false;
 
-            if (
-                this.browserApp.element
-                    ?.isConnected
-            ) {
-                this.browserApp
-                    ._ccRefreshToolbar?.();
-            }
+            if (this.browserApp.element?.isConnected)
+                this.browserApp._ccRefreshToolbar?.();
 
-            if (
-                this.browserApp._ccTableManager ===
-                this
-            ) {
-                this.browserApp._ccTableManager =
-                    null;
-            }
+            if (this.browserApp._ccTableManager === this)
+                this.browserApp._ccTableManager = null;
         }
 
         await super._preClose(options);
     }
 
-
     static #onChangeManagerTab(event, target) {
         event.preventDefault();
 
-        const tab =
-            String(target.dataset?.tab ?? "");
+        const tab = String(target.dataset?.tab ?? "");
 
         if (
-            ![
-                "content",
-                "nested",
-                "filters"
-            ].includes(tab) ||
+            !["content", "nested", "filters"].includes(tab) ||
             tab === this._activeTab
         ) {
             return;
@@ -2268,27 +2135,16 @@ export class TableManagerApplication
 
         this._activeTab = tab;
         this._closeProfileActionsPopover();
-
-        this.render({
-            force: true
-        });
+        this.render({ force: true });
     }
 
-
-    static #onClearManagerSearch(
-        event,
-        target
-    ) {
+    static #onClearManagerSearch(event, target) {
         event.preventDefault();
-
         this._searchQuery = "";
 
-        const input =
-            target
-                .closest("search")
-                ?.querySelector(
-                    '[name="managerSearch"]'
-                );
+        const input = target
+            .closest("search")
+            ?.querySelector('[name="managerSearch"]');
 
         if (input)
             input.value = "";
@@ -2297,20 +2153,14 @@ export class TableManagerApplication
         input?.focus();
     }
 
-
     static async #onCreateProfile() {
         if (this._activeTab === "filters") {
             const storedGroup =
                 await TableFilterGroupApplication
-                    .createFromCurrentFilters(
-                        this.browserApp
-                    );
+                    .createFromCurrentFilters(this.browserApp);
 
-            if (storedGroup) {
-                this.render({
-                    force: true
-                });
-            }
+            if (storedGroup)
+                this.render({ force: true });
 
             return;
         }
@@ -2321,15 +2171,10 @@ export class TableManagerApplication
         }
 
         this._profileEditor ??=
-            new TableProfileEditorApplication(
-                this.browserApp
-            );
+            new TableProfileEditorApplication(this.browserApp);
 
-        this._profileEditor.render({
-            force: true
-        });
+        this._profileEditor.render({ force: true });
     }
-
 
     refreshProfileEditor() {
         if (!this._profileEditor?.rendered)
@@ -2338,208 +2183,145 @@ export class TableManagerApplication
         this._profileEditor.scheduleRefresh();
     }
 
-
     static #onConfigureDefaults() {
         if (this._defaultsEditor?.rendered) {
             this._defaultsEditor.bringToFront();
             return;
         }
 
-        this._defaultsEditor =
-            new TableDefaultsApplication();
-
-        this._defaultsEditor.render({
-            force: true
-        });
+        this._defaultsEditor = new TableDefaultsApplication();
+        this._defaultsEditor.render({ force: true });
     }
 
-
-    static async #onAddCurrentFilters(
-        event,
-        target
-    ) {
-        const profileId =
-            target
-                .closest("[data-profile-id]")
-                ?.dataset?.profileId;
+    static async #onAddCurrentFilters(event, target) {
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
 
         if (!profileId)
             return;
 
         if (this._filterGroupEditor?.rendered) {
-            if (
-                this._filterGroupEditor
-                    .profileId === profileId
-            ) {
-                this._filterGroupEditor
-                    .bringToFront();
+            if (this._filterGroupEditor.profileId === profileId) {
+                this._filterGroupEditor.bringToFront();
                 return;
             }
 
             await this._filterGroupEditor.close();
         }
 
-        this._filterGroupEditor =
-            new TableFilterGroupApplication(
-                this.browserApp,
-                this,
-                profileId
-            );
+        this._filterGroupEditor = new TableFilterGroupApplication(
+            this.browserApp,
+            this,
+            profileId
+        );
 
-        this._filterGroupEditor.render({
-            force: true
-        });
+        this._filterGroupEditor.render({ force: true });
     }
 
-
-    static async #onPreviewProfile(
-        event,
-        target
-    ) {
-        const profileId =
-            target
-                .closest("[data-profile-id]")
-                ?.dataset?.profileId;
+    static async #onPreviewProfile(event, target) {
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
 
         if (!profileId)
             return;
 
         if (this._profilePreview?.rendered) {
-            if (
-                this._profilePreview
-                    .profileId === profileId
-            ) {
-                this._profilePreview
-                    .bringToFront();
+            if (this._profilePreview.profileId === profileId) {
+                this._profilePreview.bringToFront();
                 return;
             }
 
             await this._profilePreview.close();
         }
 
-        this._profilePreview =
-            new TableProfilePreviewApplication(
-                this.browserApp,
-                profileId
-            );
+        this._profilePreview = new TableProfilePreviewApplication(
+            this.browserApp,
+            profileId
+        );
 
-        this._profilePreview.render({
-            force: true
-        });
+        this._profilePreview.render({ force: true });
     }
 
-
-    static async #onManualInclusions(
-        event,
-        target
-    ) {
-        const profileId =
-            target
-                .closest("[data-profile-id]")
-                ?.dataset?.profileId;
+    static async #onManualInclusions(event, target) {
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
 
         if (!profileId)
             return;
 
         if (this._profileInclusions?.rendered) {
-            if (
-                this._profileInclusions
-                    .profileId === profileId
-            ) {
-                this._profileInclusions
-                    .bringToFront();
+            if (this._profileInclusions.profileId === profileId) {
+                this._profileInclusions.bringToFront();
                 return;
             }
 
             await this._profileInclusions.close();
         }
 
-        this._profileInclusions =
-            new TableProfileInclusionsApplication(
-                this.browserApp,
-                this,
-                profileId
-            );
+        this._profileInclusions = new TableProfileInclusionsApplication(
+            this.browserApp,
+            this,
+            profileId
+        );
 
-        this._profileInclusions.render({
-            force: true
-        });
+        this._profileInclusions.render({ force: true });
     }
 
-
-    static async #onManualExclusions(
-        event,
-        target
-    ) {
-        const profileId =
-            target
-                .closest("[data-profile-id]")
-                ?.dataset?.profileId;
+    static async #onManualExclusions(event, target) {
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
 
         if (!profileId)
             return;
 
         if (this._profileExclusions?.rendered) {
-            if (
-                this._profileExclusions
-                    .profileId === profileId
-            ) {
-                this._profileExclusions
-                    .bringToFront();
+            if (this._profileExclusions.profileId === profileId) {
+                this._profileExclusions.bringToFront();
                 return;
             }
 
             await this._profileExclusions.close();
         }
 
-        this._profileExclusions =
-            new TableProfileExclusionsApplication(
-                this.browserApp,
-                this,
-                profileId
-            );
+        this._profileExclusions = new TableProfileExclusionsApplication(
+            this.browserApp,
+            this,
+            profileId
+        );
 
-        this._profileExclusions.render({
-            force: true
-        });
+        this._profileExclusions.render({ force: true });
     }
 
-
-    static async #onRenameProfile(
-        event,
-        target
-    ) {
+    static async #onRenameProfile(event, target) {
         event.preventDefault();
         event.stopPropagation();
 
-        const profileId =
-            target
-                .closest("[data-profile-id]")
-                ?.dataset?.profileId;
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
 
         if (!profileId)
             return;
 
         const profile =
-            TableProfileStorageService
-                .getProfiles()?.[profileId];
+            TableProfileStorageService.getProfiles()?.[profileId];
 
         if (!profile)
             return;
 
-        const field =
-            document.createElement("div");
+        const field = document.createElement("div");
         field.className = "form-group";
 
-        const label =
-            document.createElement("label");
-        label.textContent =
-            game.i18n.localize(
-                "COMPENDIUM_CURATOR.ProfileName"
-            );
+        const label = document.createElement("label");
+        label.textContent = game.i18n.localize(
+            "COMPENDIUM_CURATOR.ProfileName"
+        );
 
-        const input =
-            document.createElement("input");
+        const input = document.createElement("input");
         input.type = "text";
         input.name = "profileName";
         input.autocomplete = "off";
@@ -2548,33 +2330,26 @@ export class TableManagerApplication
 
         field.append(label, input);
 
-        const result =
-            await foundry.applications.api
-                .DialogV2.input({
-                    window: {
-                        title:
-                            game.i18n.localize(
-                                "COMPENDIUM_CURATOR.RenameProfile"
-                            )
-                    },
-                    content: field.outerHTML,
-                    ok: {
-                        label:
-                            game.i18n.localize(
-                                "COMPENDIUM_CURATOR.Rename"
-                            )
-                    },
-                    rejectClose: false,
-                    modal: true
-                });
+        const result = await foundry.applications.api.DialogV2.input({
+            window: {
+                title: game.i18n.localize(
+                    "COMPENDIUM_CURATOR.RenameProfile"
+                )
+            },
+            content: field.outerHTML,
+            ok: {
+                label: game.i18n.localize(
+                    "COMPENDIUM_CURATOR.Rename"
+                )
+            },
+            rejectClose: false,
+            modal: true
+        });
 
         if (!result)
             return;
 
-        const name =
-            String(
-                result.profileName ?? ""
-            ).trim();
+        const name = String(result.profileName ?? "").trim();
 
         if (!name) {
             ui.notifications.warn(
@@ -2589,17 +2364,13 @@ export class TableManagerApplication
             return;
 
         try {
-            await TableProfileStorageService
-                .renameProfile(
-                    profileId,
-                    name
-                );
+            await TableProfileStorageService.renameProfile(
+                profileId,
+                name
+            );
         }
         catch (error) {
-            if (
-                error?.message ===
-                    "TABLE_PROFILE_NAME_TAKEN"
-            ) {
+            if (error?.message === "TABLE_PROFILE_NAME_TAKEN") {
                 ui.notifications.warn(
                     game.i18n.localize(
                         "COMPENDIUM_CURATOR.TableProfileNameTaken"
@@ -2610,9 +2381,7 @@ export class TableManagerApplication
             throw error;
         }
 
-        this.render({
-            force: true
-        });
+        this.render({ force: true });
 
         const applications = [
             this._profilePreview,
@@ -2625,75 +2394,57 @@ export class TableManagerApplication
                 application?.rendered &&
                 application.profileId === profileId
             ) {
-                application.render({
-                    force: true
-                });
+                application.render({ force: true });
             }
         }
     }
 
-
-    static async #onDuplicateProfile(
-        event,
-        target
-    ) {
+    static async #onDuplicateProfile(event, target) {
         event.preventDefault();
         event.stopPropagation();
 
-        const profileId =
-            target
-                .closest("[data-profile-id]")
-                ?.dataset?.profileId;
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
 
         if (!profileId)
             return;
 
         const profile =
-            TableProfileStorageService
-                .getProfiles()?.[profileId];
+            TableProfileStorageService.getProfiles()?.[profileId];
 
         if (!profile)
             return;
 
-        let suggestedName =
-            game.i18n.format(
-                "COMPENDIUM_CURATOR.ProfileCopyName",
-                { profile: profile.name }
-            );
+        let suggestedName = game.i18n.format(
+            "COMPENDIUM_CURATOR.ProfileCopyName",
+            { profile: profile.name }
+        );
 
-        if (
-            TableProfileStorageService
-                .isNameTaken(suggestedName)
-        ) {
+        if (TableProfileStorageService.isNameTaken(suggestedName)) {
             const baseName = suggestedName;
             let index = 2;
 
             while (
-                TableProfileStorageService
-                    .isNameTaken(
-                        `${baseName} (${index})`
-                    )
+                TableProfileStorageService.isNameTaken(
+                    `${baseName} (${index})`
+                )
             ) {
                 index++;
             }
 
-            suggestedName =
-                `${baseName} (${index})`;
+            suggestedName = `${baseName} (${index})`;
         }
 
-        const field =
-            document.createElement("div");
+        const field = document.createElement("div");
         field.className = "form-group";
 
-        const label =
-            document.createElement("label");
-        label.textContent =
-            game.i18n.localize(
-                "COMPENDIUM_CURATOR.ProfileName"
-            );
+        const label = document.createElement("label");
+        label.textContent = game.i18n.localize(
+            "COMPENDIUM_CURATOR.ProfileName"
+        );
 
-        const input =
-            document.createElement("input");
+        const input = document.createElement("input");
         input.type = "text";
         input.name = "profileName";
         input.autocomplete = "off";
@@ -2702,33 +2453,26 @@ export class TableManagerApplication
 
         field.append(label, input);
 
-        const result =
-            await foundry.applications.api
-                .DialogV2.input({
-                    window: {
-                        title:
-                            game.i18n.localize(
-                                "COMPENDIUM_CURATOR.DuplicateProfile"
-                            )
-                    },
-                    content: field.outerHTML,
-                    ok: {
-                        label:
-                            game.i18n.localize(
-                                "COMPENDIUM_CURATOR.Duplicate"
-                            )
-                    },
-                    rejectClose: false,
-                    modal: true
-                });
+        const result = await foundry.applications.api.DialogV2.input({
+            window: {
+                title: game.i18n.localize(
+                    "COMPENDIUM_CURATOR.DuplicateProfile"
+                )
+            },
+            content: field.outerHTML,
+            ok: {
+                label: game.i18n.localize(
+                    "COMPENDIUM_CURATOR.Duplicate"
+                )
+            },
+            rejectClose: false,
+            modal: true
+        });
 
         if (!result)
             return;
 
-        const name =
-            String(
-                result.profileName ?? ""
-            ).trim();
+        const name = String(result.profileName ?? "").trim();
 
         if (!name) {
             ui.notifications.warn(
@@ -2739,10 +2483,7 @@ export class TableManagerApplication
             return;
         }
 
-        if (
-            TableProfileStorageService
-                .isNameTaken(name)
-        ) {
+        if (TableProfileStorageService.isNameTaken(name)) {
             ui.notifications.warn(
                 game.i18n.localize(
                     "COMPENDIUM_CURATOR.TableProfileNameTaken"
@@ -2751,64 +2492,47 @@ export class TableManagerApplication
             return;
         }
 
-        await TableProfileStorageService
-            .duplicateProfile(
-                profileId,
-                name
-            );
+        await TableProfileStorageService.duplicateProfile(
+            profileId,
+            name
+        );
 
-        this.render({
-            force: true
-        });
+        this.render({ force: true });
     }
 
-
-    static async #onDeleteProfile(
-        event,
-        target
-    ) {
+    static async #onDeleteProfile(event, target) {
         event.preventDefault();
         event.stopPropagation();
 
-        const profileId =
-            target
-                .closest("[data-profile-id]")
-                ?.dataset?.profileId;
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
 
         if (!profileId)
             return;
 
         const profile =
-            TableProfileStorageService
-                .getProfiles()?.[profileId];
+            TableProfileStorageService.getProfiles()?.[profileId];
 
         if (!profile)
             return;
 
-        const confirmed =
-            await foundry.applications.api
-                .DialogV2.confirm({
-                    classes:
-                        TABLE_DIALOG_CLASSES,
-                    window: {
-                        title:
-                            game.i18n.localize(
-                                "COMPENDIUM_CURATOR.DeleteProfile"
-                            )
-                    },
-                    content:
-                        `<p>${game.i18n.format(
-                            "COMPENDIUM_CURATOR.ProfileDeleteConfirm",
-                            {
-                                profile:
-                                    foundry.utils.escapeHTML(
-                                        profile.name
-                                    )
-                            }
-                        )}</p>`,
-                    rejectClose: false,
-                    modal: true
-                });
+        const confirmed = await foundry.applications.api.DialogV2.confirm({
+            classes: TABLE_DIALOG_CLASSES,
+            window: {
+                title: game.i18n.localize(
+                    "COMPENDIUM_CURATOR.DeleteProfile"
+                )
+            },
+            content: `<p>${game.i18n.format(
+                "COMPENDIUM_CURATOR.ProfileDeleteConfirm",
+                {
+                    profile: foundry.utils.escapeHTML(profile.name)
+                }
+            )}</p>`,
+            rejectClose: false,
+            modal: true
+        });
 
         if (!confirmed)
             return;
@@ -2824,67 +2548,46 @@ export class TableManagerApplication
         for (const property of profileApplications) {
             const application = this[property];
 
-            if (
-                application?.profileId !== profileId
-            ) {
+            if (application?.profileId !== profileId)
                 continue;
-            }
 
-            if (application.rendered) {
+            if (application.rendered)
                 await application.close();
-            }
 
             this[property] = null;
         }
 
-        this._openContentInspectors.delete(
-            profileId
-        );
-
-        await TableProfileStorageService
-            .removeProfile(profileId);
-
-        this.render({
-            force: true
-        });
+        this._openContentInspectors.delete(profileId);
+        await TableProfileStorageService.removeProfile(profileId);
+        this.render({ force: true });
     }
 
-
-    static async #onRenameFilterGroup(
-        event,
-        target
-    ) {
+    static async #onRenameFilterGroup(event, target) {
         event.preventDefault();
         event.stopPropagation();
 
-        const filterGroupId =
-            target
-                .closest("[data-filter-group-id]")
-                ?.dataset?.filterGroupId;
+        const filterGroupId = target
+            .closest("[data-filter-group-id]")
+            ?.dataset?.filterGroupId;
 
         if (!filterGroupId)
             return;
 
         const filterGroup =
-            TableProfileStorageService
-                .getFilterGroup(filterGroupId);
+            TableProfileStorageService.getFilterGroup(filterGroupId);
 
         if (!filterGroup)
             return;
 
-        const field =
-            document.createElement("div");
+        const field = document.createElement("div");
         field.className = "form-group";
 
-        const label =
-            document.createElement("label");
-        label.textContent =
-            game.i18n.localize(
-                "COMPENDIUM_CURATOR.FilterGroupName"
-            );
+        const label = document.createElement("label");
+        label.textContent = game.i18n.localize(
+            "COMPENDIUM_CURATOR.FilterGroupName"
+        );
 
-        const input =
-            document.createElement("input");
+        const input = document.createElement("input");
         input.type = "text";
         input.name = "filterGroupName";
         input.autocomplete = "off";
@@ -2893,33 +2596,26 @@ export class TableManagerApplication
 
         field.append(label, input);
 
-        const result =
-            await foundry.applications.api
-                .DialogV2.input({
-                    window: {
-                        title:
-                            game.i18n.localize(
-                                "COMPENDIUM_CURATOR.RenameFilterGroup"
-                            )
-                    },
-                    content: field.outerHTML,
-                    ok: {
-                        label:
-                            game.i18n.localize(
-                                "COMPENDIUM_CURATOR.Rename"
-                            )
-                    },
-                    rejectClose: false,
-                    modal: true
-                });
+        const result = await foundry.applications.api.DialogV2.input({
+            window: {
+                title: game.i18n.localize(
+                    "COMPENDIUM_CURATOR.RenameFilterGroup"
+                )
+            },
+            content: field.outerHTML,
+            ok: {
+                label: game.i18n.localize(
+                    "COMPENDIUM_CURATOR.Rename"
+                )
+            },
+            rejectClose: false,
+            modal: true
+        });
 
         if (!result)
             return;
 
-        const name =
-            String(
-                result.filterGroupName ?? ""
-            ).trim();
+        const name = String(result.filterGroupName ?? "").trim();
 
         if (!name) {
             ui.notifications.warn(
@@ -2934,12 +2630,11 @@ export class TableManagerApplication
             return;
 
         if (
-            TableProfileStorageService
-                .isFilterGroupNameTaken(
-                    null,
-                    name,
-                    filterGroupId
-                )
+            TableProfileStorageService.isFilterGroupNameTaken(
+                null,
+                name,
+                filterGroupId
+            )
         ) {
             ui.notifications.warn(
                 game.i18n.localize(
@@ -2949,84 +2644,67 @@ export class TableManagerApplication
             return;
         }
 
-        await TableProfileStorageService
-            .renameFilterGroup(
-                filterGroupId,
-                name
-            );
+        await TableProfileStorageService.renameFilterGroup(
+            filterGroupId,
+            name
+        );
 
         this.render({ force: true });
-        this._refreshApplicationsForFilterGroup(
-            filterGroupId
-        );
+        this._refreshApplicationsForFilterGroup(filterGroupId);
     }
 
-
-    static async #onDuplicateFilterGroup(
-        event,
-        target
-    ) {
+    static async #onDuplicateFilterGroup(event, target) {
         event.preventDefault();
         event.stopPropagation();
 
-        const filterGroupId =
-            target
-                .closest("[data-filter-group-id]")
-                ?.dataset?.filterGroupId;
+        const filterGroupId = target
+            .closest("[data-filter-group-id]")
+            ?.dataset?.filterGroupId;
 
         if (!filterGroupId)
             return;
 
         const filterGroup =
-            TableProfileStorageService
-                .getFilterGroup(filterGroupId);
+            TableProfileStorageService.getFilterGroup(filterGroupId);
 
         if (!filterGroup)
             return;
 
-        let suggestedName =
-            game.i18n.format(
-                "COMPENDIUM_CURATOR.FilterGroupCopyName",
-                { group: filterGroup.name }
-            );
+        let suggestedName = game.i18n.format(
+            "COMPENDIUM_CURATOR.FilterGroupCopyName",
+            { group: filterGroup.name }
+        );
 
         if (
-            TableProfileStorageService
-                .isFilterGroupNameTaken(
-                    null,
-                    suggestedName
-                )
+            TableProfileStorageService.isFilterGroupNameTaken(
+                null,
+                suggestedName
+            )
         ) {
             const baseName = suggestedName;
             let index = 2;
 
             while (
-                TableProfileStorageService
-                    .isFilterGroupNameTaken(
-                        null,
-                        `${baseName} (${index})`
-                    )
+                TableProfileStorageService.isFilterGroupNameTaken(
+                    null,
+                    `${baseName} (${index})`
+                )
             ) {
                 index++;
             }
 
-            suggestedName =
-                `${baseName} (${index})`;
+            suggestedName = `${baseName} (${index})`;
         }
 
-        const field =
-            document.createElement("div");
+        const field = document.createElement("div");
         field.className = "form-group";
 
-        const label =
-            document.createElement("label");
-        label.textContent =
-            game.i18n.localize(
-                "COMPENDIUM_CURATOR.FilterGroupName"
-            );
+        const label = document.createElement("label");
+        label.textContent = game.i18n.localize(
+            "COMPENDIUM_CURATOR.FilterGroupName"
+        );
 
-        const input =
-            document.createElement("input");
+        const input = document.createElement("input");
         input.type = "text";
         input.name = "filterGroupName";
         input.autocomplete = "off";
@@ -3035,33 +2713,26 @@ export class TableManagerApplication
 
         field.append(label, input);
 
-        const result =
-            await foundry.applications.api
-                .DialogV2.input({
-                    window: {
-                        title:
-                            game.i18n.localize(
-                                "COMPENDIUM_CURATOR.DuplicateFilterGroup"
-                            )
-                    },
-                    content: field.outerHTML,
-                    ok: {
-                        label:
-                            game.i18n.localize(
-                                "COMPENDIUM_CURATOR.Duplicate"
-                            )
-                    },
-                    rejectClose: false,
-                    modal: true
-                });
+        const result = await foundry.applications.api.DialogV2.input({
+            window: {
+                title: game.i18n.localize(
+                    "COMPENDIUM_CURATOR.DuplicateFilterGroup"
+                )
+            },
+            content: field.outerHTML,
+            ok: {
+                label: game.i18n.localize(
+                    "COMPENDIUM_CURATOR.Duplicate"
+                )
+            },
+            rejectClose: false,
+            modal: true
+        });
 
         if (!result)
             return;
 
-        const name =
-            String(
-                result.filterGroupName ?? ""
-            ).trim();
+        const name = String(result.filterGroupName ?? "").trim();
 
         if (!name) {
             ui.notifications.warn(
@@ -3073,11 +2744,10 @@ export class TableManagerApplication
         }
 
         if (
-            TableProfileStorageService
-                .isFilterGroupNameTaken(
-                    null,
-                    name
-                )
+            TableProfileStorageService.isFilterGroupNameTaken(
+                null,
+                name
+            )
         ) {
             ui.notifications.warn(
                 game.i18n.localize(
@@ -3087,43 +2757,33 @@ export class TableManagerApplication
             return;
         }
 
-        await TableProfileStorageService
-            .duplicateFilterGroup(
-                filterGroupId,
-                name
-            );
+        await TableProfileStorageService.duplicateFilterGroup(
+            filterGroupId,
+            name
+        );
 
         this.render({ force: true });
     }
 
-
-    static async #onDeleteGlobalFilterGroup(
-        event,
-        target
-    ) {
+    static async #onDeleteGlobalFilterGroup(event, target) {
         event.preventDefault();
         event.stopPropagation();
 
-        const filterGroupId =
-            target
-                .closest("[data-filter-group-id]")
-                ?.dataset?.filterGroupId;
+        const filterGroupId = target
+            .closest("[data-filter-group-id]")
+            ?.dataset?.filterGroupId;
 
         if (!filterGroupId)
             return;
 
         const filterGroup =
-            TableProfileStorageService
-                .getFilterGroup(filterGroupId);
+            TableProfileStorageService.getFilterGroup(filterGroupId);
 
         if (!filterGroup)
             return;
 
         const usage =
-            TableProfileStorageService
-                .getFilterGroupUsage(
-                    filterGroupId
-                );
+            TableProfileStorageService.getFilterGroupUsage(filterGroupId);
 
         if (usage.length > 0) {
             ui.notifications.warn(
@@ -3131,55 +2791,42 @@ export class TableManagerApplication
                     "COMPENDIUM_CURATOR.FilterGroupDeleteBlocked",
                     {
                         name: filterGroup.name,
-                        profiles:
-                            usage
-                                .map(profile =>
-                                    profile.name
-                                )
-                                .join(", ")
+                        profiles: usage
+                            .map(profile => profile.name)
+                            .join(", ")
                     }
                 )
             );
             return;
         }
 
-        const confirmed =
-            await foundry.applications.api
-                .DialogV2.confirm({
-                    classes:
-                        TABLE_DIALOG_CLASSES,
-                    window: {
-                        title:
-                            game.i18n.localize(
-                                "COMPENDIUM_CURATOR.DeleteFilterGroup"
-                            )
-                    },
-                    content:
-                        `<p>${game.i18n.format(
-                            "COMPENDIUM_CURATOR.DeleteFilterGroupConfirm",
-                            {
-                                name:
-                                    foundry.utils.escapeHTML(
-                                        filterGroup.name
-                                    )
-                            }
-                        )}</p>`,
-                    rejectClose: false,
-                    modal: true
-                });
+        const confirmed = await foundry.applications.api.DialogV2.confirm({
+            classes: TABLE_DIALOG_CLASSES,
+            window: {
+                title: game.i18n.localize(
+                    "COMPENDIUM_CURATOR.DeleteFilterGroup"
+                )
+            },
+            content: `<p>${game.i18n.format(
+                "COMPENDIUM_CURATOR.DeleteFilterGroupConfirm",
+                {
+                    name: foundry.utils.escapeHTML(filterGroup.name)
+                }
+            )}</p>`,
+            rejectClose: false,
+            modal: true
+        });
 
         if (!confirmed)
             return;
 
-        await TableProfileStorageService
-            .deleteGlobalFilterGroup(
-                filterGroupId
-            );
+        await TableProfileStorageService.deleteGlobalFilterGroup(
+            filterGroupId
+        );
 
         if (
             this._filterGroupDetails?.rendered &&
-            this._filterGroupDetails
-                .filterGroupId === filterGroupId
+            this._filterGroupDetails.filterGroupId === filterGroupId
         ) {
             await this._filterGroupDetails.close();
             this._filterGroupDetails = null;
@@ -3194,106 +2841,77 @@ export class TableManagerApplication
         this.render({ force: true });
     }
 
-
-    static #onToggleProfileActions(
-        event,
-        target
-    ) {
+    static #onToggleProfileActions(event, target) {
         event.preventDefault();
         event.stopPropagation();
 
-        const profile =
-            target.closest(
-                ".cc-table-manager-profile"
-            );
+        const profile = target.closest(
+            ".cc-table-manager-profile"
+        );
 
         if (!profile)
             return;
 
-        const profileId =
-            profile.dataset.profileId;
-        const filterGroupId =
-            profile.dataset.filterGroupId;
+        const profileId = profile.dataset.profileId;
+        const filterGroupId = profile.dataset.filterGroupId;
 
-        const resourceId =
-            profileId ||
-            (
-                filterGroupId
-                    ? `filter:${filterGroupId}`
-                    : null
-            );
+        const resourceId = profileId || (
+            filterGroupId
+                ? `filter:${filterGroupId}`
+                : null
+        );
 
         if (!resourceId)
             return;
 
         if (
             this._profileActionsPopover &&
-            this._profileActionsProfileId ===
-                resourceId
+            this._profileActionsProfileId === resourceId
         ) {
             this._closeProfileActionsPopover();
             return;
         }
 
-        this._openProfileActionsPopover(
-            profile,
-            target
-        );
+        this._openProfileActionsPopover(profile, target);
     }
 
-
-    _openProfileActionsPopover(
-        profile,
-        anchor
-    ) {
+    _openProfileActionsPopover(profile, anchor) {
         this._closeProfileActionsPopover();
 
-        const sourceMenu =
-            profile.querySelector(
-                ".cc-table-manager-profile-menu"
-            );
+        const sourceMenu = profile.querySelector(
+            ".cc-table-manager-profile-menu"
+        );
 
         if (!sourceMenu)
             return;
 
-        const popover =
-            sourceMenu.cloneNode(true);
-
+        const popover = sourceMenu.cloneNode(true);
         popover.hidden = false;
         popover.classList.add(
             "cc-table-manager-profile-menu-popover"
         );
 
-        const profileId =
-            profile.dataset.profileId;
-        const filterGroupId =
-            profile.dataset.filterGroupId;
+        const profileId = profile.dataset.profileId;
+        const filterGroupId = profile.dataset.filterGroupId;
 
-        const resourceId =
-            profileId ||
-            (
-                filterGroupId
-                    ? `filter:${filterGroupId}`
-                    : null
-            );
+        const resourceId = profileId || (
+            filterGroupId
+                ? `filter:${filterGroupId}`
+                : null
+        );
 
-        if (profileId) {
-            popover.dataset.profileId =
-                profileId;
-        }
+        if (profileId)
+            popover.dataset.profileId = profileId;
 
-        if (filterGroupId) {
-            popover.dataset.filterGroupId =
-                filterGroupId;
-        }
+        if (filterGroupId)
+            popover.dataset.filterGroupId = filterGroupId;
 
         popover.addEventListener(
             "click",
             event => {
-                const button =
-                    event.target.closest(
-                        "button[data-action]"
-                    );
+                const button = event.target.closest(
+                    "button[data-action]"
+                );
 
                 if (!button || button.disabled)
                     return;
@@ -3301,13 +2919,10 @@ export class TableManagerApplication
                 event.preventDefault();
                 event.stopPropagation();
 
-                const action =
-                    button.dataset.action;
-
-                const originalButton =
-                    profile.querySelector(
-                        `.cc-table-manager-profile-menu button[data-action="${action}"]`
-                    );
+                const action = button.dataset.action;
+                const originalButton = profile.querySelector(
+                    `.cc-table-manager-profile-menu button[data-action="${action}"]`
+                );
 
                 this._closeProfileActionsPopover();
                 originalButton?.click();
@@ -3315,32 +2930,25 @@ export class TableManagerApplication
         );
 
         document.body.append(popover);
-
-        this._positionProfileActionsPopover(
-            popover,
-            anchor
-        );
+        this._positionProfileActionsPopover(popover, anchor);
 
         this._profileActionsPopover = popover;
-        this._profileActionsProfileId =
-            resourceId;
+        this._profileActionsProfileId = resourceId;
 
-        this._profileActionsOutsideHandler =
-            event => {
-                if (
-                    popover.contains(event.target) ||
-                    anchor.contains(event.target)
-                ) {
-                    return;
-                }
+        this._profileActionsOutsideHandler = event => {
+            if (
+                popover.contains(event.target) ||
+                anchor.contains(event.target)
+            ) {
+                return;
+            }
 
-                this._closeProfileActionsPopover();
-            };
+            this._closeProfileActionsPopover();
+        };
 
-        this._profileActionsViewportHandler =
-            () => {
-                this._closeProfileActionsPopover();
-            };
+        this._profileActionsViewportHandler = () => {
+            this._closeProfileActionsPopover();
+        };
 
         document.addEventListener(
             "pointerdown",
@@ -3358,29 +2966,18 @@ export class TableManagerApplication
         );
     }
 
-
-    _positionProfileActionsPopover(
-        popover,
-        anchor
-    ) {
+    _positionProfileActionsPopover(popover, anchor) {
         const margin = 8;
         const gap = 6;
-        const anchorRect =
-            anchor.getBoundingClientRect();
-        const popoverRect =
-            popover.getBoundingClientRect();
+        const anchorRect = anchor.getBoundingClientRect();
+        const popoverRect = popover.getBoundingClientRect();
 
-        let left =
-            anchorRect.right -
-            popoverRect.width;
-        let top =
-            anchorRect.bottom + gap;
+        let left = anchorRect.right - popoverRect.width;
+        let top = anchorRect.bottom + gap;
 
         left = Math.min(
             left,
-            window.innerWidth -
-                popoverRect.width -
-                margin
+            window.innerWidth - popoverRect.width - margin
         );
         left = Math.max(margin, left);
 
@@ -3388,25 +2985,17 @@ export class TableManagerApplication
             top + popoverRect.height >
             window.innerHeight - margin
         ) {
-            top =
-                anchorRect.top -
-                popoverRect.height -
-                gap;
+            top = anchorRect.top - popoverRect.height - gap;
         }
 
         top = Math.max(margin, top);
 
-        popover.style.left =
-            `${Math.round(left)}px`;
-        popover.style.top =
-            `${Math.round(top)}px`;
+        popover.style.left = `${Math.round(left)}px`;
+        popover.style.top = `${Math.round(top)}px`;
     }
 
-
     _closeProfileActionsPopover() {
-        if (
-            this._profileActionsOutsideHandler
-        ) {
+        if (this._profileActionsOutsideHandler) {
             document.removeEventListener(
                 "pointerdown",
                 this._profileActionsOutsideHandler,
@@ -3414,9 +3003,7 @@ export class TableManagerApplication
             );
         }
 
-        if (
-            this._profileActionsViewportHandler
-        ) {
+        if (this._profileActionsViewportHandler) {
             document.removeEventListener(
                 "scroll",
                 this._profileActionsViewportHandler,
@@ -3435,34 +3022,26 @@ export class TableManagerApplication
         this._profileActionsViewportHandler = null;
     }
 
-
-    static async #onFilterGroupDetails(
-        event,
-        target
-    ) {
+    static async #onFilterGroupDetails(event, target) {
         event.preventDefault();
         event.stopPropagation();
 
-        const profileId =
-            target
-                .closest("[data-profile-id]")
-                ?.dataset?.profileId ?? null;
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId ?? null;
 
-        const filterGroupId =
-            target
-                .closest("[data-filter-group-id]")
-                ?.dataset?.filterGroupId;
+        const filterGroupId = target
+            .closest("[data-filter-group-id]")
+            ?.dataset?.filterGroupId;
 
         if (!filterGroupId)
             return;
 
         const filterGroup =
-            TableProfileStorageService
-                .getFilterGroup(filterGroupId);
+            TableProfileStorageService.getFilterGroup(filterGroupId);
 
         const profile = profileId
-            ? TableProfileStorageService
-                .getProfiles()?.[profileId]
+            ? TableProfileStorageService.getProfiles()?.[profileId]
             : null;
 
         if (!filterGroup) {
@@ -3475,125 +3054,90 @@ export class TableManagerApplication
         }
 
         if (this._filterGroupDetails?.rendered) {
-            if (
-                this._filterGroupDetails
-                    .filterGroupId === filterGroupId
-            ) {
-                this._filterGroupDetails
-                    .bringToFront();
+            if (this._filterGroupDetails.filterGroupId === filterGroupId) {
+                this._filterGroupDetails.bringToFront();
                 return;
             }
 
             await this._filterGroupDetails.close();
         }
 
-        this._filterGroupDetails =
-            new TableFilterGroupDetailsApplication(
-                this.browserApp,
-                profile,
-                filterGroup
-            );
+        this._filterGroupDetails = new TableFilterGroupDetailsApplication(
+            this.browserApp,
+            profile,
+            filterGroup
+        );
 
-        this._filterGroupDetails.render({
-            force: true
-        });
+        this._filterGroupDetails.render({ force: true });
     }
 
-
-    static async #onRefreshFilterGroup(
-        event,
-        target
-    ) {
+    static async #onRefreshFilterGroup(event, target) {
         event.preventDefault();
         event.stopPropagation();
 
-        const profileId =
-            target
-                .closest("[data-profile-id]")
-                ?.dataset?.profileId ?? null;
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId ?? null;
 
-        const filterGroupId =
-            target
-                .closest("[data-filter-group-id]")
-                ?.dataset?.filterGroupId;
+        const filterGroupId = target
+            .closest("[data-filter-group-id]")
+            ?.dataset?.filterGroupId;
 
         if (!filterGroupId)
             return;
 
         const filterGroup =
-            TableProfileStorageService
-                .getFilterGroup(filterGroupId);
+            TableProfileStorageService.getFilterGroup(filterGroupId);
 
         if (!filterGroup)
             return;
 
-        const filters =
-            TableProfileService
-                .compactBrowserFilters(
-                    filterGroup.browser
-                        ?.filters ?? {}
-                );
+        const filters = TableProfileService.compactBrowserFilters(
+            filterGroup.browser?.filters ?? {}
+        );
 
         if (!filters)
             return;
 
         const currentCandidates =
-            await TableProfileService
-                .getBrowserCandidates(
-                    this.browserApp,
-                    filters
-                );
+            await TableProfileService.getBrowserCandidates(
+                this.browserApp,
+                filters
+            );
 
         const currentByUuid = new Map();
 
-        for (
-            const candidate
-            of currentCandidates
-        ) {
-            currentByUuid.set(
-                candidate.uuid,
-                candidate
-            );
-        }
+        for (const candidate of currentCandidates)
+            currentByUuid.set(candidate.uuid, candidate);
 
         if (!Array.isArray(filterGroup.matches)) {
-            const confirmed =
-                await foundry.applications.api
-                    .DialogV2.confirm({
-                        classes:
-                            TABLE_DIALOG_CLASSES,
-                        window: {
-                            title:
-                                game.i18n.localize(
-                                    "COMPENDIUM_CURATOR.RefreshFilterGroup"
-                                )
-                        },
-                        content:
-                            `<p>${game.i18n.format(
-                                "COMPENDIUM_CURATOR.InitializeFilterGroupMatches",
-                                {
-                                    name:
-                                        foundry.utils.escapeHTML(
-                                            filterGroup.name
-                                        ),
-                                    count:
-                                        currentByUuid.size
-                                }
-                            )}</p>`,
-                        rejectClose: false,
-                        modal: true
-                    });
+            const confirmed = await foundry.applications.api.DialogV2.confirm({
+                classes: TABLE_DIALOG_CLASSES,
+                window: {
+                    title: game.i18n.localize(
+                        "COMPENDIUM_CURATOR.RefreshFilterGroup"
+                    )
+                },
+                content: `<p>${game.i18n.format(
+                    "COMPENDIUM_CURATOR.InitializeFilterGroupMatches",
+                    {
+                        name: foundry.utils.escapeHTML(filterGroup.name),
+                        count: currentByUuid.size
+                    }
+                )}</p>`,
+                rejectClose: false,
+                modal: true
+            });
 
             if (!confirmed)
                 return;
 
-            await TableProfileStorageService
-                .updateFilterGroupMatches(
-                    profileId,
-                    filterGroupId,
-                    currentByUuid.keys(),
-                    filters
-                );
+            await TableProfileStorageService.updateFilterGroupMatches(
+                profileId,
+                filterGroupId,
+                currentByUuid.keys(),
+                filters
+            );
 
             ui.notifications.info(
                 game.i18n.localize(
@@ -3602,38 +3146,25 @@ export class TableManagerApplication
             );
 
             this.render({ force: true });
-            this._refreshApplicationsForFilterGroup(
-                filterGroupId
-            );
+            this._refreshApplicationsForFilterGroup(filterGroupId);
             return;
         }
 
-        const previous =
-            new Set(filterGroup.matches);
-
-        const added = [
-            ...currentByUuid.values()
-        ].filter(candidate =>
-            !previous.has(candidate.uuid)
+        const previous = new Set(filterGroup.matches);
+        const added = [...currentByUuid.values()].filter(
+            candidate => !previous.has(candidate.uuid)
+        );
+        const removedUuids = [...previous].filter(
+            uuid => !currentByUuid.has(uuid)
         );
 
-        const removedUuids = [
-            ...previous
-        ].filter(uuid =>
-            !currentByUuid.has(uuid)
-        );
-
-        if (
-            added.length === 0 &&
-            removedUuids.length === 0
-        ) {
-            await TableProfileStorageService
-                .updateFilterGroupMatches(
-                    profileId,
-                    filterGroupId,
-                    currentByUuid.keys(),
-                    filters
-                );
+        if (added.length === 0 && removedUuids.length === 0) {
+            await TableProfileStorageService.updateFilterGroupMatches(
+                profileId,
+                filterGroupId,
+                currentByUuid.keys(),
+                filters
+            );
 
             ui.notifications.info(
                 game.i18n.localize(
@@ -3643,87 +3174,66 @@ export class TableManagerApplication
             return;
         }
 
-        const addedEntries =
-            await prepareDnd5eDocumentEntries(
-                added.map(
-                    candidate => candidate.uuid
+        const addedEntries = await prepareDnd5eDocumentEntries(
+            added.map(candidate => candidate.uuid)
+        );
+        const removedEntries = await prepareDnd5eDocumentEntries(
+            removedUuids
+        );
+
+        const addedHtml = added.length
+            ? renderRefreshDocumentList(
+                getRefreshSectionTitle(
+                    "NewMatches",
+                    added.length
+                ),
+                added.length,
+                addedEntries
+            )
+            : "";
+
+        const removedHtml = removedUuids.length
+            ? renderRefreshDocumentList(
+                getRefreshSectionTitle(
+                    "RemovedMatches",
+                    removedUuids.length
+                ),
+                removedUuids.length,
+                removedEntries
+            )
+            : "";
+
+        const confirmed = await foundry.applications.api.DialogV2.confirm({
+            classes: TABLE_DIALOG_CLASSES,
+            window: {
+                title: game.i18n.format(
+                    "COMPENDIUM_CURATOR.RefreshFilterGroupTitle",
+                    { name: filterGroup.name }
                 )
-            );
-
-        const removedEntries =
-            await prepareDnd5eDocumentEntries(
-                removedUuids
-            );
-
-        const addedHtml =
-            added.length
-                ? renderRefreshDocumentList(
-                    getRefreshSectionTitle(
-                        "NewMatches",
-                        added.length
-                    ),
-                    added.length,
-                    addedEntries
-                )
-                : "";
-
-        const removedHtml =
-            removedUuids.length
-                ? renderRefreshDocumentList(
-                    getRefreshSectionTitle(
-                        "RemovedMatches",
-                        removedUuids.length
-                    ),
-                    removedUuids.length,
-                    removedEntries
-                )
-                : "";
-
-        const confirmed =
-            await foundry.applications.api
-                .DialogV2.confirm({
-                    classes:
-                        TABLE_DIALOG_CLASSES,
-                    window: {
-                        title:
-                            game.i18n.format(
-                                "COMPENDIUM_CURATOR.RefreshFilterGroupTitle",
-                                {
-                                    name:
-                                        filterGroup.name
-                                }
-                            )
-                    },
-                    position: {
-                        width: 650
-                    },
-                    content: `
-                        <div
-                            class="dnd5e2 cc-table-filter-refresh-preview"
-                        >
-                            ${addedHtml}
-                            ${removedHtml}
-                        </div>
-                    `,
-                    render: (_event, dialog) => {
-                        activateDnd5eDocumentEntries(
-                            dialog.window.content
-                        );
-                    },
-                    rejectClose: false,
-                    modal: true
-                });
+            },
+            position: { width: 650 },
+            content: `
+                <div class="dnd5e2 cc-table-filter-refresh-preview">
+                    ${addedHtml}
+                    ${removedHtml}
+                </div>
+            `,
+            render: (_event, dialog) => {
+                activateDnd5eDocumentEntries(dialog.window.content);
+            },
+            rejectClose: false,
+            modal: true
+        });
 
         if (!confirmed)
             return;
 
-        await TableProfileStorageService
-            .updateFilterGroupMatches(
-                profileId,
-                filterGroupId,
-                currentByUuid.keys(),
-                filters
-            );
+        await TableProfileStorageService.updateFilterGroupMatches(
+            profileId,
+            filterGroupId,
+            currentByUuid.keys(),
+            filters
+        );
 
         ui.notifications.info(
             game.i18n.localize(
@@ -3732,30 +3242,22 @@ export class TableManagerApplication
         );
 
         this.render({ force: true });
-        this._refreshApplicationsForFilterGroup(
-            filterGroupId
-        );
+        this._refreshApplicationsForFilterGroup(filterGroupId);
     }
 
-
-    static async #onLoadFilterGroup(
-        event,
-        target
-    ) {
+    static async #onLoadFilterGroup(event, target) {
         event.preventDefault();
         event.stopPropagation();
 
-        const filterGroupId =
-            target
-                .closest("[data-filter-group-id]")
-                ?.dataset?.filterGroupId;
+        const filterGroupId = target
+            .closest("[data-filter-group-id]")
+            ?.dataset?.filterGroupId;
 
         if (!filterGroupId)
             return;
 
         const filterGroup =
-            TableProfileStorageService
-                .getFilterGroup(filterGroupId);
+            TableProfileStorageService.getFilterGroup(filterGroupId);
 
         if (!filterGroup?.browser) {
             ui.notifications.warn(
@@ -3766,12 +3268,10 @@ export class TableManagerApplication
             return;
         }
 
-        const loaded =
-            await TableProfileService
-                .loadBrowserFilters(
-                    this.browserApp,
-                    filterGroup.browser
-                );
+        const loaded = await TableProfileService.loadBrowserFilters(
+            this.browserApp,
+            filterGroup.browser
+        );
 
         if (loaded === null)
             return;
@@ -3792,79 +3292,56 @@ export class TableManagerApplication
         );
     }
 
-
-    static async #onUnlinkFilterGroup(
-        event,
-        target
-    ) {
+    static async #onUnlinkFilterGroup(event, target) {
         event.preventDefault();
         event.stopPropagation();
 
-        const profileElement =
-            target.closest(
-                "[data-profile-id]"
-            );
-        const filterGroupElement =
-            target.closest(
-                "[data-filter-group-id]"
-            );
+        const profileElement = target.closest(
+            "[data-profile-id]"
+        );
+        const filterGroupElement = target.closest(
+            "[data-filter-group-id]"
+        );
 
-        const profileId =
-            profileElement?.dataset?.profileId;
-        const filterGroupId =
-            filterGroupElement
-                ?.dataset?.filterGroupId;
+        const profileId = profileElement?.dataset?.profileId;
+        const filterGroupId = filterGroupElement?.dataset?.filterGroupId;
 
         if (!profileId || !filterGroupId)
             return;
 
         const profile =
-            TableProfileStorageService
-                .getProfiles()?.[profileId];
+            TableProfileStorageService.getProfiles()?.[profileId];
         const filterGroup =
-            TableProfileStorageService
-                .getFilterGroup(filterGroupId);
+            TableProfileStorageService.getFilterGroup(filterGroupId);
 
         if (!profile || !filterGroup)
             return;
 
-        const confirmed =
-            await foundry.applications.api
-                .DialogV2.confirm({
-                    classes:
-                        TABLE_DIALOG_CLASSES,
-                    window: {
-                        title:
-                            game.i18n.localize(
-                                "COMPENDIUM_CURATOR.UnlinkFilterGroup"
-                            )
-                    },
-                    content:
-                        `<p>${game.i18n.format(
-                            "COMPENDIUM_CURATOR.UnlinkFilterGroupConfirm",
-                            {
-                                name:
-                                    foundry.utils.escapeHTML(
-                                        filterGroup.name
-                                    ),
-                                profile:
-                                    foundry.utils.escapeHTML(
-                                        profile.name
-                                    )
-                            }
-                        )}</p>`,
-                    rejectClose: false,
-                    modal: true
-                });
+        const confirmed = await foundry.applications.api.DialogV2.confirm({
+            classes: TABLE_DIALOG_CLASSES,
+            window: {
+                title: game.i18n.localize(
+                    "COMPENDIUM_CURATOR.UnlinkFilterGroup"
+                )
+            },
+            content: `<p>${game.i18n.format(
+                "COMPENDIUM_CURATOR.UnlinkFilterGroupConfirm",
+                {
+                    name: foundry.utils.escapeHTML(filterGroup.name),
+                    profile: foundry.utils.escapeHTML(profile.name)
+                }
+            )}</p>`,
+            rejectClose: false,
+            modal: true
+        });
 
         if (!confirmed)
             return;
 
-        await TableProfileStorageService
-            .removeFilterGroup(
-                profileId,
-                filterGroupId
-            );
+        await TableProfileStorageService.removeFilterGroup(
+            profileId,
+            filterGroupId
+        );
 
         ui.notifications.info(
             game.i18n.localize(
@@ -3884,21 +3361,15 @@ export class TableManagerApplication
                 application?.rendered &&
                 application.profileId === profileId
             ) {
-                application.render({
-                    force: true
-                });
+                application.render({ force: true });
             }
         }
 
         if (
             this._filterGroupDetails?.rendered &&
-            this._filterGroupDetails
-                .filterGroupId === filterGroupId
+            this._filterGroupDetails.filterGroupId === filterGroupId
         ) {
-            this._filterGroupDetails.render({
-                force: true
-            });
+            this._filterGroupDetails.render({ force: true });
         }
     }
-
 }

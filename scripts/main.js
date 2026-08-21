@@ -3,27 +3,40 @@ import { registerSettings } from "./settings.js";
 import { registerCompendiumBrowserHooks } from "./hooks/compendium-browser.js";
 import { StorageService } from "./services/storage-service.js";
 
-async function preloadItemRarityIndexes() {
+async function preloadDistributionIndexes() {
 
-    const itemPacks =
-        game.packs.filter(
-            pack =>
-                pack.documentName === "Item"
-        );
+    const requests = [];
 
-    if (!itemPacks.length)
+    for (const pack of game.packs) {
+        if (pack.documentName === "Item") {
+            requests.push(
+                pack.getIndex({
+                    fields: [
+                        "system.rarity",
+                        "system.source"
+                    ]
+                })
+            );
+            continue;
+        }
+
+        if (pack.documentName === "Actor") {
+            requests.push(
+                pack.getIndex({
+                    fields: [
+                        "system.details.cr",
+                        "system.source"
+                    ]
+                })
+            );
+        }
+    }
+
+    if (!requests.length)
         return;
 
     const results =
-        await Promise.allSettled(
-            itemPacks.map(pack =>
-                pack.getIndex({
-                    fields: [
-                        "system.rarity"
-                    ]
-                })
-            )
-        );
+        await Promise.allSettled(requests);
 
     const failed =
         results.filter(
@@ -33,7 +46,7 @@ async function preloadItemRarityIndexes() {
 
     if (failed.length) {
         console.warn(
-            "Compendium Curator | No se pudo cargar la rareza de algunos índices de objetos.",
+            "Compendium Curator | No se pudieron cargar algunos campos de distribución en los índices.",
             failed.map(
                 result => result.reason
             )
@@ -64,12 +77,12 @@ Hooks.once("ready", async () => {
         return;
 
     /*
-     * El índice básico de algunos compendios de D&D5e no
-     * incluye system.rarity. El inspector de tablas necesita
-     * ese único campo para agrupar objetos por rareza, así que
-     * enriquecemos el índice sin resolver documentos completos.
+     * Algunos índices básicos de D&D5e no incluyen todos
+     * los campos que usa la distribución (rareza, fuente y
+     * CR). Los enriquecemos aquí sin resolver documentos
+     * completos para conservar el rendimiento del inspector.
      */
-    await preloadItemRarityIndexes();
+    await preloadDistributionIndexes();
 
     const normalized =
         await StorageService.initialize();

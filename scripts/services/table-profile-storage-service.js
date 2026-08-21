@@ -19,6 +19,48 @@ const GROUPING_CRITERIA = {
         type: "field",
         criterion: "type",
         field: "type"
+    },
+    source: {
+        type: "field",
+        criterion: "source",
+        field: "system.source"
+    },
+    cr: {
+        type: "range",
+        criterion: "cr",
+        field: "system.details.cr",
+        ranges: [
+            {
+                key: "0-1",
+                min: 0,
+                maxExclusive: 2
+            },
+            {
+                key: "2-4",
+                min: 2,
+                maxExclusive: 5
+            },
+            {
+                key: "5-8",
+                min: 5,
+                maxExclusive: 9
+            },
+            {
+                key: "9-12",
+                min: 9,
+                maxExclusive: 13
+            },
+            {
+                key: "13-16",
+                min: 13,
+                maxExclusive: 17
+            },
+            {
+                key: "17-plus",
+                min: 17,
+                maxExclusive: null
+            }
+        ]
     }
 };
 
