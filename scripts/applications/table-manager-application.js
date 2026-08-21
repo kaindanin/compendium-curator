@@ -336,6 +336,44 @@ function getInspectorObjectWeight(
     };
 }
 
+function formatInspectorProbability(
+    weight,
+    totalWeight
+) {
+    const value = Number(weight);
+    const total = Number(totalWeight);
+
+    if (
+        !Number.isFinite(value) ||
+        !Number.isFinite(total) ||
+        value <= 0 ||
+        total <= 0
+    ) {
+        return "0%";
+    }
+
+    const ratio = value / total;
+
+    const formatter =
+        new Intl.NumberFormat(
+            game.i18n.lang,
+            {
+                style: "percent",
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2
+            }
+        );
+
+    if (
+        ratio > 0 &&
+        ratio < 0.0001
+    ) {
+        return `<${formatter.format(0.0001)}`;
+    }
+
+    return formatter.format(ratio);
+}
+
 function refreshRenderedObjectWeightControls(
     profileElement,
     profile,
@@ -394,6 +432,64 @@ function refreshRenderedObjectWeightControls(
             resetButton.disabled =
                 !info.hasOverride;
         }
+    }
+}
+
+function refreshRenderedProbabilityControls(
+    profileElement,
+    profile
+) {
+    if (!profileElement || !profile)
+        return;
+
+    const inspector =
+        buildContentInspector(profile);
+
+    const rarityGroups =
+        new Map(
+            inspector.rarityGroups.map(
+                group => [group.key, group]
+            )
+        );
+
+    for (
+        const element
+        of profileElement.querySelectorAll(
+            "[data-cc-rarity-probability]"
+        )
+    ) {
+        const rarity =
+            String(
+                element.dataset?.rarity ?? ""
+            ).trim();
+
+        element.textContent =
+            rarityGroups.get(rarity)
+                ?.probability ?? "0%";
+    }
+
+    const entries = new Map();
+
+    for (const group of inspector.rarityGroups) {
+        for (const entry of group.entries) {
+            entries.set(entry.uuid, entry);
+        }
+    }
+
+    for (
+        const element
+        of profileElement.querySelectorAll(
+            "[data-cc-object-probability]"
+        )
+    ) {
+        const uuid =
+            String(
+                element.dataset?.uuid ?? ""
+            ).trim();
+
+        element.textContent =
+            entries.get(uuid)
+                ?.probability ?? "0%";
     }
 }
 
@@ -522,7 +618,7 @@ function buildContentInspector(profile) {
             )
     ];
 
-    const rarityGroups =
+    const preparedRarityGroups =
         orderedKeys.map(key => {
             const uuids =
                 byRarity.get(key) ?? [];
@@ -545,10 +641,16 @@ function buildContentInspector(profile) {
                         };
                     });
 
-            const entries =
-                allEntries.slice(
-                    0,
-                    CONTENT_INSPECTOR_ENTRY_LIMIT
+            const totalWeight =
+                uuids.reduce(
+                    (sum, uuid) =>
+                        sum +
+                        getInspectorObjectWeight(
+                            profile,
+                            key,
+                            uuid
+                        ).weight,
+                    0
                 );
 
             return {
@@ -562,11 +664,51 @@ function buildContentInspector(profile) {
                         profile,
                         key
                     ),
+                totalWeight,
+                allEntries
+            };
+        });
+
+    const totalWeight =
+        preparedRarityGroups.reduce(
+            (sum, group) =>
+                sum + group.totalWeight,
+            0
+        );
+
+    const rarityGroups =
+        preparedRarityGroups.map(group => {
+            const entries =
+                group.allEntries
+                    .slice(
+                        0,
+                        CONTENT_INSPECTOR_ENTRY_LIMIT
+                    )
+                    .map(entry => ({
+                        ...entry,
+                        probability:
+                            formatInspectorProbability(
+                                entry.weight,
+                                totalWeight
+                            )
+                    }));
+
+            return {
+                key: group.key,
+                label: group.label,
+                count: group.count,
+                weight: group.weight,
+                totalWeight: group.totalWeight,
+                probability:
+                    formatInspectorProbability(
+                        group.totalWeight,
+                        totalWeight
+                    ),
                 entries,
                 previewCount:
                     entries.length,
                 truncated:
-                    uuids.length >
+                    group.count >
                     entries.length
             };
         });
@@ -574,6 +716,7 @@ function buildContentInspector(profile) {
     return {
         finalCount:
             finalUuids.size,
+        totalWeight,
         hasObjects:
             finalUuids.size > 0,
         rarityGroups
@@ -1111,6 +1254,11 @@ export class TableManagerApplication
                                     rarity
                                 );
 
+                                refreshRenderedProbabilityControls(
+                                    profileElement,
+                                    updatedProfile
+                                );
+
                                 updateRenderedProfileStatus(
                                     profileElement,
                                     updatedProfile
@@ -1156,6 +1304,11 @@ export class TableManagerApplication
                                     profileElement,
                                     profile,
                                     rarity
+                                );
+
+                                refreshRenderedProbabilityControls(
+                                    profileElement,
+                                    profile
                                 );
 
                             })
@@ -1274,6 +1427,11 @@ export class TableManagerApplication
                                     rarity
                                 );
 
+                                refreshRenderedProbabilityControls(
+                                    profileElement,
+                                    updatedProfile
+                                );
+
                                 updateRenderedProfileStatus(
                                     profileElement,
                                     updatedProfile
@@ -1305,6 +1463,11 @@ export class TableManagerApplication
                                     profileElement,
                                     profile,
                                     rarity
+                                );
+
+                                refreshRenderedProbabilityControls(
+                                    profileElement,
+                                    profile
                                 );
                             })
                             .finally(() => {
@@ -1392,6 +1555,11 @@ export class TableManagerApplication
                                     rarity
                                 );
 
+                                refreshRenderedProbabilityControls(
+                                    profileElement,
+                                    updatedProfile
+                                );
+
                                 updateRenderedProfileStatus(
                                     profileElement,
                                     updatedProfile
@@ -1423,6 +1591,11 @@ export class TableManagerApplication
                                     profileElement,
                                     profile,
                                     rarity
+                                );
+
+                                refreshRenderedProbabilityControls(
+                                    profileElement,
+                                    profile
                                 );
                             })
                             .finally(() => {

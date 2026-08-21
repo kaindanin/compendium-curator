@@ -629,6 +629,17 @@
                                                                     }}
                                                                 </span>
 
+                                                                <strong
+                                                                    data-cc-rarity-probability
+                                                                    data-rarity="{{key}}"
+                                                                    style="
+                                                                        min-width: 52px;
+                                                                        text-align: right;
+                                                                    "
+                                                                >
+                                                                    {{probability}}
+                                                                </strong>
+
                                                                 <label
                                                                     class="hint"
                                                                     for="cc-rarity-weight-{{../id}}-{{key}}"
@@ -693,9 +704,26 @@
                                                             {{label}}
                                                         </span>
 
-                                                        <strong>
-                                                            {{count}}
-                                                        </strong>
+                                                        <div
+                                                            style="
+                                                                display: flex;
+                                                                align-items: center;
+                                                                gap: 0.65rem;
+                                                            "
+                                                        >
+                                                            <strong>
+                                                                {{count}}
+                                                            </strong>
+
+                                                            <span
+                                                                class="hint"
+                                                                data-cc-rarity-probability
+                                                                data-rarity="{{key}}"
+                                                                style="min-width: 52px; text-align: right;"
+                                                            >
+                                                                {{probability}}
+                                                            </span>
+                                                        </div>
                                                     </summary>
 
                                                     <div
@@ -731,14 +759,37 @@
                                                                         <div
                                                                             class="item-header item-controls"
                                                                             style="
-                                                                                flex: 0 0 104px;
-                                                                                min-width: 104px;
-                                                                                text-align: right;
+                                                                                flex: 0 0 162px;
+                                                                                min-width: 162px;
+                                                                                display: flex;
+                                                                                align-items: center;
+                                                                                justify-content: flex-end;
+                                                                                gap: 0.25rem;
                                                                             "
                                                                         >
-                                                                            {{localize
-                                                                                "COMPENDIUM_CURATOR.Weight"
-                                                                            }}
+                                                                            <span
+                                                                                style="
+                                                                                    flex: 0 0 54px;
+                                                                                    text-align: center;
+                                                                                "
+                                                                            >
+                                                                                {{localize
+                                                                                    "COMPENDIUM_CURATOR.Weight"
+                                                                                }}
+                                                                            </span>
+
+                                                                            <span
+                                                                                style="
+                                                                                    flex: 0 0 58px;
+                                                                                    text-align: center;
+                                                                                "
+                                                                            >
+                                                                                %
+                                                                            </span>
+
+                                                                            <span
+                                                                                style="flex: 0 0 24px;"
+                                                                            ></span>
                                                                         </div>
                                                                     </div>
 
@@ -801,8 +852,8 @@
                                                                                     <div
                                                                                         class="item-detail item-controls"
                                                                                         style="
-                                                                                            flex: 0 0 104px;
-                                                                                            min-width: 104px;
+                                                                                            flex: 0 0 162px;
+                                                                                            min-width: 162px;
                                                                                             display: flex;
                                                                                             align-items: center;
                                                                                             justify-content: flex-end;
@@ -827,6 +878,20 @@
                                                                                                 text-align: right;
                                                                                             "
                                                                                         >
+
+                                                                                        <span
+                                                                                            class="hint"
+                                                                                            data-cc-object-probability
+                                                                                            data-uuid="{{uuid}}"
+                                                                                            style="
+                                                                                                flex: 0 0 58px;
+                                                                                                min-width: 58px;
+                                                                                                text-align: right;
+                                                                                                white-space: nowrap;
+                                                                                            "
+                                                                                        >
+                                                                                            {{probability}}
+                                                                                        </span>
 
                                                                                         <button
                                                                                             type="button"
