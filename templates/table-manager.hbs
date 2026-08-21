@@ -18,34 +18,6 @@
 
         <div class="cc-table-manager-actions">
 
-            {{#if isFilterGroupsTab}}
-
-                <button
-                    type="button"
-                    data-action="createProfile"
-                >
-                    <i class="fas fa-plus"></i>
-
-                    {{localize
-                        "COMPENDIUM_CURATOR.CreateFilterGroup"
-                    }}
-                </button>
-
-            {{else}}
-
-                <button
-                    type="button"
-                    data-action="createProfile"
-                >
-                    <i class="fas fa-plus"></i>
-
-                    {{localize
-                        "COMPENDIUM_CURATOR.CreateTableProfile"
-                    }}
-                </button>
-
-            {{/if}}
-
             <button
                 type="button"
                 data-action="configureDefaults"
@@ -117,10 +89,11 @@
 
     <div class="cc-table-profile-list">
 
-        <div class="filter-element">
+        <div class="filter-element cc-table-manager-actions">
 
             <search
                 aria-label="{{searchLabel}}"
+                style="flex: 1 1 auto;"
             >
 
                 <input
@@ -145,6 +118,26 @@
                 </ul>
 
             </search>
+
+            <button
+                type="button"
+                class="cc-table-manager-filter-group-control"
+                data-action="createProfile"
+                {{#if isFilterGroupsTab}}
+                    aria-label="{{localize 'COMPENDIUM_CURATOR.CreateFilterGroup'}}"
+                    title="{{localize 'COMPENDIUM_CURATOR.CreateFilterGroup'}}"
+                {{else}}
+                    {{#if isNestedTab}}
+                        aria-label="{{localize 'COMPENDIUM_CURATOR.CreateTableProfile'}}: {{localize 'COMPENDIUM_CURATOR.TableProfileTypeNested'}}"
+                        title="{{localize 'COMPENDIUM_CURATOR.CreateTableProfile'}}: {{localize 'COMPENDIUM_CURATOR.TableProfileTypeNested'}}"
+                    {{else}}
+                        aria-label="{{localize 'COMPENDIUM_CURATOR.CreateTableProfile'}}: {{localize 'COMPENDIUM_CURATOR.TableProfileTypeContent'}}"
+                        title="{{localize 'COMPENDIUM_CURATOR.CreateTableProfile'}}: {{localize 'COMPENDIUM_CURATOR.TableProfileTypeContent'}}"
+                    {{/if}}
+                {{/if}}
+            >
+                <i class="fas fa-plus"></i>
+            </button>
 
         </div>
 
