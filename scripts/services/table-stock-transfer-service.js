@@ -37,6 +37,12 @@ function getStockFlags(message) {
 
     return {
         items,
+        stockKey:
+            String(
+                flags.tableUuid ??
+                message.uuid ??
+                ""
+            ).trim(),
         priceMultiplier: Math.min(
             10,
             Math.max(
@@ -107,7 +113,8 @@ function getAdjustedPrice(document, multiplier) {
 async function prepareTransferItems(
     stockItems,
     priceMultiplier,
-    applyAdjustedPrices
+    applyAdjustedPrices,
+    stockKey
 ) {
     const prepared = [];
 
@@ -142,6 +149,15 @@ async function prepareTransferItems(
             item,
             "system.quantity",
             stockItem.quantity
+        );
+        foundry.utils.setProperty(
+            item,
+            `flags.${MODULE_ID}.stockTransfer`,
+            {
+                managed: true,
+                stockKey,
+                sourceUuid: document.uuid
+            }
         );
 
         if (applyAdjustedPrices) {
@@ -241,7 +257,101 @@ async function addItemsNatively(actor, items) {
     return items.length;
 }
 
-async function addItemsToActor(actor, items) {
+function isManagedStockItem(item, stockKey) {
+    const transfer =
+        item?.flags?.[MODULE_ID]
+            ?.stockTransfer;
+
+    return (
+        transfer?.managed === true &&
+        transfer.stockKey === stockKey
+    );
+}
+
+async function replaceManagedStock(
+    actor,
+    items,
+    stockKey
+) {
+    const previous = actor.items
+        .filter(item =>
+            isManagedStockItem(
+                item,
+                stockKey
+            )
+        )
+        .map(item => item.toObject());
+    const previousIds = previous
+        .map(item => item._id)
+        .filter(Boolean);
+
+    if (previousIds.length) {
+        await actor.deleteEmbeddedDocuments(
+            "Item",
+            previousIds
+        );
+    }
+
+    try {
+        await actor.createEmbeddedDocuments(
+            "Item",
+            items.map(entry => entry.item)
+        );
+    }
+    catch (error) {
+        const partialIds = actor.items
+            .filter(item =>
+                isManagedStockItem(
+                    item,
+                    stockKey
+                )
+            )
+            .map(item => item.id);
+
+        if (partialIds.length) {
+            await actor.deleteEmbeddedDocuments(
+                "Item",
+                partialIds
+            );
+        }
+
+        if (previous.length) {
+            await actor.createEmbeddedDocuments(
+                "Item",
+                previous.map(item => {
+                    const restored =
+                        foundry.utils.deepClone(
+                            item
+                        );
+
+                    delete restored._id;
+                    return restored;
+                })
+            );
+        }
+
+        throw error;
+    }
+
+    return items.length;
+}
+
+async function addItemsToActor(
+    actor,
+    items,
+    {
+        replacePreviousStock = false,
+        stockKey = ""
+    } = {}
+) {
+    if (replacePreviousStock) {
+        return replaceManagedStock(
+            actor,
+            items,
+            stockKey
+        );
+    }
+
     const itemPilesApi = game.itempiles?.API;
 
     if (typeof itemPilesApi?.addItems === "function") {
@@ -296,6 +406,10 @@ async function promptStockTransfer(message) {
     const escape = foundry.utils.escapeHTML;
     const defaultActorId =
         getDefaultActorId(actors);
+    const defaultReplacePreviousStock =
+        actors.find(entry =>
+            entry.actor.id === defaultActorId
+        )?.merchant === true;
     const actorOptions = actors
         .map(({ actor, merchant }) => {
             const label = merchant
@@ -323,6 +437,21 @@ async function promptStockTransfer(message) {
             "COMPENDIUM_CURATOR.TransferStockHint",
             { count: stock.items.length }
         ))}</p>
+        <div class="form-group">
+            <label>${escape(game.i18n.localize(
+                "COMPENDIUM_CURATOR.ReplacePreviousStock"
+            ))}</label>
+            <div class="form-fields">
+                <input
+                    type="checkbox"
+                    name="replacePreviousStock"
+                    ${defaultReplacePreviousStock ? "checked" : ""}
+                >
+            </div>
+            <p class="hint">${escape(game.i18n.localize(
+                "COMPENDIUM_CURATOR.ReplacePreviousStockHint"
+            ))}</p>
+        </div>
         ${showAdjustedPrice
             ? `<div class="form-group">
                 <label>${escape(game.i18n.localize(
@@ -373,10 +502,15 @@ async function promptStockTransfer(message) {
         isTruthyDialogValue(
             result.applyAdjustedPrices
         );
+    const replacePreviousStock =
+        isTruthyDialogValue(
+            result.replacePreviousStock
+        );
     const items = await prepareTransferItems(
         stock.items,
         stock.priceMultiplier,
-        applyAdjustedPrices
+        applyAdjustedPrices,
+        stock.stockKey
     );
 
     if (!items.length) {
@@ -388,11 +522,20 @@ async function promptStockTransfer(message) {
         return;
     }
 
-    await addItemsToActor(actor, items);
+    await addItemsToActor(
+        actor,
+        items,
+        {
+            replacePreviousStock,
+            stockKey: stock.stockKey
+        }
+    );
 
     ui.notifications.info(
         game.i18n.format(
-            "COMPENDIUM_CURATOR.StockTransferred",
+            replacePreviousStock
+                ? "COMPENDIUM_CURATOR.StockReplaced"
+                : "COMPENDIUM_CURATOR.StockTransferred",
             {
                 count: items.length,
                 actor: actor.name
@@ -478,9 +621,14 @@ export class TableStockTransferService {
         stockItems,
         {
             priceMultiplier = 1,
-            applyAdjustedPrices = true
+            applyAdjustedPrices = true,
+            replacePreviousStock = false,
+            stockKey = ""
         } = {}
     ) {
+        const normalizedStockKey =
+            String(stockKey ?? "").trim() ||
+            "manual";
         const items = await prepareTransferItems(
             normalizeStockItems(stockItems),
             Math.min(
@@ -490,10 +638,21 @@ export class TableStockTransferService {
                     Number(priceMultiplier) || 1
                 )
             ),
-            applyAdjustedPrices
+            applyAdjustedPrices,
+            normalizedStockKey
         );
 
-        await addItemsToActor(actor, items);
+        if (!items.length)
+            return 0;
+
+        await addItemsToActor(
+            actor,
+            items,
+            {
+                replacePreviousStock,
+                stockKey: normalizedStockKey
+            }
+        );
         return items.length;
     }
 
