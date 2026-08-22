@@ -221,6 +221,12 @@
     "TableProfileType": "Profile type",
     "TableProfileTypeContent": "Content table",
     "TableProfileTypeNested": "Subtable table",
-    "SubtableCount": "{count} subtables"
+    "SubtableCount": "{count} subtables",
+    "EditSubtables": "Edit subtables",
+    "CompositeTableHint": "Combine item profiles into one table. Curator updates each child table first and then this root table.",
+    "IncludeSubtable": "Include subtable",
+    "ChildTableWeight": "Subtable weight",
+    "NoContentProfiles": "Create at least one item profile before adding it.",
+    "TableProfileNoActiveChildren": "Select at least one subtable before generating."
   }
 }

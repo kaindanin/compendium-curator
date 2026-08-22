@@ -576,6 +576,28 @@ function getInspectorChallengeRatingLabel(
     return CONTENT_INSPECTOR_CR_LABELS[key] ?? key;
 }
 
+function getNestedChildConfiguration(
+    profile,
+    childProfileId
+) {
+    const child = (
+        Array.isArray(profile?.children)
+            ? profile.children
+            : []
+    ).find(candidate =>
+        candidate?.profileId === childProfileId
+    );
+
+    return {
+        enabled: child?.enabled === true,
+        weight:
+            normalizeInspectorWeight(
+                child?.weight,
+                1
+            )
+    };
+}
+
 function getInspectorSpellLevelKey(
     uuid,
     profile
@@ -1735,10 +1757,23 @@ export class TableManagerApplication
 
         await TableProfileStorageService.migrateStorage();
 
-        const profiles = Object.values(
+        const storedProfiles = Object.values(
             TableProfileStorageService.getProfiles()
         )
-            .filter(profile => profile?.version === 2)
+            .filter(profile => profile?.version === 2);
+        const contentChoices = storedProfiles
+            .filter(profile =>
+                profile.type === "content"
+            )
+            .sort((a, b) =>
+                String(a.name ?? "").localeCompare(
+                    String(b.name ?? ""),
+                    game.i18n.lang,
+                    { sensitivity: "base" }
+                )
+            );
+
+        const profiles = storedProfiles
             .map(profile => {
                 const filterGroupCount = Array.isArray(profile.filterGroups)
                     ? profile.filterGroups.length
@@ -1765,9 +1800,45 @@ export class TableManagerApplication
                 const isContent = type === "content";
                 const isNested = type === "nested";
 
-                const childCount = Array.isArray(profile.children)
-                    ? profile.children.length
-                    : 0;
+                const childConfigurations =
+                    new Map(
+                        (
+                            Array.isArray(profile.children)
+                                ? profile.children
+                                : []
+                        ).map(child => [
+                            child.profileId,
+                            child
+                        ])
+                    );
+                const nestedChildren = isNested
+                    ? contentChoices.map(childProfile => {
+                        const configuration =
+                            childConfigurations.get(
+                                childProfile.id
+                            );
+
+                        return {
+                            id: childProfile.id,
+                            name: childProfile.name,
+                            enabled:
+                                configuration?.enabled === true,
+                            weight:
+                                normalizeInspectorWeight(
+                                    configuration?.weight,
+                                    1
+                                ),
+                            generated:
+                                Boolean(
+                                    childProfile.generation
+                                        ?.rootUuid
+                                )
+                        };
+                    })
+                    : [];
+                const childCount = nestedChildren.filter(
+                    child => child.enabled
+                ).length;
 
                 const typeLabel = game.i18n.localize(
                     isNested
@@ -1816,6 +1887,14 @@ export class TableManagerApplication
                 const inspector = isContent
                     ? buildContentInspector(profile)
                     : null;
+                const nestedInspector = isNested
+                    ? {
+                        children: nestedChildren,
+                        hasChoices:
+                            nestedChildren.length > 0,
+                        activeCount: childCount
+                    }
+                    : null;
 
                 return {
                     id: profile.id,
@@ -1830,6 +1909,11 @@ export class TableManagerApplication
                     filterGroupCount,
                     filterGroups,
                     inspector,
+                    nestedInspector,
+                    canGenerate:
+                        isContent
+                            ? inspector?.hasObjects === true
+                            : childCount > 0,
                     hasGenerated:
                         Boolean(
                             profile.generation?.rootUuid
@@ -1839,14 +1923,17 @@ export class TableManagerApplication
                             ? "COMPENDIUM_CURATOR.UpdateRollTable"
                             : "COMPENDIUM_CURATOR.GenerateRollTable",
                     inspectorOpen:
-                        isContent &&
+                        (isContent || isNested) &&
                         this._openContentInspectors.has(profile.id),
                     status,
                     searchText: [
                         profile.name,
                         typeLabel,
                         status,
-                        ...filterGroups.map(group => group.name)
+                        ...filterGroups.map(group => group.name),
+                        ...nestedChildren
+                            .filter(child => child.enabled)
+                            .map(child => child.name)
                     ]
                         .filter(Boolean)
                         .join(" ")
@@ -2006,6 +2093,159 @@ export class TableManagerApplication
                         this._openContentInspectors.add(profileId);
                     else
                         this._openContentInspectors.delete(profileId);
+                }
+            );
+        }
+
+        for (
+            const childToggle
+            of this.element.querySelectorAll(
+                "[data-cc-nested-child-enabled]"
+            )
+        ) {
+            childToggle.addEventListener(
+                "change",
+                event => {
+                    const target = event.currentTarget;
+                    const profileElement = target.closest(
+                        "[data-profile-id]"
+                    );
+                    const profileId =
+                        profileElement?.dataset?.profileId;
+                    const childProfileId = String(
+                        target.dataset?.childProfileId ?? ""
+                    ).trim();
+
+                    if (!profileId || !childProfileId)
+                        return;
+
+                    target.disabled = true;
+                    this._openContentInspectors.add(profileId);
+
+                    this._distributionSaveQueue =
+                        this._distributionSaveQueue
+                            .catch(() => {})
+                            .then(() =>
+                                TableProfileStorageService
+                                    .setNestedChildEnabled(
+                                        profileId,
+                                        childProfileId,
+                                        target.checked
+                                    )
+                            )
+                            .then(() =>
+                                this.render({ force: true })
+                            )
+                            .catch(error => {
+                                console.error(
+                                    "Compendium Curator | Error cambiando una subtabla.",
+                                    error
+                                );
+
+                                const profile =
+                                    TableProfileStorageService
+                                        .getProfiles()?.[profileId];
+                                target.checked =
+                                    getNestedChildConfiguration(
+                                        profile,
+                                        childProfileId
+                                    ).enabled;
+                            })
+                            .finally(() => {
+                                if (target.isConnected)
+                                    target.disabled = false;
+                            });
+                }
+            );
+        }
+
+        for (
+            const childWeight
+            of this.element.querySelectorAll(
+                "[data-cc-nested-child-weight]"
+            )
+        ) {
+            childWeight.addEventListener(
+                "change",
+                event => {
+                    const target = event.currentTarget;
+                    const profileElement = target.closest(
+                        "[data-profile-id]"
+                    );
+                    const profileId =
+                        profileElement?.dataset?.profileId;
+                    const childProfileId = String(
+                        target.dataset?.childProfileId ?? ""
+                    ).trim();
+                    const weight = Number(target.value);
+
+                    if (!profileId || !childProfileId)
+                        return;
+
+                    if (!Number.isFinite(weight) || weight <= 0) {
+                        const profile =
+                            TableProfileStorageService
+                                .getProfiles()?.[profileId];
+                        target.value = String(
+                            getNestedChildConfiguration(
+                                profile,
+                                childProfileId
+                            ).weight
+                        );
+                        ui.notifications.warn(
+                            game.i18n.localize(
+                                "COMPENDIUM_CURATOR.InvalidTableWeight"
+                            )
+                        );
+                        return;
+                    }
+
+                    target.disabled = true;
+                    this._openContentInspectors.add(profileId);
+
+                    this._distributionSaveQueue =
+                        this._distributionSaveQueue
+                            .catch(() => {})
+                            .then(() =>
+                                TableProfileStorageService
+                                    .setNestedChildWeight(
+                                        profileId,
+                                        childProfileId,
+                                        weight
+                                    )
+                            )
+                            .then(updatedProfile => {
+                                target.value = String(
+                                    getNestedChildConfiguration(
+                                        updatedProfile,
+                                        childProfileId
+                                    ).weight
+                                );
+                                updateRenderedProfileStatus(
+                                    profileElement,
+                                    updatedProfile
+                                );
+                            })
+                            .catch(error => {
+                                console.error(
+                                    "Compendium Curator | Error guardando el peso de una subtabla.",
+                                    error
+                                );
+
+                                const profile =
+                                    TableProfileStorageService
+                                        .getProfiles()?.[profileId];
+                                target.value = String(
+                                    getNestedChildConfiguration(
+                                        profile,
+                                        childProfileId
+                                    ).weight
+                                );
+                            })
+                            .finally(() => {
+                                if (target.isConnected)
+                                    target.disabled = false;
+                            });
                 }
             );
         }
@@ -3128,31 +3368,87 @@ export class TableManagerApplication
             TableProfileStorageService
                 .getProfiles()?.[profileId];
 
-        if (!profile || profile.type !== "content")
+        if (!profile)
             return;
-
-        const inspector =
-            buildContentInspector(profile);
-
-        if (!inspector.hasObjects) {
-            ui.notifications.warn(
-                game.i18n.localize(
-                    "COMPENDIUM_CURATOR.TableProfileNoObjects"
-                )
-            );
-            return;
-        }
 
         target.disabled = true;
         this._closeProfileActionsPopover();
 
         try {
-            const generated =
-                await TableProfileGenerationService
-                    .generate(
-                        profile,
-                        inspector
+            let generated;
+
+            if (profile.type === "content") {
+                const inspector =
+                    buildContentInspector(profile);
+
+                if (!inspector.hasObjects) {
+                    throw new Error(
+                        "TABLE_PROFILE_NO_OBJECTS"
                     );
+                }
+
+                generated =
+                    await TableProfileGenerationService
+                        .generate(
+                            profile,
+                            inspector
+                        );
+            }
+            else {
+                const profiles =
+                    TableProfileStorageService
+                        .getProfiles();
+                const children = [];
+
+                for (
+                    const childConfiguration
+                    of profile.children ?? []
+                ) {
+                    if (!childConfiguration.enabled)
+                        continue;
+
+                    const childProfile =
+                        profiles?.[
+                            childConfiguration.profileId
+                        ];
+
+                    if (
+                        !childProfile ||
+                        childProfile.type !== "content"
+                    ) {
+                        continue;
+                    }
+
+                    const childInspector =
+                        buildContentInspector(
+                            childProfile
+                        );
+
+                    if (!childInspector.hasObjects)
+                        continue;
+
+                    const childGenerated =
+                        await TableProfileGenerationService
+                            .generate(
+                                childProfile,
+                                childInspector
+                            );
+
+                    children.push({
+                        profile: childProfile,
+                        table: childGenerated.root,
+                        weight:
+                            childConfiguration.weight
+                    });
+                }
+
+                generated =
+                    await TableProfileGenerationService
+                        .generateNested(
+                            profile,
+                            children
+                        );
+            }
 
             ui.notifications.info(
                 game.i18n.format(
@@ -3169,11 +3465,26 @@ export class TableManagerApplication
                 error
             );
 
-            const key =
+            let key = "RollTableGenerationFailed";
+
+            if (
                 error?.message ===
                     "TABLE_PROFILE_NO_ACTIVE_GROUPS"
-                    ? "TableProfileNoActiveGroups"
-                    : "RollTableGenerationFailed";
+            ) {
+                key = "TableProfileNoActiveGroups";
+            }
+            else if (
+                error?.message ===
+                    "TABLE_PROFILE_NO_ACTIVE_CHILDREN"
+            ) {
+                key = "TableProfileNoActiveChildren";
+            }
+            else if (
+                error?.message ===
+                    "TABLE_PROFILE_NO_OBJECTS"
+            ) {
+                key = "TableProfileNoObjects";
+            }
 
             ui.notifications.error(
                 game.i18n.localize(

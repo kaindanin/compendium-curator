@@ -470,4 +470,87 @@ export class TableProfileGenerationService {
         );
     }
 
+    static async generateNested(
+        profile,
+        children
+    ) {
+        if (
+            !profile?.id ||
+            profile.type !== "nested"
+        ) {
+            throw new Error("INVALID_TABLE_PROFILE");
+        }
+
+        const activeChildren = (
+            Array.isArray(children)
+                ? children
+                : []
+        ).filter(child =>
+            child?.profile?.id &&
+            child?.table?.uuid
+        );
+
+        if (!activeChildren.length) {
+            throw new Error(
+                "TABLE_PROFILE_NO_ACTIVE_CHILDREN"
+            );
+        }
+
+        const folder = await getManagedFolder();
+        const entries = activeChildren.map(child => ({
+            documentUuid: child.table.uuid,
+            name: child.profile.name,
+            img:
+                child.table.img ??
+                "icons/svg/d20-grey.svg",
+            resultKey: child.profile.id,
+            weight:
+                normalizePositiveWeight(
+                    child.weight,
+                    1
+                )
+        }));
+        const root = await reconcileTable({
+            profile,
+            nodeId: ROOT_NODE_ID,
+            name: profile.name,
+            img:
+                entries.find(entry => entry.img)?.img ??
+                "icons/svg/d20-grey.svg",
+            entries,
+            storedUuid:
+                profile.generation?.rootUuid ??
+                getStoredNodeUuid(profile, ROOT_NODE_ID),
+            folder
+        });
+        const nodes = {
+            [ROOT_NODE_ID]: {
+                uuid: root.uuid
+            }
+        };
+
+        await removeStaleManagedTables(
+            profile,
+            new Set(Object.keys(nodes))
+        );
+
+        const updatedProfile =
+            await TableProfileStorageService
+                .setGenerationState(
+                    profile.id,
+                    {
+                        rootUuid: root.uuid,
+                        nodes,
+                        generatedRevision:
+                            Number(profile.revision ?? 1)
+                    }
+                );
+
+        return {
+            root,
+            nodes,
+            profile: updatedProfile
+        };
+    }
+
 }

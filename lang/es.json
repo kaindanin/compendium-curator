@@ -220,6 +220,12 @@
     "TableProfileType": "Tipo de perfil",
     "TableProfileTypeContent": "Tabla de contenido",
     "TableProfileTypeNested": "Tabla de subtablas",
-    "SubtableCount": "{count} subtablas"
+    "SubtableCount": "{count} subtablas",
+    "EditSubtables": "Editar subtablas",
+    "CompositeTableHint": "Combina perfiles de objetos en una sola tabla. Curator actualizará primero cada tabla hija y después esta tabla principal.",
+    "IncludeSubtable": "Incluir subtabla",
+    "ChildTableWeight": "Peso de la subtabla",
+    "NoContentProfiles": "Crea al menos un perfil de objetos para poder añadirlo.",
+    "TableProfileNoActiveChildren": "Selecciona al menos una subtabla antes de generar."
   }
 }

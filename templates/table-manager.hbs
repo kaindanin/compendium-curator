@@ -257,17 +257,15 @@
                                 {{status}}
                             </div>
 
-                            {{#if isContent}}
-                                <button
-                                    type="button"
-                                    class="cc-table-manager-generate-button"
-                                    data-action="generateProfile"
-                                    {{#unless inspector.hasObjects}}disabled{{/unless}}
-                                >
-                                    <i class="fas fa-wand-magic-sparkles"></i>
-                                    {{localize generationActionLabel}}
-                                </button>
-                            {{/if}}
+                            <button
+                                type="button"
+                                class="cc-table-manager-generate-button"
+                                data-action="generateProfile"
+                                {{#unless canGenerate}}disabled{{/unless}}
+                            >
+                                <i class="fas fa-wand-magic-sparkles"></i>
+                                {{localize generationActionLabel}}
+                            </button>
 
                             <div class="cc-table-manager-profile-menu-wrapper">
                                 <button
@@ -283,16 +281,17 @@
                                     class="cc-table-manager-profile-menu"
                                     hidden
                                 >
+                                    {{#if hasGenerated}}
+                                        <button
+                                            type="button"
+                                            data-action="openGeneratedTable"
+                                        >
+                                            <i class="fas fa-table-list"></i>
+                                            {{localize "COMPENDIUM_CURATOR.OpenGeneratedTable"}}
+                                        </button>
+                                    {{/if}}
+
                                     {{#if isContent}}
-                                        {{#if hasGenerated}}
-                                            <button
-                                                type="button"
-                                                data-action="openGeneratedTable"
-                                            >
-                                                <i class="fas fa-table-list"></i>
-                                                {{localize "COMPENDIUM_CURATOR.OpenGeneratedTable"}}
-                                            </button>
-                                        {{/if}}
 
                                         <button
                                             type="button"
@@ -997,6 +996,101 @@
                                                     {{localize "COMPENDIUM_CURATOR.NoMatchingObjects"}}
                                                 </p>
                                             {{/if}}
+                                        {{/if}}
+                                    </div>
+                                </details>
+                            {{/if}}
+
+                            {{#if isNested}}
+                                <details
+                                    class="cc-table-manager-content-inspector"
+                                    data-cc-content-inspector
+                                    {{#if inspectorOpen}}open{{/if}}
+                                    style="
+                                        grid-column: 1 / -1;
+                                        margin-top: 0.15rem;
+                                        padding-top: 0.65rem;
+                                        border-top: 1px solid rgb(255 255 255 / 7%);
+                                    "
+                                >
+                                    <summary
+                                        style="
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                            gap: 1rem;
+                                            min-height: 34px;
+                                            padding: 0.4rem 0.55rem;
+                                            cursor: pointer;
+                                            background: rgb(0 0 0 / 16%);
+                                            border-radius: 5px;
+                                            list-style: none;
+                                        "
+                                    >
+                                        <span>
+                                            <i class="fas fa-chevron-down"></i>
+                                            {{localize "COMPENDIUM_CURATOR.EditSubtables"}}
+                                        </span>
+                                        <strong>
+                                            {{localize
+                                                "COMPENDIUM_CURATOR.SubtableCount"
+                                                count=nestedInspector.activeCount
+                                            }}
+                                        </strong>
+                                    </summary>
+
+                                    <div style="padding: 0.75rem 0 0.15rem;">
+                                        <p class="hint" style="margin-top: 0;">
+                                            {{localize "COMPENDIUM_CURATOR.CompositeTableHint"}}
+                                        </p>
+
+                                        {{#if nestedInspector.hasChoices}}
+                                            <div class="cc-table-filter-detail-choices">
+                                                {{#each nestedInspector.children}}
+                                                    <div class="cc-table-filter-detail-choice">
+                                                        <input
+                                                            type="checkbox"
+                                                            data-cc-nested-child-enabled
+                                                            data-child-profile-id="{{id}}"
+                                                            aria-label="{{localize 'COMPENDIUM_CURATOR.IncludeSubtable'}}: {{name}}"
+                                                            {{#if enabled}}checked{{/if}}
+                                                            style="flex: 0 0 auto; margin: 0;"
+                                                        >
+
+                                                        <span>{{name}}</span>
+
+                                                        <label
+                                                            class="hint"
+                                                            for="cc-nested-weight-{{../../id}}-{{id}}"
+                                                            style="margin-left: auto; white-space: nowrap;"
+                                                        >
+                                                            {{localize "COMPENDIUM_CURATOR.Weight"}}
+                                                        </label>
+
+                                                        <input
+                                                            id="cc-nested-weight-{{../../id}}-{{id}}"
+                                                            type="number"
+                                                            min="0.000001"
+                                                            step="any"
+                                                            value="{{weight}}"
+                                                            data-cc-nested-child-weight
+                                                            data-child-profile-id="{{id}}"
+                                                            aria-label="{{localize 'COMPENDIUM_CURATOR.ChildTableWeight'}}: {{name}}"
+                                                            {{#unless enabled}}disabled{{/unless}}
+                                                            style="
+                                                                flex: 0 0 72px;
+                                                                width: 72px;
+                                                                height: 28px;
+                                                                text-align: right;
+                                                            "
+                                                        >
+                                                    </div>
+                                                {{/each}}
+                                            </div>
+                                        {{else}}
+                                            <p class="hint">
+                                                {{localize "COMPENDIUM_CURATOR.NoContentProfiles"}}
+                                            </p>
                                         {{/if}}
                                     </div>
                                 </details>

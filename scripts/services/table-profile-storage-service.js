@@ -924,6 +924,58 @@ export class TableProfileStorageService {
         return storedGroup;
     }
 
+    static #normalizeNestedChildren(
+        profileId,
+        sourceChildren,
+        profiles
+    ) {
+        const children = [];
+        const used = new Set();
+
+        for (
+            const sourceChild
+            of Array.isArray(sourceChildren)
+                ? sourceChildren
+                : []
+        ) {
+            const childProfileId = String(
+                typeof sourceChild === "string"
+                    ? sourceChild
+                    : sourceChild?.profileId ??
+                        sourceChild?.id ??
+                        ""
+            ).trim();
+            const childProfile =
+                profiles?.[childProfileId];
+
+            if (
+                !childProfileId ||
+                childProfileId === profileId ||
+                used.has(childProfileId) ||
+                childProfile?.type !== "content"
+            ) {
+                continue;
+            }
+
+            used.add(childProfileId);
+            children.push({
+                profileId: childProfileId,
+                enabled:
+                    typeof sourceChild === "string" ||
+                    sourceChild?.enabled !== false,
+                weight:
+                    this.#normalizePositiveNumber(
+                        typeof sourceChild === "string"
+                            ? 1
+                            : sourceChild?.weight,
+                        1
+                    )
+            });
+        }
+
+        return children;
+    }
+
     static #normalizeStorage(rawStorage) {
         const source =
             foundry.utils.deepClone(
@@ -1082,6 +1134,21 @@ export class TableProfileStorageService {
 
             storage.profiles[profileId] =
                 profile;
+        }
+
+        for (
+            const [profileId, profile]
+            of Object.entries(storage.profiles)
+        ) {
+            if (profile.type !== "nested")
+                continue;
+
+            profile.children =
+                this.#normalizeNestedChildren(
+                    profileId,
+                    profile.children,
+                    storage.profiles
+                );
         }
 
         return storage;
@@ -2178,6 +2245,159 @@ export class TableProfileStorageService {
         );
     }
 
+    static async setNestedChildEnabled(
+        profileId,
+        childProfileId,
+        enabled
+    ) {
+        const childId =
+            String(childProfileId ?? "").trim();
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+        const profile =
+            storage.profiles?.[profileId];
+        const childProfile =
+            storage.profiles?.[childId];
+
+        if (
+            !profile ||
+            profile.version !== 2 ||
+            profile.type !== "nested" ||
+            !childProfile ||
+            childProfile.type !== "content" ||
+            profileId === childId
+        ) {
+            throw new Error(
+                "INVALID_NESTED_TABLE_CHILD"
+            );
+        }
+
+        const children =
+            this.#normalizeNestedChildren(
+                profileId,
+                profile.children,
+                storage.profiles
+            );
+        const previous = children.find(child =>
+            child.profileId === childId
+        );
+        const nextEnabled = Boolean(enabled);
+
+        if (
+            previous?.enabled === nextEnabled ||
+            (!previous && !nextEnabled)
+        ) {
+            return this.#hydrateProfile(
+                profile,
+                storage
+            );
+        }
+
+        if (previous) {
+            previous.enabled = nextEnabled;
+        }
+        else {
+            children.push({
+                profileId: childId,
+                enabled: true,
+                weight: 1
+            });
+        }
+
+        profile.children = children;
+        profile.revision =
+            Number(profile.revision ?? 1) + 1;
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return this.#hydrateProfile(
+            profile,
+            storage
+        );
+    }
+
+    static async setNestedChildWeight(
+        profileId,
+        childProfileId,
+        weight
+    ) {
+        const childId =
+            String(childProfileId ?? "").trim();
+        const normalizedWeight =
+            this.#normalizePositiveNumber(weight);
+
+        if (!childId || normalizedWeight === null) {
+            throw new Error(
+                "INVALID_TABLE_WEIGHT"
+            );
+        }
+
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+        const profile =
+            storage.profiles?.[profileId];
+        const childProfile =
+            storage.profiles?.[childId];
+
+        if (
+            !profile ||
+            profile.version !== 2 ||
+            profile.type !== "nested" ||
+            childProfile?.type !== "content"
+        ) {
+            throw new Error(
+                "INVALID_NESTED_TABLE_CHILD"
+            );
+        }
+
+        const children =
+            this.#normalizeNestedChildren(
+                profileId,
+                profile.children,
+                storage.profiles
+            );
+        const child = children.find(candidate =>
+            candidate.profileId === childId
+        );
+
+        if (!child) {
+            throw new Error(
+                "INVALID_NESTED_TABLE_CHILD"
+            );
+        }
+
+        if (child.weight === normalizedWeight) {
+            return this.#hydrateProfile(
+                profile,
+                storage
+            );
+        }
+
+        child.weight = normalizedWeight;
+        profile.children = children;
+        profile.revision =
+            Number(profile.revision ?? 1) + 1;
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return this.#hydrateProfile(
+            profile,
+            storage
+        );
+    }
+
     static async setRarityWeight(
         profileId,
         rarity,
@@ -2736,6 +2956,34 @@ export class TableProfileStorageService {
         }
 
         delete storage.profiles[profileId];
+
+        for (
+            const candidate
+            of Object.values(storage.profiles)
+        ) {
+            if (
+                candidate?.type !== "nested" ||
+                !Array.isArray(candidate.children)
+            ) {
+                continue;
+            }
+
+            const nextChildren =
+                candidate.children.filter(child =>
+                    child?.profileId !== profileId
+                );
+
+            if (
+                nextChildren.length ===
+                candidate.children.length
+            ) {
+                continue;
+            }
+
+            candidate.children = nextChildren;
+            candidate.revision =
+                Number(candidate.revision ?? 1) + 1;
+        }
 
         await game.settings.set(
             MODULE_ID,
