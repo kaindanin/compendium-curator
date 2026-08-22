@@ -250,7 +250,7 @@
     "DrawUniqueResults": "No repetir objetos",
     "DrawUniqueResultsHint": "Evita duplicados tanto en las tiradas de Curator como en la RollTable generada para Item Piles, respetando los pesos de objetos y grupos.",
     "StockQuantityPerItem": "Cantidad por objeto",
-    "StockQuantityPerItemHint": "Curator elige una cantidad aleatoria entre el mínimo y el máximo para cada resultado.",
+    "StockQuantityPerItemHint": "Curator elige una cantidad aleatoria entre el mínimo y el máximo para cada resultado. Las RollTables generadas conservan este rango para las tiradas compatibles de Item Piles.",
     "StockQuantityRangeApplied": "Cantidad por objeto: {min}–{max}.",
     "PriceAdjustment": "Ajuste de precio",
     "PriceAdjustmentHint": "100 % usa el precio del compendio. Usa un porcentaje mayor o menor para recargos o descuentos.",

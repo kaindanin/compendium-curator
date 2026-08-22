@@ -2668,8 +2668,14 @@ export class TableProfileStorageService {
             );
         }
 
-        const previousUnique =
-            profile.draw?.unique === true;
+        const previousGeneratedPreferences = {
+            unique:
+                profile.draw?.unique === true,
+            quantityMin:
+                profile.draw?.quantityMin,
+            quantityMax:
+                profile.draw?.quantityMax
+        };
         const nextUnique =
             preferences?.unique === true;
 
@@ -2685,13 +2691,25 @@ export class TableProfileStorageService {
                 preferences?.quantityMax
         };
 
-        if (previousUnique !== nextUnique) {
-            profile.revision =
-                Number(profile.revision ?? 1) + 1;
-        }
-
         const normalizedStorage =
             this.#normalizeStorage(storage);
+        const normalizedProfile =
+            normalizedStorage
+                .profiles?.[profileId];
+        const generatedPreferencesChanged =
+            previousGeneratedPreferences.unique !==
+                normalizedProfile?.draw?.unique ||
+            previousGeneratedPreferences.quantityMin !==
+                normalizedProfile?.draw?.quantityMin ||
+            previousGeneratedPreferences.quantityMax !==
+                normalizedProfile?.draw?.quantityMax;
+
+        if (generatedPreferencesChanged) {
+            normalizedProfile.revision =
+                Number(
+                    normalizedProfile.revision ?? 1
+                ) + 1;
+        }
 
         await game.settings.set(
             MODULE_ID,

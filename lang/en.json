@@ -251,7 +251,7 @@
     "DrawUniqueResults": "Do not repeat items",
     "DrawUniqueResultsHint": "Avoid duplicates in Curator draws and in the RollTable generated for Item Piles while respecting item and group weights.",
     "StockQuantityPerItem": "Quantity per item",
-    "StockQuantityPerItemHint": "Curator chooses a random quantity between the minimum and maximum for each result.",
+    "StockQuantityPerItemHint": "Curator chooses a random quantity between the minimum and maximum for each result. Generated RollTables preserve this range for compatible Item Piles rolls.",
     "StockQuantityRangeApplied": "Quantity per item: {min}–{max}.",
     "PriceAdjustment": "Price adjustment",
     "PriceAdjustmentHint": "100% uses the compendium price. Use a higher or lower percentage for markups or discounts.",

@@ -70,8 +70,27 @@ function integerizeWeights(entries) {
     }));
 }
 
-function buildTableResults(entries, profileId, nodeId) {
+function buildTableResults(
+    entries,
+    profileId,
+    nodeId,
+    drawPreferences
+) {
     const weighted = integerizeWeights(entries);
+    const quantityMin = Math.max(
+        1,
+        Number.parseInt(
+            drawPreferences?.quantityMin,
+            10
+        ) || 1
+    );
+    const quantityMax = Math.max(
+        quantityMin,
+        Number.parseInt(
+            drawPreferences?.quantityMax,
+            10
+        ) || quantityMin
+    );
     let cursor = 1;
 
     const results = weighted.map(entry => {
@@ -97,7 +116,9 @@ function buildTableResults(entries, profileId, nodeId) {
                         entry.resultKey ??
                         entry.documentUuid ??
                         ""
-                    )
+                    ),
+                    quantityMin,
+                    quantityMax
                 }
             }
         };
@@ -235,7 +256,8 @@ async function reconcileTable({
     const prepared = buildTableResults(
         entries,
         profile.id,
-        nodeId
+        nodeId,
+        profile.draw
     );
 
     const tableData = {

@@ -4,6 +4,7 @@ const DISTRIBUTION_INDEX_FIELDS = {
         "system.source",
         "system.level",
         "system.school",
+        "system.identifier",
         "system.price.value",
         "system.price.denomination"
     ],
