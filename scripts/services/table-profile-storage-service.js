@@ -1073,6 +1073,48 @@ export class TableProfileStorageService {
         };
     }
 
+    static #normalizeDrawPreferences(profile) {
+        const source =
+            profile?.draw &&
+            typeof profile.draw === "object" &&
+            !Array.isArray(profile.draw)
+                ? profile.draw
+                : {};
+        const criterion =
+            profile?.distribution?.grouped
+                ?.grouping?.criterion;
+        const isShopGrouping =
+            profile?.type === "content" &&
+            ["type", "manual"].includes(
+                criterion
+            );
+        const defaultCount =
+            isShopGrouping ? 10 : 1;
+        const count = Math.min(
+            100,
+            this.#normalizePositiveInteger(
+                source.count,
+                defaultCount
+            )
+        );
+        const priceAdjustment = Math.min(
+            1000,
+            this.#normalizePositiveNumber(
+                source.priceAdjustment,
+                100
+            )
+        );
+
+        profile.draw = {
+            count,
+            unique:
+                typeof source.unique === "boolean"
+                    ? source.unique
+                    : isShopGrouping,
+            priceAdjustment
+        };
+    }
+
     static #createFilterGroupRecord(
         storage,
         filterGroup
@@ -1313,6 +1355,9 @@ export class TableProfileStorageService {
             delete profile.filterGroups;
 
             this.#normalizeProfileDistribution(
+                profile
+            );
+            this.#normalizeDrawPreferences(
                 profile
             );
 
@@ -2430,6 +2475,51 @@ export class TableProfileStorageService {
                     profile.revision ??
                     1
                 )
+        };
+
+        const normalizedStorage =
+            this.#normalizeStorage(storage);
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            normalizedStorage
+        );
+
+        return this.#hydrateProfile(
+            normalizedStorage
+                .profiles?.[profileId],
+            normalizedStorage
+        );
+    }
+
+    static async setDrawPreferences(
+        profileId,
+        preferences
+    ) {
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+        const profile =
+            storage.profiles?.[profileId];
+
+        if (
+            !profile ||
+            profile.version !== 2
+        ) {
+            throw new Error(
+                "TABLE_PROFILE_NOT_FOUND"
+            );
+        }
+
+        profile.draw = {
+            count:
+                preferences?.count,
+            unique:
+                preferences?.unique === true,
+            priceAdjustment:
+                preferences?.priceAdjustment
         };
 
         const normalizedStorage =

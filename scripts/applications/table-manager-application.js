@@ -3968,8 +3968,13 @@ export class TableManagerApplication
         input.min = "1";
         input.max = "100";
         input.step = "1";
-        input.value = "1";
-        input.setAttribute("value", "1");
+        input.value = String(
+            profile?.draw?.count ?? 1
+        );
+        input.setAttribute(
+            "value",
+            input.value
+        );
 
         field.append(label, input);
 
@@ -3992,13 +3997,8 @@ export class TableManagerApplication
             document.createElement("input");
         uniqueInput.type = "checkbox";
         uniqueInput.name = "uniqueResults";
-        uniqueInput.checked = [
-            "type",
-            "manual"
-        ].includes(
-            profile?.distribution?.grouped
-                ?.grouping?.criterion
-        );
+        uniqueInput.checked =
+            profile?.draw?.unique === true;
 
         if (uniqueInput.checked) {
             uniqueInput.setAttribute(
@@ -4022,8 +4022,96 @@ export class TableManagerApplication
             );
         uniqueField.append(uniqueHint);
 
+        const priceField =
+            document.createElement("div");
+        priceField.className = "form-group";
+
+        const priceLabel =
+            document.createElement("label");
+        priceLabel.textContent =
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.PriceAdjustment"
+            );
+
+        const priceFields =
+            document.createElement("div");
+        priceFields.className = "form-fields";
+
+        const priceInput =
+            document.createElement("input");
+        priceInput.type = "number";
+        priceInput.name = "priceAdjustment";
+        priceInput.min = "1";
+        priceInput.max = "1000";
+        priceInput.step = "1";
+        priceInput.value = String(
+            profile?.draw?.priceAdjustment ??
+                100
+        );
+        priceInput.setAttribute(
+            "value",
+            priceInput.value
+        );
+
+        const priceUnits =
+            document.createElement("span");
+        priceUnits.className = "units";
+        priceUnits.textContent = "%";
+
+        priceFields.append(
+            priceInput,
+            priceUnits
+        );
+        priceField.append(
+            priceLabel,
+            priceFields
+        );
+
+        const priceHint =
+            document.createElement("p");
+        priceHint.className = "hint";
+        priceHint.textContent =
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.PriceAdjustmentHint"
+            );
+        priceField.append(priceHint);
+
+        const rememberField =
+            document.createElement("div");
+        rememberField.className = "form-group";
+
+        const rememberLabel =
+            document.createElement("label");
+        rememberLabel.textContent =
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.RememberDrawSettings"
+            );
+
+        const rememberFields =
+            document.createElement("div");
+        rememberFields.className = "form-fields";
+
+        const rememberInput =
+            document.createElement("input");
+        rememberInput.type = "checkbox";
+        rememberInput.name =
+            "rememberDrawSettings";
+        rememberInput.checked = true;
+        rememberInput.setAttribute("checked", "");
+
+        rememberFields.append(rememberInput);
+        rememberField.append(
+            rememberLabel,
+            rememberFields
+        );
+
         const form = document.createElement("div");
-        form.append(field, uniqueField);
+        form.append(
+            field,
+            uniqueField,
+            priceField,
+            rememberField
+        );
 
         const result =
             await foundry.applications.api.DialogV2
@@ -4063,12 +4151,41 @@ export class TableManagerApplication
             result.uniqueResults === "on" ||
             result.uniqueResults === 1 ||
             result.uniqueResults === "1";
+        const priceAdjustment = Math.min(
+            1000,
+            Math.max(
+                1,
+                Number(
+                    result.priceAdjustment
+                ) || 100
+            )
+        );
+        const rememberDrawSettings =
+            result.rememberDrawSettings === true ||
+            result.rememberDrawSettings === "true" ||
+            result.rememberDrawSettings === "on" ||
+            result.rememberDrawSettings === 1 ||
+            result.rememberDrawSettings === "1";
+
+        if (rememberDrawSettings) {
+            await TableProfileStorageService
+                .setDrawPreferences(
+                    profile.id,
+                    {
+                        count,
+                        unique: uniqueResults,
+                        priceAdjustment
+                    }
+                );
+        }
 
         const draw =
             await TableProfileDrawService
                 .drawItems(table, count, {
                     unique: uniqueResults,
-                    displayChat: true
+                    displayChat: true,
+                    priceMultiplier:
+                        priceAdjustment / 100
                 });
 
         if (!draw.availableCount) {

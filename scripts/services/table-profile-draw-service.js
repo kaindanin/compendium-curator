@@ -221,7 +221,11 @@ function formatCurrencyAmount(
     return `${formattedValue} ${label}`;
 }
 
-function getItemPrice(document, quantity) {
+function getItemPrice(
+    document,
+    quantity,
+    priceMultiplier
+) {
     const price = document?.system?.price;
     const value = Number(price?.value);
     const denomination = String(
@@ -242,20 +246,24 @@ function getItemPrice(document, quantity) {
     return {
         unit:
             formatCurrencyAmount(
-                value,
+                value * priceMultiplier,
                 denomination
             ),
         subtotal:
             quantity > 1
                 ? formatCurrencyAmount(
-                    value * quantity,
+                    value * priceMultiplier *
+                        quantity,
                     denomination
                 )
                 : ""
     };
 }
 
-async function hydrateSelectedEntries(entries) {
+async function hydrateSelectedEntries(
+    entries,
+    priceMultiplier
+) {
     return Promise.all(
         entries.map(async entry => {
             let document = null;
@@ -282,7 +290,8 @@ async function hydrateSelectedEntries(entries) {
             );
             const price = getItemPrice(
                 document,
-                quantity
+                quantity,
+                priceMultiplier
             );
 
             return {
@@ -320,7 +329,8 @@ async function createDrawMessage(
     {
         requestedCount,
         selectedCount,
-        unique
+        unique,
+        priceMultiplier
     }
 ) {
     const escape = foundry.utils.escapeHTML;
@@ -339,6 +349,11 @@ async function createDrawMessage(
             "COMPENDIUM_CURATOR.ItemSubtotal"
         )
     );
+    const priceAdjustment =
+        new Intl.NumberFormat(
+            game.i18n.lang,
+            { maximumFractionDigits: 2 }
+        ).format(priceMultiplier * 100);
     const rows = entries.map(entry => `
         <li style="display:flex;align-items:center;gap:0.5rem;margin:0.25rem 0;">
             <img
@@ -387,6 +402,14 @@ async function createDrawMessage(
                         }
                     )
             )}</p>
+            ${priceMultiplier !== 1
+                ? `<p class="hint">${escape(
+                    game.i18n.format(
+                        "COMPENDIUM_CURATOR.PriceAdjustmentApplied",
+                        { percent: priceAdjustment }
+                    )
+                )}</p>`
+                : ""}
             <ol style="margin:0.5rem 0;padding-left:1.25rem;">
                 ${rows}
             </ol>
@@ -403,7 +426,8 @@ async function createDrawMessage(
                 tableUuid: table.uuid,
                 requestedCount,
                 selectedCount,
-                unique
+                unique,
+                priceMultiplier
             }
         }
     });
@@ -439,7 +463,8 @@ export class TableProfileDrawService {
         count,
         {
             unique = false,
-            displayChat = true
+            displayChat = true,
+            priceMultiplier = 1
         } = {}
     ) {
         if (table?.documentName !== "RollTable") {
@@ -455,6 +480,14 @@ export class TableProfileDrawService {
                 Number.parseInt(count, 10) || 1
             )
         );
+        const normalizedPriceMultiplier =
+            Math.min(
+                10,
+                Math.max(
+                    0.01,
+                    Number(priceMultiplier) || 1
+                )
+            );
         const pool = await this.getUniquePool(table);
         const selected = unique
             ? sampleWithoutReplacement(
@@ -468,7 +501,10 @@ export class TableProfileDrawService {
         const aggregated =
             aggregateSelectedEntries(selected);
         const hydrated =
-            await hydrateSelectedEntries(aggregated);
+            await hydrateSelectedEntries(
+                aggregated,
+                normalizedPriceMultiplier
+            );
         const message =
             displayChat && hydrated.length
                 ? await createDrawMessage(
@@ -478,7 +514,9 @@ export class TableProfileDrawService {
                         requestedCount,
                         selectedCount:
                             selected.length,
-                        unique
+                        unique,
+                        priceMultiplier:
+                            normalizedPriceMultiplier
                     }
                 )
                 : null;
@@ -489,6 +527,8 @@ export class TableProfileDrawService {
             selectedCount: selected.length,
             availableCount: pool.length,
             uniqueCount: hydrated.length,
+            priceMultiplier:
+                normalizedPriceMultiplier,
             truncated:
                 selected.length < requestedCount,
             message

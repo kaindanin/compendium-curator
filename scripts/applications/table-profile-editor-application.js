@@ -388,6 +388,11 @@ export class TableProfileEditorApplication
                 name,
                 revision: 1,
                 children: [],
+                draw: {
+                    count: 1,
+                    unique: false,
+                    priceAdjustment: 100
+                },
                 generation: {
                     masterUuid: null,
                     groupUuids: {},
@@ -424,6 +429,10 @@ export class TableProfileEditorApplication
                 preset === "simple"
                     ? "individual"
                     : "grouped";
+            const isShopPreset = [
+                "shopType",
+                "shopManual"
+            ].includes(preset);
 
             profile = {
                 version: 2,
@@ -433,6 +442,12 @@ export class TableProfileEditorApplication
                 filterGroupIds: [],
                 manualIncludes: [],
                 manualExcludes: [],
+                draw: {
+                    count:
+                        isShopPreset ? 10 : 1,
+                    unique: isShopPreset,
+                    priceAdjustment: 100
+                },
                 distribution: {
                     version: 2,
                     mode: distributionMode,
