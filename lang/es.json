@@ -248,7 +248,7 @@
     "DrawGeneratedTableTitle": "Tirar en «{name}»",
     "DrawCount": "Número de resultados",
     "DrawUniqueResults": "No repetir objetos",
-    "DrawUniqueResultsHint": "Genera una lista de stock con objetos distintos, respetando sus pesos y los de sus grupos.",
+    "DrawUniqueResultsHint": "Evita duplicados tanto en las tiradas de Curator como en la RollTable generada para Item Piles, respetando los pesos de objetos y grupos.",
     "StockQuantityPerItem": "Cantidad por objeto",
     "StockQuantityPerItemHint": "Curator elige una cantidad aleatoria entre el mínimo y el máximo para cada resultado.",
     "StockQuantityRangeApplied": "Cantidad por objeto: {min}–{max}.",

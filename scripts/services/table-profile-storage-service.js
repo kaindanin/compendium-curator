@@ -2668,11 +2668,15 @@ export class TableProfileStorageService {
             );
         }
 
+        const previousUnique =
+            profile.draw?.unique === true;
+        const nextUnique =
+            preferences?.unique === true;
+
         profile.draw = {
             count:
                 preferences?.count,
-            unique:
-                preferences?.unique === true,
+            unique: nextUnique,
             priceAdjustment:
                 preferences?.priceAdjustment,
             quantityMin:
@@ -2680,6 +2684,11 @@ export class TableProfileStorageService {
             quantityMax:
                 preferences?.quantityMax
         };
+
+        if (previousUnique !== nextUnique) {
+            profile.revision =
+                Number(profile.revision ?? 1) + 1;
+        }
 
         const normalizedStorage =
             this.#normalizeStorage(storage);

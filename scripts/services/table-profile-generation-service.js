@@ -223,7 +223,8 @@ async function reconcileTable({
     img,
     entries,
     storedUuid,
-    folder
+    folder,
+    replacement = true
 }) {
     let table = await resolveManagedTable(
         profile.id,
@@ -246,7 +247,7 @@ async function reconcileTable({
             { profile: profile.name }
         ),
         formula: prepared.formula,
-        replacement: true,
+        replacement,
         displayRoll: true,
         flags: {
             [MODULE_ID]: {
@@ -313,6 +314,52 @@ function buildDirectEntries(profile, inspector) {
                     : 1
         }))
     );
+}
+
+function buildUniqueGroupedEntries(
+    profile,
+    inspector
+) {
+    return inspector.groups
+        .filter(group =>
+            group.enabled &&
+            group.count > 0
+        )
+        .flatMap(group => {
+            const entries =
+                group.allEntries ??
+                group.entries ??
+                [];
+            const weighted = entries.map(entry => ({
+                entry,
+                weight: getInternalItemWeight(
+                    profile,
+                    group.key,
+                    entry.uuid
+                )
+            }));
+            const internalTotal = weighted.reduce(
+                (sum, candidate) =>
+                    sum + candidate.weight,
+                0
+            );
+
+            if (internalTotal <= 0)
+                return [];
+
+            return weighted.map(candidate => ({
+                documentUuid:
+                    candidate.entry.uuid,
+                name: candidate.entry.name,
+                img: candidate.entry.img,
+                resultKey:
+                    candidate.entry.uuid,
+                weight:
+                    group.weight *
+                    candidate.weight /
+                    internalTotal
+            }));
+        });
 }
 
 function buildGroupedNodes(profile, inspector) {
@@ -423,7 +470,26 @@ export class TableProfileGenerationService {
         const nodes = {};
         let rootEntries;
 
-        if (inspector.isGrouped) {
+        const flattenUniqueGroups =
+            inspector.isGrouped &&
+            profile.draw?.unique === true;
+
+        if (
+            flattenUniqueGroups &&
+            !inspector.groups.some(group =>
+                group.enabled &&
+                group.count > 0
+            )
+        ) {
+            throw new Error(
+                "TABLE_PROFILE_NO_ACTIVE_GROUPS"
+            );
+        }
+
+        if (
+            inspector.isGrouped &&
+            !flattenUniqueGroups
+        ) {
             const internalFolder =
                 await getInternalManagedFolder(
                     folder
@@ -449,7 +515,9 @@ export class TableProfileGenerationService {
                             profile,
                             node.nodeId
                         ),
-                    folder: internalFolder
+                    folder: internalFolder,
+                    replacement:
+                        profile.draw?.unique !== true
                 });
 
                 nodes[node.nodeId] = {
@@ -467,6 +535,13 @@ export class TableProfileGenerationService {
                     resultKey: node.nodeId,
                     weight: node.weight
                 }));
+        }
+        else if (flattenUniqueGroups) {
+            rootEntries =
+                buildUniqueGroupedEntries(
+                    profile,
+                    inspector
+                );
         }
         else {
             rootEntries = buildDirectEntries(
@@ -486,7 +561,9 @@ export class TableProfileGenerationService {
             storedUuid:
                 profile.generation?.rootUuid ??
                 getStoredNodeUuid(profile, ROOT_NODE_ID),
-            folder
+            folder,
+            replacement:
+                profile.draw?.unique !== true
         });
 
         nodes[ROOT_NODE_ID] = {
@@ -583,7 +660,8 @@ export class TableProfileGenerationService {
             storedUuid:
                 profile.generation?.rootUuid ??
                 getStoredNodeUuid(profile, ROOT_NODE_ID),
-            folder
+            folder,
+            replacement: true
         });
         const nodes = {
             [ROOT_NODE_ID]: {

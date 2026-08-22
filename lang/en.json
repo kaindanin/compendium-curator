@@ -249,7 +249,7 @@
     "DrawGeneratedTableTitle": "Draw from “{name}”",
     "DrawCount": "Number of results",
     "DrawUniqueResults": "Do not repeat items",
-    "DrawUniqueResultsHint": "Generate a stock list with distinct items while respecting item and group weights.",
+    "DrawUniqueResultsHint": "Avoid duplicates in Curator draws and in the RollTable generated for Item Piles while respecting item and group weights.",
     "StockQuantityPerItem": "Quantity per item",
     "StockQuantityPerItemHint": "Curator chooses a random quantity between the minimum and maximum for each result.",
     "StockQuantityRangeApplied": "Quantity per item: {min}–{max}.",
