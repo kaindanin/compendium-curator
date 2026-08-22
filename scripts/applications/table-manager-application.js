@@ -11,6 +11,7 @@ import { StorageService } from "../services/storage-service.js";
 import { TableFilterGroupDetailsApplication } from "./table-filter-group-details-application.js";
 import {
     activateDnd5eDocumentEntries,
+    getDnd5eDistributionIndexEntry,
     prepareDnd5eDocumentEntries,
     prepareDnd5eIndexedEntries
 } from "../ui/dnd5e-document-list.js";
@@ -240,35 +241,9 @@ function normalizeInspectorWeight(
 }
 
 function getIndexedDocument(uuid) {
-    const value = String(uuid ?? "");
-    const parts = value.split(".");
-
-    if (
-        parts[0] === "Compendium" &&
-        parts.length >= 4
-    ) {
-        const collection =
-            `${parts[1]}.${parts[2]}`;
-        const documentId =
-            parts.at(-1);
-
-        const indexed =
-            game.packs
-                ?.get(collection)
-                ?.index
-                ?.get(documentId);
-
-        if (indexed)
-            return indexed;
-    }
-
-    if (
-        typeof fromUuidSync === "function"
-    ) {
-        return fromUuidSync(value) ?? null;
-    }
-
-    return null;
+    return getDnd5eDistributionIndexEntry(
+        uuid
+    );
 }
 
 function getInspectorRarity(uuid) {

@@ -22,14 +22,128 @@ let distributionIndexesReady = false;
 const distributionIndexCache = new Map();
 
 
-function cloneIndex(index) {
+function getDistributionSourceBook(pack) {
+
+    const packBook =
+        pack?.metadata?.flags
+            ?.dnd5e?.sourceBook;
+
+    if (packBook)
+        return packBook;
+
+    const packageType =
+        pack?.metadata?.packageType;
+    const packageName =
+        pack?.metadata?.packageName;
+
+    let pkg = null;
+
+    if (packageType === "module")
+        pkg = game.modules?.get(packageName);
+    else if (packageType === "system")
+        pkg = game.system;
+    else if (packageType === "world")
+        pkg = game.world;
+
+    const sourceBooks =
+        pkg?.flags?.dnd5e?.sourceBooks;
+    const keys = Object.keys(
+        sourceBooks ?? {}
+    );
+
+    return keys.length === 1
+        ? keys[0]
+        : "";
+
+}
+
+
+function prepareDistributionIndexEntry(
+    pack,
+    sourceEntry
+) {
+
+    const entry =
+        foundry.utils.deepClone(sourceEntry);
+    const source = entry?.system?.source;
+
+    if (
+        !source ||
+        typeof source !== "object"
+    ) {
+        return entry;
+    }
+
+    /*
+     * D&D5e guarda en el índice solo los datos persistidos de
+     * system.source. book, value, label y slug son derivados por
+     * SourceField.prepareData(), algo que el Compendium Browser hace
+     * después de getIndex(). Reproducimos aquí esa preparación para
+     * que Curator no dependa de que el navegador haya visitado antes
+     * la pestaña correspondiente.
+     */
+    const book =
+        String(source.book ?? "").trim() ||
+        String(
+            getDistributionSourceBook(pack) ??
+            ""
+        ).trim();
+
+    if (book && !source.book)
+        source.book = book;
+
+    const packageType =
+        pack?.metadata?.packageType;
+    const packageName =
+        pack?.metadata?.packageName;
+
+    let packageTitle = "";
+
+    if (packageType === "module") {
+        packageTitle =
+            game.modules?.get(packageName)
+                ?.title ?? "";
+    }
+    else if (packageType === "system") {
+        packageTitle = game.system?.title ?? "";
+    }
+    else if (packageType === "world") {
+        packageTitle = game.world?.title ?? "";
+    }
+
+    source.value =
+        book || packageTitle;
+
+    if (!source.label) {
+        source.label =
+            String(source.custom ?? "").trim() ||
+            book;
+    }
+
+    return entry;
+
+}
+
+
+function cloneIndex(pack, index) {
 
     const cached = new Map();
 
-    for (const [id, entry] of index ?? []) {
+    /*
+     * foundry.utils.Collection itera directamente sus valores,
+     * a diferencia de Map. entries() conserva el par id/documento
+     * que necesitamos para construir la caché.
+     */
+    for (
+        const [id, entry]
+        of index?.entries?.() ?? []
+    ) {
         cached.set(
             id,
-            foundry.utils.deepClone(entry)
+            prepareDistributionIndexEntry(
+                pack,
+                entry
+            )
         );
     }
 
@@ -98,15 +212,20 @@ export async function ensureDnd5eDistributionIndexes(
          * Persistimos estos campos entre futuras reconstrucciones
          * del índice que pueda hacer Foundry o D&D5e.
          */
-        for (const field of fields)
-            pack.indexFields?.add(field);
+        if (
+            typeof pack.indexFields?.add ===
+                "function"
+        ) {
+            for (const field of fields)
+                pack.indexFields.add(field);
+        }
 
         requests.push(
             pack.getIndex({ fields })
                 .then(index => {
 
                     const cachedIndex =
-                        cloneIndex(index);
+                        cloneIndex(pack, index);
 
                     distributionIndexCache.set(
                         pack.collection,
