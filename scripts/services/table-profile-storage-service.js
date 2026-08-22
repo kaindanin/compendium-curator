@@ -61,6 +61,19 @@ const GROUPING_CRITERIA = {
                 max: null
             }
         ]
+    },
+    spellLevel: {
+        type: "range",
+        criterion: "spellLevel",
+        field: "system.level",
+        ranges: Array.from(
+            { length: 10 },
+            (_, level) => ({
+                key: String(level),
+                min: level,
+                max: level
+            })
+        )
     }
 };
 

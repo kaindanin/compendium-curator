@@ -6,10 +6,12 @@ const {
 } = foundry.applications.api;
 
 function getCriterionLabel(criterion) {
-    const key =
-        criterion === "cr"
-            ? "GroupByChallengeRating"
-            : "GroupBy";
+    let key = "GroupBy";
+
+    if (criterion === "cr")
+        key = "GroupByChallengeRating";
+    else if (criterion === "spellLevel")
+        key = "GroupBySpellLevel";
 
     return game.i18n.localize(
         `COMPENDIUM_CURATOR.${key}`

@@ -66,7 +66,8 @@ const GROUPING_CRITERIA = new Set([
     "rarity",
     "type",
     "source",
-    "cr"
+    "cr",
+    "spellLevel"
 ]);
 
 function getRefreshSectionTitle(key, count) {
@@ -384,6 +385,25 @@ function normalizeInspectorChallengeRating(value) {
         : null;
 }
 
+function normalizeInspectorSpellLevel(value) {
+    if (
+        value === null ||
+        value === undefined ||
+        String(value).trim() === ""
+    ) {
+        return null;
+    }
+
+    const parsed = Number(value);
+
+    return (
+        Number.isInteger(parsed) &&
+        parsed >= 0
+    )
+        ? parsed
+        : null;
+}
+
 function getInspectorDistributionMode(profile) {
     const mode = String(
         profile?.distribution?.mode ?? ""
@@ -552,6 +572,78 @@ function getInspectorChallengeRatingLabel(
     return CONTENT_INSPECTOR_CR_LABELS[key] ?? key;
 }
 
+function getInspectorSpellLevelKey(
+    uuid,
+    profile
+) {
+    const document =
+        getIndexedDocument(uuid);
+    const level =
+        normalizeInspectorSpellLevel(
+            document?.system?.level
+        );
+
+    if (level === null)
+        return "unclassified";
+
+    const range =
+        getInspectorGroupingRanges(
+            profile,
+            "spellLevel"
+        ).find(candidate => {
+            const min = Number(candidate?.min);
+            const rawMax = candidate?.max;
+            const max =
+                rawMax === null ||
+                rawMax === undefined ||
+                rawMax === ""
+                    ? null
+                    : Number(rawMax);
+
+            if (!Number.isFinite(min))
+                return false;
+
+            return (
+                level >= min &&
+                (
+                    max === null ||
+                    (
+                        Number.isFinite(max) &&
+                        level <= max
+                    )
+                )
+            );
+        });
+
+    return range?.key ?? "unclassified";
+}
+
+function getInspectorSpellLevelLabel(
+    key,
+    profile
+) {
+    if (key === "unclassified") {
+        return game.i18n.localize(
+            "COMPENDIUM_CURATOR.GroupNoSpellLevel"
+        );
+    }
+
+    const range =
+        getInspectorGroupingRanges(
+            profile,
+            "spellLevel"
+        ).find(candidate =>
+            candidate?.key === key
+        );
+
+    return range
+        ? getInspectorRangeLabel(
+            "spellLevel",
+            range
+        )
+        : key;
+}
+
 function getInspectorGroupingLabel(criterion) {
     let key = "GroupByRarity";
 
@@ -561,6 +653,8 @@ function getInspectorGroupingLabel(criterion) {
         key = "GroupBySource";
     else if (criterion === "cr")
         key = "GroupByChallengeRating";
+    else if (criterion === "spellLevel")
+        key = "GroupBySpellLevel";
 
     return game.i18n.localize(
         `COMPENDIUM_CURATOR.${key}`
@@ -580,6 +674,13 @@ function getInspectorGroupingKey(
 
     if (criterion === "cr") {
         return getInspectorChallengeRatingKey(
+            uuid,
+            profile
+        );
+    }
+
+    if (criterion === "spellLevel") {
+        return getInspectorSpellLevelKey(
             uuid,
             profile
         );
@@ -612,6 +713,13 @@ function getInspectorGroupingGroupLabel(
         );
     }
 
+    if (criterion === "spellLevel") {
+        return getInspectorSpellLevelLabel(
+            key,
+            profile
+        );
+    }
+
     return getInspectorRarityLabel(key);
 }
 
@@ -639,11 +747,14 @@ function getInspectorOrderedGroupKeys(
         ];
     }
 
-    if (criterion === "cr") {
+    if (
+        criterion === "cr" ||
+        criterion === "spellLevel"
+    ) {
         const configuredKeys =
             getInspectorGroupingRanges(
                 profile,
-                "cr"
+                criterion
             ).map(range => range.key);
 
         const ordered =
@@ -1217,6 +1328,8 @@ function buildContentInspector(profile) {
             groupingCriterion === "source",
         isGroupingCr:
             groupingCriterion === "cr",
+        isGroupingSpellLevel:
+            groupingCriterion === "spellLevel",
         isRangeGrouping:
             profile?.distribution
                 ?.grouped

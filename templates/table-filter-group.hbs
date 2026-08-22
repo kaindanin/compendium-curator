@@ -104,11 +104,19 @@
 
                                     {{#if single}}
 
-                                        <span
-                                            class="cc-table-filter-detail-state"
-                                        >
-                                            {{value}}
-                                        </span>
+                                        {{#if filterState}}
+                                            <filter-state
+                                                class="cc-table-filter-detail-state"
+                                                value="{{value}}"
+                                                disabled
+                                            ></filter-state>
+                                        {{else}}
+                                            <span
+                                                class="cc-table-filter-detail-state"
+                                            >
+                                                {{value}}
+                                            </span>
+                                        {{/if}}
 
                                     {{/if}}
 
@@ -130,9 +138,17 @@
                                                     {{label}}
                                                 </span>
 
-                                                <strong>
-                                                    {{value}}
-                                                </strong>
+                                                {{#if filterState}}
+                                                    <filter-state
+                                                        class="cc-table-filter-detail-state"
+                                                        value="{{value}}"
+                                                        disabled
+                                                    ></filter-state>
+                                                {{else}}
+                                                    <strong>
+                                                        {{value}}
+                                                    </strong>
+                                                {{/if}}
 
                                             </div>
 

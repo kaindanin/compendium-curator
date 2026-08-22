@@ -1710,6 +1710,9 @@ export class TableProfileService {
                     single:
                         true,
 
+                    filterState:
+                        true,
+
                     value:
                         String(value),
 
@@ -1847,6 +1850,9 @@ export class TableProfileService {
                                 .blank
                         ),
 
+                    filterState:
+                        true,
+
                     value:
                         String(
                             value._blank
@@ -1902,6 +1908,9 @@ export class TableProfileService {
                             choiceLabel
                         ),
 
+                    filterState:
+                        true,
+
                     value:
                         String(state)
                 });
@@ -1941,6 +1950,9 @@ export class TableProfileService {
                             key,
                             choiceKey
                         ),
+
+                    filterState:
+                        true,
 
                     value:
                         String(state)

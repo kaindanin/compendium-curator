@@ -1,7 +1,8 @@
 const DISTRIBUTION_INDEX_FIELDS = {
     Item: [
         "system.rarity",
-        "system.source"
+        "system.source",
+        "system.level"
     ],
     Actor: [
         "system.details.cr",
@@ -628,7 +629,19 @@ export function activateDnd5eDocumentEntries(
          * Mismo sistema de tooltip utilizado
          * por el Compendium Browser de D&D5e.
          */
-        element.dataset.tooltip = `
+        delete element.dataset.tooltip;
+        delete element.dataset.tooltipClass;
+        delete element.dataset.tooltipDirection;
+
+        const openControl =
+            element.querySelector(
+                "[data-cc-open-document]"
+            );
+
+        if (!openControl)
+            continue;
+
+        openControl.dataset.tooltip = `
             <section
                 class="loading"
                 data-uuid="${uuid}"
@@ -640,10 +653,10 @@ export function activateDnd5eDocumentEntries(
             </section>
         `;
 
-        element.dataset.tooltipClass =
+        openControl.dataset.tooltipClass =
             "dnd5e2 dnd5e-tooltip item-tooltip";
 
-        element.dataset.tooltipDirection =
+        openControl.dataset.tooltipDirection =
             "RIGHT";
 
 
@@ -651,11 +664,6 @@ export function activateDnd5eDocumentEntries(
          * Abrir el documento igual que lo hace
          * el Compendium Browser.
          */
-        const openControl =
-            element.querySelector(
-                "[data-cc-open-document]"
-            );
-
         openControl
             ?.addEventListener(
                 "click",

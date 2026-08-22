@@ -465,6 +465,12 @@
                                                         >
                                                             {{localize "COMPENDIUM_CURATOR.GroupByChallengeRating"}}
                                                         </option>
+                                                        <option
+                                                            value="spellLevel"
+                                                            {{#if inspector.isGroupingSpellLevel}}selected{{/if}}
+                                                        >
+                                                            {{localize "COMPENDIUM_CURATOR.GroupBySpellLevel"}}
+                                                        </option>
                                                     </select>
 
                                                     {{#if inspector.isRangeGrouping}}
