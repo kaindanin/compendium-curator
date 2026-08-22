@@ -262,15 +262,29 @@
                                 {{status}}
                             </div>
 
-                            <button
-                                type="button"
-                                class="cc-table-manager-generate-button"
-                                data-action="generateProfile"
-                                {{#unless canGenerate}}disabled{{/unless}}
-                            >
-                                <i class="fas fa-wand-magic-sparkles"></i>
-                                {{localize generationActionLabel}}
-                            </button>
+                            <div class="cc-table-manager-primary-actions">
+                                <button
+                                    type="button"
+                                    class="cc-table-manager-generate-button"
+                                    data-action="generateProfile"
+                                    {{#unless canGenerate}}disabled{{/unless}}
+                                >
+                                    <i class="fas fa-wand-magic-sparkles"></i>
+                                    {{localize generationActionLabel}}
+                                </button>
+
+                                {{#if hasGenerated}}
+                                    <button
+                                        type="button"
+                                        class="cc-table-manager-quick-draw-button"
+                                        data-action="quickDrawGeneratedTable"
+                                        data-tooltip="COMPENDIUM_CURATOR.QuickDrawGeneratedTableHint"
+                                        aria-label="{{localize 'COMPENDIUM_CURATOR.QuickDrawGeneratedTable'}}"
+                                    >
+                                        <i class="fas fa-box-open"></i>
+                                    </button>
+                                {{/if}}
+                            </div>
 
                             <div class="cc-table-manager-profile-menu-wrapper">
                                 <button

@@ -1873,6 +1873,100 @@ async function profileNeedsRegeneration(profile) {
     return false;
 }
 
+async function prepareProfileTableForUse(
+    application,
+    profileId
+) {
+    let profile = profileId
+        ? TableProfileStorageService
+            .getProfiles()?.[profileId]
+        : null;
+
+    if (!profile)
+        return null;
+
+    let table =
+        await TableProfileGenerationService
+            .getRootTable(profile);
+
+    if (await profileNeedsRegeneration(profile)) {
+        try {
+            const generated =
+                await generateProfileTables(profile);
+
+            profile = generated.profile;
+            table = generated.root;
+
+            ui.notifications.info(
+                game.i18n.format(
+                    "COMPENDIUM_CURATOR.RollTableAutoUpdated",
+                    { name: table.name }
+                )
+            );
+            application.render({ force: true });
+        }
+        catch (error) {
+            console.error(
+                "Compendium Curator | Error actualizando la tabla antes de usarla.",
+                error
+            );
+            ui.notifications.error(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.RollTableGenerationFailed"
+                )
+            );
+            return null;
+        }
+    }
+
+    return table
+        ? { profile, table }
+        : null;
+}
+
+async function drawProfileTable(
+    table,
+    {
+        count,
+        unique,
+        priceAdjustment
+    }
+) {
+    const draw =
+        await TableProfileDrawService
+            .drawItems(table, count, {
+                unique,
+                displayChat: true,
+                priceMultiplier:
+                    priceAdjustment / 100
+            });
+
+    if (!draw.availableCount) {
+        ui.notifications.warn(
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.DrawNoObjects"
+            )
+        );
+        return null;
+    }
+
+    if (unique && draw.truncated) {
+        ui.notifications.warn(
+            game.i18n.format(
+                "COMPENDIUM_CURATOR.UniqueDrawLimited",
+                {
+                    requested:
+                        draw.requestedCount,
+                    available:
+                        draw.availableCount
+                }
+            )
+        );
+    }
+
+    return draw;
+}
+
 export class TableManagerApplication
     extends HandlebarsApplicationMixin(
         ApplicationV2
@@ -1925,6 +2019,8 @@ export class TableManagerApplication
             generateProfile: this.#onGenerateProfile,
             openGeneratedTable: this.#onOpenGeneratedTable,
             drawGeneratedTable: this.#onDrawGeneratedTable,
+            quickDrawGeneratedTable:
+                this.#onQuickDrawGeneratedTable,
             renameProfile: this.#onRenameProfile,
             duplicateProfile: this.#onDuplicateProfile,
             exportProfileBundle: this.#onExportProfileBundle,
@@ -3846,56 +3942,25 @@ export class TableManagerApplication
         const profileId = target
             .closest("[data-profile-id]")
             ?.dataset?.profileId;
-        let profile = profileId
-            ? TableProfileStorageService
-                .getProfiles()?.[profileId]
-            : null;
 
-        if (!profile)
+        if (!profileId)
             return;
 
-        let table =
-            await TableProfileGenerationService
-                .getRootTable(profile);
+        target.disabled = true;
 
-        if (await profileNeedsRegeneration(profile)) {
-            target.disabled = true;
-
-            try {
-                const generated =
-                    await generateProfileTables(profile);
-
-                profile = generated.profile;
-                table = generated.root;
-
-                ui.notifications.info(
-                    game.i18n.format(
-                        "COMPENDIUM_CURATOR.RollTableAutoUpdated",
-                        { name: table.name }
-                    )
+        try {
+            const prepared =
+                await prepareProfileTableForUse(
+                    this,
+                    profileId
                 );
-                this.render({ force: true });
-            }
-            catch (error) {
-                console.error(
-                    "Compendium Curator | Error actualizando la tabla antes de tirar.",
-                    error
-                );
-                ui.notifications.error(
-                    game.i18n.localize(
-                        "COMPENDIUM_CURATOR.RollTableGenerationFailed"
-                    )
-                );
-                return;
-            }
-            finally {
-                if (target.isConnected) {
-                    target.disabled = false;
-                }
-            }
+
+            prepared?.table?.sheet?.render(true);
         }
-
-        table.sheet.render(true);
+        finally {
+            if (target.isConnected)
+                target.disabled = false;
+        }
     }
 
     static async #onDrawGeneratedTable(event, target) {
@@ -3905,54 +3970,30 @@ export class TableManagerApplication
         const profileId = target
             .closest("[data-profile-id]")
             ?.dataset?.profileId;
-        let profile = profileId
-            ? TableProfileStorageService
-                .getProfiles()?.[profileId]
-            : null;
 
-        if (!profile)
+        if (!profileId)
             return;
 
-        let table =
-            await TableProfileGenerationService
-                .getRootTable(profile);
+        target.disabled = true;
 
-        if (await profileNeedsRegeneration(profile)) {
-            target.disabled = true;
+        let prepared;
 
-            try {
-                const generated =
-                    await generateProfileTables(profile);
-
-                profile = generated.profile;
-                table = generated.root;
-
-                ui.notifications.info(
-                    game.i18n.format(
-                        "COMPENDIUM_CURATOR.RollTableAutoUpdated",
-                        { name: table.name }
-                    )
+        try {
+            prepared =
+                await prepareProfileTableForUse(
+                    this,
+                    profileId
                 );
-                this.render({ force: true });
-            }
-            catch (error) {
-                console.error(
-                    "Compendium Curator | Error actualizando la tabla antes de tirar.",
-                    error
-                );
-                ui.notifications.error(
-                    game.i18n.localize(
-                        "COMPENDIUM_CURATOR.RollTableGenerationFailed"
-                    )
-                );
-                return;
-            }
-            finally {
-                if (target.isConnected) {
-                    target.disabled = false;
-                }
-            }
         }
+        finally {
+            if (target.isConnected)
+                target.disabled = false;
+        }
+
+        if (!prepared)
+            return;
+
+        const { profile, table } = prepared;
 
         const field = document.createElement("div");
         field.className = "form-group";
@@ -4179,39 +4220,72 @@ export class TableManagerApplication
                 );
         }
 
-        const draw =
-            await TableProfileDrawService
-                .drawItems(table, count, {
-                    unique: uniqueResults,
-                    displayChat: true,
-                    priceMultiplier:
-                        priceAdjustment / 100
-                });
+        await drawProfileTable(
+            table,
+            {
+                count,
+                unique: uniqueResults,
+                priceAdjustment
+            }
+        );
+    }
 
-        if (!draw.availableCount) {
-            ui.notifications.warn(
-                game.i18n.localize(
-                    "COMPENDIUM_CURATOR.DrawNoObjects"
-                )
-            );
+    static async #onQuickDrawGeneratedTable(
+        event,
+        target
+    ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
+
+        if (!profileId)
             return;
-        }
 
-        if (
-            uniqueResults &&
-            draw.truncated
-        ) {
-            ui.notifications.warn(
-                game.i18n.format(
-                    "COMPENDIUM_CURATOR.UniqueDrawLimited",
-                    {
-                        requested:
-                            draw.requestedCount,
-                        available:
-                            draw.availableCount
-                    }
+        target.disabled = true;
+
+        try {
+            const prepared =
+                await prepareProfileTableForUse(
+                    this,
+                    profileId
+                );
+
+            if (!prepared)
+                return;
+
+            const preferences =
+                prepared.profile.draw ?? {};
+
+            await drawProfileTable(
+                prepared.table,
+                {
+                    count:
+                        preferences.count ?? 1,
+                    unique:
+                        preferences.unique === true,
+                    priceAdjustment:
+                        preferences.priceAdjustment ??
+                            100
+                }
+            );
+        }
+        catch (error) {
+            console.error(
+                "Compendium Curator | Error en la reposición rápida.",
+                error
+            );
+            ui.notifications.error(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.DrawFailed"
                 )
             );
+        }
+        finally {
+            if (target.isConnected)
+                target.disabled = false;
         }
     }
 

@@ -875,6 +875,30 @@
     white-space: nowrap;
 }
 
+.cc-table-manager-primary-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+
+    align-self: center;
+}
+
+.cc-table-manager-quick-draw-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    flex: 0 0 34px;
+
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
+
+    margin: 0;
+    padding: 0;
+}
+
 
 /* Filter groups */
 
