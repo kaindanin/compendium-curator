@@ -11,6 +11,7 @@ import { TableProfileService } from "../services/table-profile-service.js";
 import { StorageService } from "../services/storage-service.js";
 import { TableFilterGroupDetailsApplication } from "./table-filter-group-details-application.js";
 import { TableProfileGenerationService } from "../services/table-profile-generation-service.js";
+import { TableProfileDrawService } from "../services/table-profile-draw-service.js";
 import {
     activateDnd5eDocumentEntries,
     getDnd5eDistributionIndexEntry,
@@ -3705,8 +3706,61 @@ export class TableManagerApplication
         input.max = "100";
         input.step = "1";
         input.value = "1";
+        input.setAttribute("value", "1");
 
         field.append(label, input);
+
+        const uniqueField =
+            document.createElement("div");
+        uniqueField.className = "form-group";
+
+        const uniqueLabel =
+            document.createElement("label");
+        uniqueLabel.textContent =
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.DrawUniqueResults"
+            );
+
+        const uniqueFields =
+            document.createElement("div");
+        uniqueFields.className = "form-fields";
+
+        const uniqueInput =
+            document.createElement("input");
+        uniqueInput.type = "checkbox";
+        uniqueInput.name = "uniqueResults";
+        uniqueInput.checked = [
+            "type",
+            "manual"
+        ].includes(
+            profile?.distribution?.grouped
+                ?.grouping?.criterion
+        );
+
+        if (uniqueInput.checked) {
+            uniqueInput.setAttribute(
+                "checked",
+                ""
+            );
+        }
+
+        uniqueFields.append(uniqueInput);
+        uniqueField.append(
+            uniqueLabel,
+            uniqueFields
+        );
+
+        const uniqueHint =
+            document.createElement("p");
+        uniqueHint.className = "hint";
+        uniqueHint.textContent =
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.DrawUniqueResultsHint"
+            );
+        uniqueField.append(uniqueHint);
+
+        const form = document.createElement("div");
+        form.append(field, uniqueField);
 
         const result =
             await foundry.applications.api.DialogV2
@@ -3717,7 +3771,7 @@ export class TableManagerApplication
                             { name: profile.name }
                         )
                     },
-                    content: field.outerHTML,
+                    content: form.innerHTML,
                     ok: {
                         label: game.i18n.localize(
                             "COMPENDIUM_CURATOR.DrawResults"
@@ -3740,6 +3794,45 @@ export class TableManagerApplication
                 ) || 1
             )
         );
+        const uniqueResults =
+            result.uniqueResults === true ||
+            result.uniqueResults === "true" ||
+            result.uniqueResults === "on" ||
+            result.uniqueResults === 1 ||
+            result.uniqueResults === "1";
+
+        if (uniqueResults) {
+            const uniqueDraw =
+                await TableProfileDrawService
+                    .drawUnique(table, count, {
+                        displayChat: true
+                    });
+
+            if (!uniqueDraw.availableCount) {
+                ui.notifications.warn(
+                    game.i18n.localize(
+                        "COMPENDIUM_CURATOR.UniqueDrawNoObjects"
+                    )
+                );
+                return;
+            }
+
+            if (uniqueDraw.truncated) {
+                ui.notifications.warn(
+                    game.i18n.format(
+                        "COMPENDIUM_CURATOR.UniqueDrawLimited",
+                        {
+                            requested:
+                                uniqueDraw.requestedCount,
+                            available:
+                                uniqueDraw.availableCount
+                        }
+                    )
+                );
+            }
+
+            return;
+        }
 
         if (count === 1) {
             await table.draw({
