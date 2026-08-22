@@ -275,6 +275,7 @@
     "TableProfileNoObjects": "El perfil no contiene objetos para generar.",
     "TableProfileNoActiveGroups": "Activa al menos un grupo con objetos antes de generar.",
     "GeneratedTableDescription": "Tabla gestionada por Compendium Curator a partir del perfil «{profile}».",
+    "InternalTablesFolder": "Internas (gestionadas)",
     "SelectAllVisible": "Seleccionar todas las entradas visibles",
     "AddCurrentFilters": "Añadir filtros actuales",
     "AddFilterGroupTitle": "Añadir grupo de filtros",

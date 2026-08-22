@@ -2,6 +2,8 @@ import { MODULE_ID } from "../settings.js";
 import { TableProfileStorageService } from "./table-profile-storage-service.js";
 
 const MANAGED_FOLDER_NODE = "rolltable-folder";
+const INTERNAL_FOLDER_NODE =
+    "rolltable-internal-folder";
 const ROOT_NODE_ID = "root";
 const MAX_TABLE_RANGE = 1_000_000;
 const WEIGHT_PRECISION = 1000;
@@ -158,6 +160,44 @@ async function getManagedFolder() {
     });
 }
 
+async function getInternalManagedFolder(
+    rootFolder
+) {
+    const existing = game.folders.find(folder =>
+        folder.type === "RollTable" &&
+        folder.flags?.[MODULE_ID]?.managed === true &&
+        folder.flags?.[MODULE_ID]?.nodeId ===
+            INTERNAL_FOLDER_NODE
+    );
+
+    if (existing) {
+        if (
+            rootFolder?.id &&
+            existing.folder?.id !== rootFolder.id
+        ) {
+            await existing.update({
+                folder: rootFolder.id
+            });
+        }
+
+        return existing;
+    }
+
+    return Folder.create({
+        name: game.i18n.localize(
+            "COMPENDIUM_CURATOR.InternalTablesFolder"
+        ),
+        type: "RollTable",
+        folder: rootFolder?.id ?? null,
+        flags: {
+            [MODULE_ID]: {
+                managed: true,
+                nodeId: INTERNAL_FOLDER_NODE
+            }
+        }
+    });
+}
+
 async function replaceTableResults(table, entries) {
     const currentIds = table.results.map(result => result.id);
 
@@ -200,6 +240,7 @@ async function reconcileTable({
     const tableData = {
         name,
         img: img || "icons/svg/d20-grey.svg",
+        folder: folder?.id ?? null,
         description: game.i18n.format(
             "COMPENDIUM_CURATOR.GeneratedTableDescription",
             { profile: profile.name }
@@ -383,6 +424,10 @@ export class TableProfileGenerationService {
         let rootEntries;
 
         if (inspector.isGrouped) {
+            const internalFolder =
+                await getInternalManagedFolder(
+                    folder
+                );
             const groupNodes = buildGroupedNodes(
                 profile,
                 inspector
@@ -404,7 +449,7 @@ export class TableProfileGenerationService {
                             profile,
                             node.nodeId
                         ),
-                    folder
+                    folder: internalFolder
                 });
 
                 nodes[node.nodeId] = {
