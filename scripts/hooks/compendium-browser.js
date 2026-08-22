@@ -3,6 +3,7 @@ import { CuratorState } from "../state/curator-state.js";
 import { StorageService } from "../services/storage-service.js";
 import { MODULE_ID, DUPLICATE_PRIORITY_SETTING, STORAGE_CHANGED_HOOK } from "../settings.js";
 import { TableManagerApplication } from "../applications/table-manager-application.js";
+import { ensureDnd5eDistributionIndexes } from "../ui/dnd5e-document-list.js";
 
 const openCompendiumBrowsers = new Set();
 const duplicateIdentityCache = new Map();
@@ -2832,7 +2833,7 @@ function createModeToolbar(app) {
 
     tableManagerButton.addEventListener(
         "click",
-        () => {
+        async () => {
 
             if (
                 app._ccTableManager?.rendered
@@ -2845,27 +2846,63 @@ function createModeToolbar(app) {
 
             }
 
-            app._ccTableManager ??=
-                new TableManagerApplication(app);
+            tableManagerButton.disabled = true;
 
-            app._ccTableManagerLocked =
-                true;
+            try {
 
-            if (app._ccCuratorMode) {
+                /*
+                 * El Compendium Browser puede solicitar índices
+                 * parciales al cambiar filtros. Antes de construir
+                 * el gestor garantizamos que rareza, fuente y CR
+                 * estén presentes en todos los compendios.
+                 */
+                await ensureDnd5eDistributionIndexes({
+                    force: true
+                });
 
-                app._ccCuratorMode =
-                    false;
+                if (!app.element?.isConnected)
+                    return;
 
-                clearSelection(app);
-                updateCuratorMode(app);
+                if (
+                    app._ccTableManager?.rendered
+                ) {
+
+                    app._ccTableManager
+                        .bringToFront();
+
+                    return;
+
+                }
+
+                app._ccTableManager ??=
+                    new TableManagerApplication(app);
+
+                app._ccTableManagerLocked =
+                    true;
+
+                if (app._ccCuratorMode) {
+
+                    app._ccCuratorMode =
+                        false;
+
+                    clearSelection(app);
+                    updateCuratorMode(app);
+
+                }
+
+                refreshToolbar(app);
+
+                app._ccTableManager.render({
+                    force: true
+                });
 
             }
+            finally {
 
-            refreshToolbar(app);
+                if (tableManagerButton.isConnected)
+                    tableManagerButton.disabled = false;
 
-            app._ccTableManager.render({
-                force: true
-            });
+            }
 
         }
     );

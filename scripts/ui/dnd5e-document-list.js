@@ -1,3 +1,107 @@
+const DISTRIBUTION_INDEX_FIELDS = {
+    Item: [
+        "system.rarity",
+        "system.source"
+    ],
+    Actor: [
+        "system.details.cr",
+        "system.source"
+    ]
+};
+
+let distributionIndexPromise = null;
+let distributionIndexesReady = false;
+
+
+export async function ensureDnd5eDistributionIndexes(
+    { force = false } = {}
+) {
+
+    if (
+        distributionIndexesReady &&
+        !force
+    ) {
+        return true;
+    }
+
+    if (distributionIndexPromise)
+        return distributionIndexPromise;
+
+    const requests = [];
+
+    for (const pack of game.packs) {
+
+        const fields =
+            DISTRIBUTION_INDEX_FIELDS[
+                pack.documentName
+            ];
+
+        if (!fields)
+            continue;
+
+        requests.push(
+            pack.getIndex({ fields })
+                .then(() => ({
+                    ok: true,
+                    pack
+                }))
+                .catch(error => ({
+                    ok: false,
+                    pack,
+                    error
+                }))
+        );
+
+    }
+
+    if (!requests.length) {
+        distributionIndexesReady = true;
+        return true;
+    }
+
+    distributionIndexPromise =
+        Promise.all(requests)
+            .then(results => {
+
+                const failed =
+                    results.filter(
+                        result => !result.ok
+                    );
+
+                distributionIndexesReady =
+                    failed.length === 0;
+
+                if (failed.length) {
+                    console.warn(
+                        "Compendium Curator | No se pudieron cargar algunos campos de distribución en los índices.",
+                        failed.map(result => ({
+                            pack:
+                                result.pack?.collection,
+                            error:
+                                result.error
+                        }))
+                    );
+                }
+
+                return distributionIndexesReady;
+
+            })
+            .finally(() => {
+
+                /*
+                 * Si algún compendio falló, permitimos que
+                 * el siguiente intento vuelva a solicitarlo.
+                 */
+                if (!distributionIndexesReady)
+                    distributionIndexPromise = null;
+
+            });
+
+    return distributionIndexPromise;
+
+}
+
+
 function getDocumentSource(source) {
 
     if (!source)

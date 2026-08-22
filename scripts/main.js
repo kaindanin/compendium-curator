@@ -2,58 +2,7 @@ import { debug } from "./debug.js";
 import { registerSettings } from "./settings.js";
 import { registerCompendiumBrowserHooks } from "./hooks/compendium-browser.js";
 import { StorageService } from "./services/storage-service.js";
-
-async function preloadDistributionIndexes() {
-
-    const requests = [];
-
-    for (const pack of game.packs) {
-        if (pack.documentName === "Item") {
-            requests.push(
-                pack.getIndex({
-                    fields: [
-                        "system.rarity",
-                        "system.source"
-                    ]
-                })
-            );
-            continue;
-        }
-
-        if (pack.documentName === "Actor") {
-            requests.push(
-                pack.getIndex({
-                    fields: [
-                        "system.details.cr",
-                        "system.source"
-                    ]
-                })
-            );
-        }
-    }
-
-    if (!requests.length)
-        return;
-
-    const results =
-        await Promise.allSettled(requests);
-
-    const failed =
-        results.filter(
-            result =>
-                result.status === "rejected"
-        );
-
-    if (failed.length) {
-        console.warn(
-            "Compendium Curator | No se pudieron cargar algunos campos de distribución en los índices.",
-            failed.map(
-                result => result.reason
-            )
-        );
-    }
-
-}
+import { ensureDnd5eDistributionIndexes } from "./ui/dnd5e-document-list.js";
 
 Hooks.once("init", () => {
 
@@ -79,10 +28,10 @@ Hooks.once("ready", async () => {
     /*
      * Algunos índices básicos de D&D5e no incluyen todos
      * los campos que usa la distribución (rareza, fuente y
-     * CR). Los enriquecemos aquí sin resolver documentos
-     * completos para conservar el rendimiento del inspector.
+     * CR). Iniciamos su carga aquí y reutilizamos la misma
+     * promesa cuando se abre el Gestor de tablas.
      */
-    await preloadDistributionIndexes();
+    await ensureDnd5eDistributionIndexes();
 
     const normalized =
         await StorageService.initialize();
