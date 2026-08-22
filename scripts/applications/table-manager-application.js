@@ -2021,6 +2021,15 @@ export class TableManagerApplication
                                 Boolean(
                                     childProfile.generation
                                         ?.rootUuid
+                                ),
+                            pending:
+                                !childProfile.generation
+                                    ?.rootUuid ||
+                                Number(
+                                    childProfile.generation
+                                        ?.generatedRevision ?? 0
+                                ) !== Number(
+                                    childProfile.revision ?? 1
                                 )
                         };
                     })
@@ -2053,12 +2062,21 @@ export class TableManagerApplication
                 const generatedRevision = Number(
                     profile.generation?.generatedRevision ?? 0
                 );
+                const hasPendingDependency =
+                    isNested &&
+                    nestedChildren.some(child =>
+                        child.enabled &&
+                        child.pending
+                    );
 
                 let statusKey = "TableProfileNeverGenerated";
 
                 if (
                     generatedRevision > 0 &&
-                    generatedRevision < revision
+                    (
+                        generatedRevision < revision ||
+                        hasPendingDependency
+                    )
                 ) {
                     statusKey = "TableProfilePendingChanges";
                 }
