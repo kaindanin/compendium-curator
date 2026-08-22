@@ -2291,6 +2291,9 @@ export class TableManagerApplication
                         Boolean(
                             profile.generation?.rootUuid
                         ),
+                    generatedTableUuid:
+                        profile.generation?.rootUuid ??
+                        "",
                     generationActionLabel:
                         profile.generation?.rootUuid
                             ? "COMPENDIUM_CURATOR.UpdateRollTable"
@@ -2466,6 +2469,50 @@ export class TableManagerApplication
                         this._openContentInspectors.add(profileId);
                     else
                         this._openContentInspectors.delete(profileId);
+                }
+            );
+        }
+
+        for (
+            const handle
+            of this.element.querySelectorAll(
+                "[data-cc-rolltable-drag]"
+            )
+        ) {
+            handle.addEventListener(
+                "dragstart",
+                event => {
+                    const uuid = String(
+                        handle.dataset.tableUuid ??
+                        ""
+                    ).trim();
+                    const table = uuid &&
+                        typeof fromUuidSync === "function"
+                            ? fromUuidSync(uuid)
+                            : null;
+
+                    if (
+                        table?.documentName !==
+                            "RollTable" ||
+                        !event.dataTransfer
+                    ) {
+                        event.preventDefault();
+                        ui.notifications.warn(
+                            game.i18n.localize(
+                                "COMPENDIUM_CURATOR.GeneratedTableMissing"
+                            )
+                        );
+                        return;
+                    }
+
+                    event.dataTransfer.effectAllowed =
+                        "copy";
+                    event.dataTransfer.setData(
+                        "text/plain",
+                        JSON.stringify(
+                            table.toDragData()
+                        )
+                    );
                 }
             );
         }

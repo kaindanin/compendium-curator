@@ -218,6 +218,8 @@
     "VisibleTablesGenerationSummary": "Profiles generated or updated: {generated} · Skipped because incomplete: {skipped} · Errors: {failed}.",
     "UpdateRollTable": "Update table",
     "OpenGeneratedTable": "Open generated table",
+    "DragGeneratedTable": "Drag generated table",
+    "DragGeneratedTableHint": "Drag this RollTable into Item Piles or any Foundry field that accepts tables.",
     "DrawGeneratedTable": "Draw from table",
     "QuickDrawGeneratedTable": "Quick restock",
     "QuickDrawGeneratedTableHint": "Draw immediately using the saved count, repeat, and price adjustment settings.",

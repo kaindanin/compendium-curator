@@ -217,6 +217,8 @@
     "VisibleTablesGenerationSummary": "Perfiles generados o actualizados: {generated} · Omitidos por estar incompletos: {skipped} · Errores: {failed}.",
     "UpdateRollTable": "Actualizar tabla",
     "OpenGeneratedTable": "Abrir tabla generada",
+    "DragGeneratedTable": "Arrastrar tabla generada",
+    "DragGeneratedTableHint": "Arrastra esta RollTable a Item Piles o a cualquier campo de Foundry que acepte tablas.",
     "DrawGeneratedTable": "Tirar en la tabla",
     "QuickDrawGeneratedTable": "Reposición rápida",
     "QuickDrawGeneratedTableHint": "Tira directamente usando la cantidad, las repeticiones y el ajuste de precio guardados.",
