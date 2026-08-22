@@ -144,21 +144,61 @@ function sampleWithoutReplacement(entries, count) {
     return selected;
 }
 
-function formatItemPrice(document) {
-    const price = document?.system?.price;
-    const value = Number(price?.value);
-    const denomination = String(
-        price?.denomination ?? ""
-    ).trim();
+function sampleWithReplacement(entries, count) {
+    const totalWeight = entries.reduce(
+        (sum, entry) =>
+            sum + Math.max(0, entry.weight),
+        0
+    );
 
-    if (
-        !Number.isFinite(value) ||
-        value <= 0 ||
-        !denomination
-    ) {
-        return "";
+    if (!(totalWeight > 0))
+        return [];
+
+    const selected = [];
+
+    while (selected.length < count) {
+        let roll = Math.random() * totalWeight;
+        let selectedEntry = entries.at(-1);
+
+        for (const entry of entries) {
+            roll -= Math.max(0, entry.weight);
+
+            if (roll <= 0) {
+                selectedEntry = entry;
+                break;
+            }
+        }
+
+        selected.push({ ...selectedEntry });
     }
 
+    return selected;
+}
+
+function aggregateSelectedEntries(entries) {
+    const aggregated = new Map();
+
+    for (const entry of entries) {
+        const existing = aggregated.get(entry.uuid);
+
+        if (existing) {
+            existing.quantity++;
+            continue;
+        }
+
+        aggregated.set(entry.uuid, {
+            ...entry,
+            quantity: 1
+        });
+    }
+
+    return [...aggregated.values()];
+}
+
+function formatCurrencyAmount(
+    value,
+    denomination
+) {
     const currency =
         CONFIG.DND5E?.currencies?.[
             denomination
@@ -181,6 +221,40 @@ function formatItemPrice(document) {
     return `${formattedValue} ${label}`;
 }
 
+function getItemPrice(document, quantity) {
+    const price = document?.system?.price;
+    const value = Number(price?.value);
+    const denomination = String(
+        price?.denomination ?? ""
+    ).trim();
+
+    if (
+        !Number.isFinite(value) ||
+        value <= 0 ||
+        !denomination
+    ) {
+        return {
+            unit: "",
+            subtotal: ""
+        };
+    }
+
+    return {
+        unit:
+            formatCurrencyAmount(
+                value,
+                denomination
+            ),
+        subtotal:
+            quantity > 1
+                ? formatCurrencyAmount(
+                    value * quantity,
+                    denomination
+                )
+                : ""
+    };
+}
+
 async function hydrateSelectedEntries(entries) {
     return Promise.all(
         entries.map(async entry => {
@@ -199,14 +273,28 @@ async function hydrateSelectedEntries(entries) {
                 );
             }
 
+            const quantity = Math.max(
+                1,
+                Number.parseInt(
+                    entry.quantity,
+                    10
+                ) || 1
+            );
+            const price = getItemPrice(
+                document,
+                quantity
+            );
+
             return {
                 ...entry,
+                quantity,
                 name:
                     document?.name ?? entry.name,
                 img:
                     document?.img ?? entry.img,
-                price:
-                    formatItemPrice(document)
+                price: price.unit,
+                unitPrice: price.unit,
+                subtotalPrice: price.subtotal
             };
         })
     );
@@ -226,15 +314,29 @@ async function enrichChatContent(content) {
     });
 }
 
-async function createUniqueDrawMessage(
+async function createDrawMessage(
     table,
     entries,
-    requestedCount
+    {
+        requestedCount,
+        selectedCount,
+        unique
+    }
 ) {
     const escape = foundry.utils.escapeHTML;
     const priceLabel = escape(
         game.i18n.localize(
             "COMPENDIUM_CURATOR.ItemPrice"
+        )
+    );
+    const unitPriceLabel = escape(
+        game.i18n.localize(
+            "COMPENDIUM_CURATOR.ItemUnitPrice"
+        )
+    );
+    const subtotalLabel = escape(
+        game.i18n.localize(
+            "COMPENDIUM_CURATOR.ItemSubtotal"
         )
     );
     const rows = entries.map(entry => `
@@ -247,26 +349,44 @@ async function createUniqueDrawMessage(
                 style="border:0;border-radius:3px;"
             >
             <span style="display:flex;flex-direction:column;min-width:0;">
-                <span>@UUID[${entry.uuid}]{${escape(entry.name)}}</span>
-                ${entry.price
-                    ? `<small class="hint"><strong>${priceLabel}:</strong> ${escape(entry.price)}</small>`
+                <span style="display:flex;align-items:center;gap:0.35rem;">
+                    <span>@UUID[${entry.uuid}]{${escape(entry.name)}}</span>
+                    ${entry.quantity > 1
+                        ? `<strong style="white-space:nowrap;">×${entry.quantity}</strong>`
+                        : ""}
+                </span>
+                ${entry.unitPrice
+                    ? entry.quantity > 1
+                        ? `<small class="hint"><strong>${unitPriceLabel}:</strong> ${escape(entry.unitPrice)} · <strong>${subtotalLabel}:</strong> ${escape(entry.subtotalPrice)}</small>`
+                        : `<small class="hint"><strong>${priceLabel}:</strong> ${escape(entry.unitPrice)}</small>`
                     : ""}
             </span>
         </li>
     `).join("");
     const content = await enrichChatContent(`
-        <section class="dnd5e chat-card cc-unique-table-draw">
+        <section class="dnd5e chat-card cc-stock-table-draw cc-unique-table-draw">
             <header class="card-header flexrow">
                 <img src="${escape(table.img)}" alt="" width="36" height="36">
                 <h3>${escape(table.name)}</h3>
             </header>
-            <p>${escape(game.i18n.format(
-                "COMPENDIUM_CURATOR.UniqueDrawSummary",
-                {
-                    count: entries.length,
-                    requested: requestedCount
-                }
-            ))}</p>
+            <p>${escape(
+                unique
+                    ? game.i18n.format(
+                        "COMPENDIUM_CURATOR.UniqueDrawSummary",
+                        {
+                            count: selectedCount,
+                            requested: requestedCount
+                        }
+                    )
+                    : game.i18n.format(
+                        "COMPENDIUM_CURATOR.DrawStockSummary",
+                        {
+                            count: selectedCount,
+                            unique: entries.length,
+                            requested: requestedCount
+                        }
+                    )
+            )}</p>
             <ol style="margin:0.5rem 0;padding-left:1.25rem;">
                 ${rows}
             </ol>
@@ -278,8 +398,12 @@ async function createUniqueDrawMessage(
         content,
         flags: {
             [MODULE_ID]: {
-                uniqueTableDraw: true,
-                tableUuid: table.uuid
+                uniqueTableDraw: unique,
+                stockTableDraw: true,
+                tableUuid: table.uuid,
+                requestedCount,
+                selectedCount,
+                unique
             }
         }
     });
@@ -310,13 +434,20 @@ export class TableProfileDrawService {
             );
     }
 
-    static async drawUnique(
+    static async drawItems(
         table,
         count,
         {
+            unique = false,
             displayChat = true
         } = {}
     ) {
+        if (table?.documentName !== "RollTable") {
+            throw new Error(
+                "INVALID_ROLL_TABLE"
+            );
+        }
+
         const requestedCount = Math.min(
             100,
             Math.max(
@@ -325,28 +456,57 @@ export class TableProfileDrawService {
             )
         );
         const pool = await this.getUniquePool(table);
-        const selected = sampleWithoutReplacement(
-            pool,
-            Math.min(requestedCount, pool.length)
-        );
+        const selected = unique
+            ? sampleWithoutReplacement(
+                pool,
+                Math.min(requestedCount, pool.length)
+            )
+            : sampleWithReplacement(
+                pool,
+                requestedCount
+            );
+        const aggregated =
+            aggregateSelectedEntries(selected);
         const hydrated =
-            await hydrateSelectedEntries(selected);
+            await hydrateSelectedEntries(aggregated);
         const message =
             displayChat && hydrated.length
-                ? await createUniqueDrawMessage(
+                ? await createDrawMessage(
                     table,
                     hydrated,
-                    requestedCount
+                    {
+                        requestedCount,
+                        selectedCount:
+                            selected.length,
+                        unique
+                    }
                 )
                 : null;
 
         return {
             results: hydrated,
             requestedCount,
+            selectedCount: selected.length,
             availableCount: pool.length,
+            uniqueCount: hydrated.length,
             truncated:
-                hydrated.length < requestedCount,
+                selected.length < requestedCount,
             message
         };
+    }
+
+    static async drawUnique(
+        table,
+        count,
+        options = {}
+    ) {
+        return this.drawItems(
+            table,
+            count,
+            {
+                ...options,
+                unique: true
+            }
+        );
     }
 }

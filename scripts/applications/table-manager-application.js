@@ -4064,50 +4064,37 @@ export class TableManagerApplication
             result.uniqueResults === 1 ||
             result.uniqueResults === "1";
 
-        if (uniqueResults) {
-            const uniqueDraw =
-                await TableProfileDrawService
-                    .drawUnique(table, count, {
-                        displayChat: true
-                    });
+        const draw =
+            await TableProfileDrawService
+                .drawItems(table, count, {
+                    unique: uniqueResults,
+                    displayChat: true
+                });
 
-            if (!uniqueDraw.availableCount) {
-                ui.notifications.warn(
-                    game.i18n.localize(
-                        "COMPENDIUM_CURATOR.UniqueDrawNoObjects"
-                    )
-                );
-                return;
-            }
-
-            if (uniqueDraw.truncated) {
-                ui.notifications.warn(
-                    game.i18n.format(
-                        "COMPENDIUM_CURATOR.UniqueDrawLimited",
-                        {
-                            requested:
-                                uniqueDraw.requestedCount,
-                            available:
-                                uniqueDraw.availableCount
-                        }
-                    )
-                );
-            }
-
+        if (!draw.availableCount) {
+            ui.notifications.warn(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.DrawNoObjects"
+                )
+            );
             return;
         }
 
-        if (count === 1) {
-            await table.draw({
-                recursive: true,
-                displayChat: true
-            });
-        }
-        else {
-            await table.drawMany(count, {
-                recursive: true,
-                displayChat: true
-            });
+        if (
+            uniqueResults &&
+            draw.truncated
+        ) {
+            ui.notifications.warn(
+                game.i18n.format(
+                    "COMPENDIUM_CURATOR.UniqueDrawLimited",
+                    {
+                        requested:
+                            draw.requestedCount,
+                        available:
+                            draw.availableCount
+                    }
+                )
+            );
         }
     }
 
