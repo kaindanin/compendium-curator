@@ -393,6 +393,9 @@ export class TableProfileEditorApplication
                     unique: false,
                     priceAdjustment: 100
                 },
+                itemRules: {
+                    excludeZeroPrice: false
+                },
                 generation: {
                     masterUuid: null,
                     groupUuids: {},
@@ -447,6 +450,10 @@ export class TableProfileEditorApplication
                         isShopPreset ? 10 : 1,
                     unique: isShopPreset,
                     priceAdjustment: 100
+                },
+                itemRules: {
+                    excludeZeroPrice:
+                        isShopPreset
                 },
                 distribution: {
                     version: 2,

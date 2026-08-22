@@ -1521,17 +1521,45 @@ function buildContentInspector(profile) {
     const isUniform = mode === "uniform";
     const isIndividual = mode === "individual";
     const isGrouped = mode === "grouped";
+    const excludeZeroPrice =
+        profile?.itemRules
+            ?.excludeZeroPrice === true;
+    let sourceAvailableCount = 0;
+    let priceExcludedCount = 0;
+    let hasItemDocuments = false;
 
     const preparedGroups =
         orderedKeys.map(key => {
             const uuids =
                 byGroup.get(key) ?? [];
 
-            const allEntries =
+            const availableEntries =
                 prepareDnd5eIndexedEntries(uuids)
                     .filter(entry =>
                         entry.available !== false
+                    );
+
+            sourceAvailableCount +=
+                availableEntries.length;
+            hasItemDocuments ||=
+                availableEntries.some(entry =>
+                    entry.documentName === "Item"
+                );
+
+            const eligibleEntries =
+                excludeZeroPrice
+                    ? availableEntries.filter(entry =>
+                        entry.documentName !== "Item" ||
+                        entry.hasPositivePrice
                     )
+                    : availableEntries;
+
+            priceExcludedCount +=
+                availableEntries.length -
+                eligibleEntries.length;
+
+            const allEntries =
+                eligibleEntries
                     .map(entry => {
                         const individual =
                             getInspectorIndividualWeight(
@@ -1762,9 +1790,16 @@ function buildContentInspector(profile) {
         sourceCount: finalUuids.size,
         totalWeight,
         unavailableCount:
-            finalUuids.size - availableCount,
+            finalUuids.size -
+                sourceAvailableCount,
         hasUnavailableObjects:
-            finalUuids.size > availableCount,
+            finalUuids.size >
+                sourceAvailableCount,
+        excludeZeroPrice,
+        priceExcludedCount,
+        hasPriceExcluded:
+            priceExcludedCount > 0,
+        hasItemDocuments,
         hasObjects: availableCount > 0,
         groups
     };
@@ -2409,6 +2444,68 @@ export class TableManagerApplication
                         this._openContentInspectors.add(profileId);
                     else
                         this._openContentInspectors.delete(profileId);
+                }
+            );
+        }
+
+        for (
+            const ruleInput
+            of this.element.querySelectorAll(
+                "[data-cc-exclude-zero-price]"
+            )
+        ) {
+            ruleInput.addEventListener(
+                "change",
+                event => {
+                    const target = event.currentTarget;
+                    const profileElement = target.closest(
+                        "[data-profile-id]"
+                    );
+                    const profileId =
+                        profileElement?.dataset?.profileId;
+
+                    if (!profileId)
+                        return;
+
+                    target.disabled = true;
+                    this._openContentInspectors.add(
+                        profileId
+                    );
+
+                    this._distributionSaveQueue =
+                        this._distributionSaveQueue
+                            .catch(() => {})
+                            .then(() =>
+                                TableProfileStorageService
+                                    .setExcludeZeroPrice(
+                                        profileId,
+                                        target.checked
+                                    )
+                            )
+                            .then(() =>
+                                this.render({ force: true })
+                            )
+                            .catch(error => {
+                                console.error(
+                                    "Compendium Curator | Error cambiando la regla de precio.",
+                                    error
+                                );
+
+                                const profile =
+                                    TableProfileStorageService
+                                        .getProfiles()?.[profileId];
+
+                                if (target.isConnected) {
+                                    target.checked =
+                                        profile?.itemRules
+                                            ?.excludeZeroPrice ===
+                                        true;
+                                }
+                            })
+                            .finally(() => {
+                                if (target.isConnected)
+                                    target.disabled = false;
+                            });
                 }
             );
         }

@@ -1115,6 +1115,20 @@ export class TableProfileStorageService {
         };
     }
 
+    static #normalizeItemRules(profile) {
+        const source =
+            profile?.itemRules &&
+            typeof profile.itemRules === "object" &&
+            !Array.isArray(profile.itemRules)
+                ? profile.itemRules
+                : {};
+
+        profile.itemRules = {
+            excludeZeroPrice:
+                source.excludeZeroPrice === true
+        };
+    }
+
     static #createFilterGroupRecord(
         storage,
         filterGroup
@@ -1360,6 +1374,7 @@ export class TableProfileStorageService {
             this.#normalizeDrawPreferences(
                 profile
             );
+            this.#normalizeItemRules(profile);
 
             profile.generation ??= {};
             profile.generation.rootUuid ??=
@@ -2521,6 +2536,66 @@ export class TableProfileStorageService {
             priceAdjustment:
                 preferences?.priceAdjustment
         };
+
+        const normalizedStorage =
+            this.#normalizeStorage(storage);
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            normalizedStorage
+        );
+
+        return this.#hydrateProfile(
+            normalizedStorage
+                .profiles?.[profileId],
+            normalizedStorage
+        );
+    }
+
+    static async setExcludeZeroPrice(
+        profileId,
+        excludeZeroPrice
+    ) {
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+        const profile =
+            storage.profiles?.[profileId];
+
+        if (
+            !profile ||
+            profile.version !== 2 ||
+            profile.type !== "content"
+        ) {
+            throw new Error(
+                "TABLE_PROFILE_NOT_FOUND"
+            );
+        }
+
+        const requested =
+            excludeZeroPrice === true;
+
+        if (
+            profile.itemRules
+                ?.excludeZeroPrice === requested
+        ) {
+            return this.#hydrateProfile(
+                profile,
+                storage
+            );
+        }
+
+        profile.itemRules = {
+            ...foundry.utils.deepClone(
+                profile.itemRules ?? {}
+            ),
+            excludeZeroPrice:
+                requested
+        };
+        profile.revision =
+            Number(profile.revision ?? 1) + 1;
 
         const normalizedStorage =
             this.#normalizeStorage(storage);

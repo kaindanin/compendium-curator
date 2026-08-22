@@ -3,7 +3,9 @@ const DISTRIBUTION_INDEX_FIELDS = {
         "system.rarity",
         "system.source",
         "system.level",
-        "system.school"
+        "system.school",
+        "system.price.value",
+        "system.price.denomination"
     ],
     Actor: [
         "system.details.cr",
@@ -393,6 +395,8 @@ function buildDocumentEntry(
             img: null,
             subtitle: "",
             source: "",
+            documentName: null,
+            hasPositivePrice: false,
             available: false
         };
 
@@ -423,6 +427,21 @@ function buildDocumentEntry(
             getDocumentSource(
                 document.system
                     ?.source
+            ),
+
+        documentName:
+            documentClass ?? null,
+
+        hasPositivePrice:
+            documentClass === "Item" &&
+            Number(
+                document.system?.price?.value
+            ) > 0 &&
+            Boolean(
+                String(
+                    document.system?.price
+                        ?.denomination ?? ""
+                ).trim()
             ),
 
         available:
