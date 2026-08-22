@@ -2061,6 +2061,8 @@ export class TableManagerApplication
         actions: {
             changeManagerTab: this.#onChangeManagerTab,
             clearManagerSearch: this.#onClearManagerSearch,
+            generateVisibleProfiles:
+                this.#onGenerateVisibleProfiles,
             createProfile: this.#onCreateProfile,
             importProfileBundle: this.#onImportProfileBundle,
             configureDefaults: this.#onConfigureDefaults,
@@ -4051,6 +4053,106 @@ export class TableManagerApplication
             if (target.isConnected)
                 target.disabled = false;
         }
+    }
+
+    static async #onGenerateVisibleProfiles(
+        event,
+        target
+    ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (this._activeTab === "filters")
+            return;
+
+        const profileIds = [
+            ...new Set(
+                Array.from(
+                    this.element.querySelectorAll(
+                        ".cc-table-manager-profile[data-profile-id]"
+                    )
+                )
+                    .filter(element => !element.hidden)
+                    .map(element =>
+                        element.dataset.profileId
+                    )
+                    .filter(Boolean)
+            )
+        ];
+
+        if (!profileIds.length)
+            return;
+
+        target.disabled = true;
+
+        let generated = 0;
+        let skipped = 0;
+        let failed = 0;
+
+        for (const profileId of profileIds) {
+            const profile =
+                TableProfileStorageService
+                    .getProfiles()?.[profileId];
+
+            if (!profile) {
+                skipped++;
+                continue;
+            }
+
+            if (profile.type === "content") {
+                const inspector =
+                    buildContentInspector(profile);
+
+                if (!inspector.hasObjects) {
+                    skipped++;
+                    continue;
+                }
+            }
+            else if (
+                !Array.isArray(profile.children) ||
+                !profile.children.some(child =>
+                    child?.enabled === true
+                )
+            ) {
+                skipped++;
+                continue;
+            }
+
+            try {
+                await generateProfileTables(profile);
+                generated++;
+            }
+            catch (error) {
+                failed++;
+                console.error(
+                    "Compendium Curator | Error generando un perfil visible.",
+                    {
+                        profileId,
+                        profileName: profile.name,
+                        error
+                    }
+                );
+            }
+        }
+
+        const summary = game.i18n.format(
+            "COMPENDIUM_CURATOR.VisibleTablesGenerationSummary",
+            {
+                generated,
+                skipped,
+                failed
+            }
+        );
+
+        if (failed > 0)
+            ui.notifications.warn(summary);
+        else
+            ui.notifications.info(summary);
+
+        await this.render({ force: true });
+
+        if (target.isConnected)
+            target.disabled = false;
     }
 
     static async #onOpenGeneratedTable(event, target) {

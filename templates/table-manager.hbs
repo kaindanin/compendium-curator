@@ -84,6 +84,19 @@
                 </ul>
             </search>
 
+            {{#unless isFilterGroupsTab}}
+                <button
+                    type="button"
+                    class="cc-table-manager-filter-group-control"
+                    data-action="generateVisibleProfiles"
+                    data-tooltip="COMPENDIUM_CURATOR.GenerateVisibleTablesHint"
+                    aria-label="{{localize 'COMPENDIUM_CURATOR.GenerateVisibleTables'}}"
+                    {{#unless hasProfiles}}disabled{{/unless}}
+                >
+                    <i class="fas fa-wand-magic-sparkles"></i>
+                </button>
+            {{/unless}}
+
             <button
                 type="button"
                 class="cc-table-manager-filter-group-control"
