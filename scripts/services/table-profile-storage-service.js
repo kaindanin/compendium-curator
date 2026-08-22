@@ -537,6 +537,53 @@ export class TableProfileStorageService {
         return `auto:${criterion}:${encodeURIComponent(key)}`;
     }
 
+    static #normalizeGroupInternalDistribution(
+        sourceDistribution
+    ) {
+        const source =
+            sourceDistribution &&
+            typeof sourceDistribution === "object" &&
+            !Array.isArray(sourceDistribution)
+                ? sourceDistribution
+                : {};
+        const mode =
+            DISTRIBUTION_MODES.has(source.mode)
+                ? source.mode
+                : "uniform";
+        const defaultWeight =
+            this.#normalizePositiveNumber(
+                source.defaultWeight,
+                1
+            );
+        const sourceWeights =
+            source.weights &&
+            typeof source.weights === "object" &&
+            !Array.isArray(source.weights)
+                ? source.weights
+                : {};
+        const weights = {};
+
+        for (
+            const [uuid, rawWeight]
+            of Object.entries(sourceWeights)
+        ) {
+            const weight =
+                this.#normalizePositiveNumber(
+                    rawWeight
+                );
+
+            if (uuid && weight !== null)
+                weights[uuid] = weight;
+        }
+
+        return {
+            ...foundry.utils.deepClone(source),
+            mode,
+            defaultWeight,
+            weights
+        };
+    }
+
     static #normalizeDistributionGroups(
         sourceGroups,
         criterion,
@@ -593,22 +640,9 @@ export class TableProfileStorageService {
                 );
 
             const internalDistribution =
-                sourceGroup.distribution &&
-                typeof sourceGroup.distribution === "object" &&
-                !Array.isArray(sourceGroup.distribution)
-                    ? foundry.utils.deepClone(
-                        sourceGroup.distribution
-                    )
-                    : { mode: "uniform" };
-
-            if (
-                !DISTRIBUTION_MODES.has(
-                    internalDistribution.mode
-                )
-            ) {
-                internalDistribution.mode =
-                    "uniform";
-            }
+                this.#normalizeGroupInternalDistribution(
+                    sourceGroup.distribution
+                );
 
             groups[key] = {
                 id:
@@ -1944,6 +1978,203 @@ export class TableProfileStorageService {
         return this.#hydrateProfile(
             profile,
             storage
+        );
+    }
+
+    static async setDistributionGroupItemWeight(
+        profileId,
+        groupKey,
+        uuid,
+        weight = null
+    ) {
+        const key =
+            String(groupKey ?? "").trim();
+        const normalizedUuid =
+            String(uuid ?? "").trim();
+
+        if (!key || !normalizedUuid) {
+            throw new Error(
+                "TABLE_OBJECT_UUID_REQUIRED"
+            );
+        }
+
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+        const profile =
+            storage.profiles?.[profileId];
+
+        if (
+            !profile ||
+            profile.version !== 2 ||
+            profile.type === "nested"
+        ) {
+            throw new Error(
+                "TABLE_PROFILE_NOT_FOUND"
+            );
+        }
+
+        this.#normalizeProfileDistribution(profile);
+
+        const grouped =
+            profile.distribution.grouped;
+        const criterion =
+            this.#normalizeGroupingCriterion(
+                grouped.grouping?.criterion
+            );
+        const previousGroup =
+            grouped.groups?.[key] ?? {};
+        const distribution =
+            this.#normalizeGroupInternalDistribution(
+                previousGroup.distribution
+            );
+        const previous =
+            this.#normalizePositiveNumber(
+                distribution.weights?.[
+                    normalizedUuid
+                ]
+            );
+        const clearOverride =
+            weight === null ||
+            weight === undefined ||
+            weight === "";
+
+        if (clearOverride) {
+            if (previous === null) {
+                return this.#hydrateProfile(
+                    profile,
+                    storage
+                );
+            }
+
+            delete distribution.weights[
+                normalizedUuid
+            ];
+        }
+        else {
+            const normalizedWeight =
+                this.#normalizePositiveNumber(
+                    weight
+                );
+
+            if (normalizedWeight === null) {
+                throw new Error(
+                    "INVALID_TABLE_WEIGHT"
+                );
+            }
+
+            if (previous === normalizedWeight) {
+                return this.#hydrateProfile(
+                    profile,
+                    storage
+                );
+            }
+
+            distribution.weights[
+                normalizedUuid
+            ] = normalizedWeight;
+        }
+
+        distribution.mode = "individual";
+        grouped.groups ??= {};
+        grouped.groups[key] = {
+            id: String(
+                previousGroup.id ??
+                this.#automaticGroupId(
+                    criterion,
+                    key
+                )
+            ),
+            key,
+            enabled:
+                previousGroup.enabled !== false,
+            weight:
+                this.#normalizePositiveNumber(
+                    previousGroup.weight,
+                    1
+                ),
+            distribution
+        };
+
+        this.#syncActiveDistributionConfiguration(
+            grouped
+        );
+
+        profile.revision =
+            Number(profile.revision ?? 1) + 1;
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return this.#hydrateProfile(
+            profile,
+            storage
+        );
+    }
+
+    static async setGenerationState(
+        profileId,
+        generation
+    ) {
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+        const profile =
+            storage.profiles?.[profileId];
+
+        if (
+            !profile ||
+            profile.version !== 2
+        ) {
+            throw new Error(
+                "TABLE_PROFILE_NOT_FOUND"
+            );
+        }
+
+        const nodes =
+            generation?.nodes &&
+            typeof generation.nodes === "object" &&
+            !Array.isArray(generation.nodes)
+                ? foundry.utils.deepClone(
+                    generation.nodes
+                )
+                : {};
+        const rootUuid = String(
+            generation?.rootUuid ?? ""
+        ).trim() || null;
+
+        profile.generation = {
+            ...foundry.utils.deepClone(
+                profile.generation ?? {}
+            ),
+            rootUuid,
+            nodes,
+            generatedRevision:
+                Number(
+                    generation?.generatedRevision ??
+                    profile.revision ??
+                    1
+                )
+        };
+
+        const normalizedStorage =
+            this.#normalizeStorage(storage);
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            normalizedStorage
+        );
+
+        return this.#hydrateProfile(
+            normalizedStorage
+                .profiles?.[profileId],
+            normalizedStorage
         );
     }
 

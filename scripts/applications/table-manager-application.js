@@ -9,6 +9,7 @@ import { TableGroupingRangeApplication } from "./table-grouping-range-applicatio
 import { TableProfileService } from "../services/table-profile-service.js";
 import { StorageService } from "../services/storage-service.js";
 import { TableFilterGroupDetailsApplication } from "./table-filter-group-details-application.js";
+import { TableProfileGenerationService } from "../services/table-profile-generation-service.js";
 import {
     activateDnd5eDocumentEntries,
     getDnd5eDistributionIndexEntry,
@@ -1056,6 +1057,39 @@ function getInspectorIndividualWeight(
     };
 }
 
+function getInspectorGroupItemWeight(
+    profile,
+    groupKey,
+    uuid
+) {
+    const distribution =
+        profile?.distribution
+            ?.grouped
+            ?.groups?.[groupKey]
+            ?.distribution;
+    const defaultWeight =
+        normalizeInspectorWeight(
+            distribution?.defaultWeight,
+            1
+        );
+    const overrideWeight =
+        normalizeInspectorWeight(
+            distribution?.weights?.[uuid]
+        );
+    const hasOverride =
+        distribution?.mode === "individual" &&
+        overrideWeight !== null;
+
+    return {
+        defaultWeight,
+        hasOverride,
+        weight:
+            hasOverride
+                ? overrideWeight
+                : defaultWeight
+    };
+}
+
 function formatInspectorProbability(
     weight,
     totalWeight
@@ -1140,6 +1174,62 @@ function refreshRenderedIndividualWeightControls(
                 ?.querySelector(
                     "[data-cc-reset-individual-weight]"
                 );
+
+        if (resetButton) {
+            resetButton.disabled =
+                !info.hasOverride;
+        }
+    }
+}
+
+function refreshRenderedGroupItemWeightControls(
+    profileElement,
+    profile,
+    onlyGroupKey = null,
+    onlyUuid = null
+) {
+    if (!profileElement || !profile)
+        return;
+
+    for (
+        const input
+        of profileElement.querySelectorAll(
+            "[data-cc-group-item-weight]"
+        )
+    ) {
+        const groupKey = String(
+            input.dataset?.groupKey ?? ""
+        ).trim();
+        const uuid = String(
+            input.dataset?.uuid ?? ""
+        ).trim();
+
+        if (
+            !groupKey ||
+            !uuid ||
+            (onlyGroupKey && groupKey !== onlyGroupKey) ||
+            (onlyUuid && uuid !== onlyUuid)
+        ) {
+            continue;
+        }
+
+        const info =
+            getInspectorGroupItemWeight(
+                profile,
+                groupKey,
+                uuid
+            );
+
+        input.value = String(info.weight);
+        input.dataset.hasOverride =
+            info.hasOverride
+                ? "true"
+                : "false";
+
+        const resetButton =
+            input.parentElement?.querySelector(
+                "[data-cc-reset-group-item-weight]"
+            );
 
         if (resetButton) {
             resetButton.disabled =
@@ -1344,17 +1434,29 @@ function buildContentInspector(profile) {
                                 profile,
                                 entry.uuid
                             );
+                        const groupItem =
+                            getInspectorGroupItemWeight(
+                                profile,
+                                key,
+                                entry.uuid
+                            );
 
                         return {
                             ...entry,
                             weight:
                                 isIndividual
                                     ? individual.weight
-                                    : 1,
+                                    : isGrouped
+                                        ? groupItem.weight
+                                        : 1,
                             hasOverride:
-                                isIndividual &&
-                                individual.hasOverride,
-                            isIndividual
+                                isIndividual
+                                    ? individual.hasOverride
+                                    : isGrouped &&
+                                        groupItem.hasOverride,
+                            isIndividual,
+                            isGroupIndividual:
+                                isGrouped
                         };
                     });
 
@@ -1367,6 +1469,12 @@ function buildContentInspector(profile) {
                 getInspectorGroupEnabled(
                     profile,
                     key
+                );
+            const internalTotalWeight =
+                allEntries.reduce(
+                    (sum, entry) =>
+                        sum + entry.weight,
+                    0
                 );
 
             let probabilityWeight;
@@ -1406,6 +1514,7 @@ function buildContentInspector(profile) {
                 enabled,
                 weight: groupWeight,
                 probabilityWeight,
+                internalTotalWeight,
                 allEntries,
                 isGrouped,
                 isIndividual
@@ -1424,8 +1533,9 @@ function buildContentInspector(profile) {
             const itemProbabilityWeight =
                 isGrouped &&
                 group.enabled &&
-                group.count > 0
-                    ? group.weight / group.count
+                group.internalTotalWeight > 0
+                    ? group.weight /
+                        group.internalTotalWeight
                     : 0;
 
             const entries =
@@ -1443,7 +1553,8 @@ function buildContentInspector(profile) {
                         }
                         else if (isGrouped) {
                             probabilityWeight =
-                                itemProbabilityWeight;
+                                itemProbabilityWeight *
+                                entry.weight;
                         }
                         else {
                             probabilityWeight = 1;
@@ -1472,6 +1583,7 @@ function buildContentInspector(profile) {
                     ),
                 isGrouped,
                 isIndividual,
+                allEntries: group.allEntries,
                 entries,
                 previewCount: entries.length,
                 truncated:
@@ -1588,6 +1700,8 @@ export class TableManagerApplication
             previewProfile: this.#onPreviewProfile,
             manualInclusions: this.#onManualInclusions,
             manualExclusions: this.#onManualExclusions,
+            generateProfile: this.#onGenerateProfile,
+            openGeneratedTable: this.#onOpenGeneratedTable,
             renameProfile: this.#onRenameProfile,
             duplicateProfile: this.#onDuplicateProfile,
             deleteProfile: this.#onDeleteProfile,
@@ -1716,6 +1830,14 @@ export class TableManagerApplication
                     filterGroupCount,
                     filterGroups,
                     inspector,
+                    hasGenerated:
+                        Boolean(
+                            profile.generation?.rootUuid
+                        ),
+                    generationActionLabel:
+                        profile.generation?.rootUuid
+                            ? "COMPENDIUM_CURATOR.UpdateRollTable"
+                            : "COMPENDIUM_CURATOR.GenerateRollTable",
                     inspectorOpen:
                         isContent &&
                         this._openContentInspectors.has(profile.id),
@@ -2220,6 +2342,230 @@ export class TableManagerApplication
                             if (target.isConnected)
                                 target.disabled = false;
                         });
+                }
+            );
+        }
+
+        for (
+            const groupItemInput
+            of this.element.querySelectorAll(
+                "[data-cc-group-item-weight]"
+            )
+        ) {
+            groupItemInput.addEventListener(
+                "change",
+                event => {
+                    const target = event.currentTarget;
+                    const profileElement = target.closest(
+                        "[data-profile-id]"
+                    );
+                    const profileId =
+                        profileElement?.dataset?.profileId;
+                    const groupKey = String(
+                        target.dataset?.groupKey ?? ""
+                    ).trim();
+                    const uuid = String(
+                        target.dataset?.uuid ?? ""
+                    ).trim();
+                    const weight = Number(target.value);
+
+                    if (!profileId || !groupKey || !uuid)
+                        return;
+
+                    if (!Number.isFinite(weight) || weight <= 0) {
+                        const profile =
+                            TableProfileStorageService
+                                .getProfiles()?.[profileId];
+
+                        refreshRenderedGroupItemWeightControls(
+                            profileElement,
+                            profile,
+                            groupKey,
+                            uuid
+                        );
+
+                        ui.notifications.warn(
+                            game.i18n.localize(
+                                "COMPENDIUM_CURATOR.InvalidTableWeight"
+                            )
+                        );
+
+                        target.focus();
+                        return;
+                    }
+
+                    const resetButton =
+                        target.parentElement?.querySelector(
+                            "[data-cc-reset-group-item-weight]"
+                        );
+
+                    target.disabled = true;
+                    if (resetButton)
+                        resetButton.disabled = true;
+
+                    this._distributionSaveQueue =
+                        this._distributionSaveQueue
+                            .catch(() => {})
+                            .then(async () => {
+                                const updatedProfile =
+                                    await TableProfileStorageService
+                                        .setDistributionGroupItemWeight(
+                                            profileId,
+                                            groupKey,
+                                            uuid,
+                                            weight
+                                        );
+
+                                refreshRenderedGroupItemWeightControls(
+                                    profileElement,
+                                    updatedProfile,
+                                    groupKey,
+                                    uuid
+                                );
+                                refreshRenderedProbabilityControls(
+                                    profileElement,
+                                    updatedProfile
+                                );
+                                updateRenderedProfileStatus(
+                                    profileElement,
+                                    updatedProfile
+                                );
+                            })
+                            .catch(error => {
+                                console.error(
+                                    "Compendium Curator | Error guardando el peso interno del grupo.",
+                                    error
+                                );
+
+                                const profile =
+                                    TableProfileStorageService
+                                        .getProfiles()?.[profileId];
+
+                                refreshRenderedGroupItemWeightControls(
+                                    profileElement,
+                                    profile,
+                                    groupKey,
+                                    uuid
+                                );
+                                refreshRenderedProbabilityControls(
+                                    profileElement,
+                                    profile
+                                );
+                            })
+                            .finally(() => {
+                                if (target.isConnected)
+                                    target.disabled = false;
+
+                                if (resetButton?.isConnected) {
+                                    resetButton.disabled =
+                                        target.dataset
+                                            .hasOverride !== "true";
+                                }
+                            });
+                }
+            );
+        }
+
+        for (
+            const resetButton
+            of this.element.querySelectorAll(
+                "[data-cc-reset-group-item-weight]"
+            )
+        ) {
+            resetButton.addEventListener(
+                "click",
+                event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    const target = event.currentTarget;
+                    const profileElement = target.closest(
+                        "[data-profile-id]"
+                    );
+                    const profileId =
+                        profileElement?.dataset?.profileId;
+                    const groupKey = String(
+                        target.dataset?.groupKey ?? ""
+                    ).trim();
+                    const uuid = String(
+                        target.dataset?.uuid ?? ""
+                    ).trim();
+                    const input =
+                        target.parentElement?.querySelector(
+                            "[data-cc-group-item-weight]"
+                        );
+
+                    if (
+                        !profileId ||
+                        !groupKey ||
+                        !uuid ||
+                        !input
+                    ) {
+                        return;
+                    }
+
+                    input.disabled = true;
+                    target.disabled = true;
+
+                    this._distributionSaveQueue =
+                        this._distributionSaveQueue
+                            .catch(() => {})
+                            .then(async () => {
+                                const updatedProfile =
+                                    await TableProfileStorageService
+                                        .setDistributionGroupItemWeight(
+                                            profileId,
+                                            groupKey,
+                                            uuid,
+                                            null
+                                        );
+
+                                refreshRenderedGroupItemWeightControls(
+                                    profileElement,
+                                    updatedProfile,
+                                    groupKey,
+                                    uuid
+                                );
+                                refreshRenderedProbabilityControls(
+                                    profileElement,
+                                    updatedProfile
+                                );
+                                updateRenderedProfileStatus(
+                                    profileElement,
+                                    updatedProfile
+                                );
+                            })
+                            .catch(error => {
+                                console.error(
+                                    "Compendium Curator | Error restaurando el peso interno del grupo.",
+                                    error
+                                );
+
+                                const profile =
+                                    TableProfileStorageService
+                                        .getProfiles()?.[profileId];
+
+                                refreshRenderedGroupItemWeightControls(
+                                    profileElement,
+                                    profile,
+                                    groupKey,
+                                    uuid
+                                );
+                                refreshRenderedProbabilityControls(
+                                    profileElement,
+                                    profile
+                                );
+                            })
+                            .finally(() => {
+                                if (input.isConnected)
+                                    input.disabled = false;
+
+                                if (target.isConnected) {
+                                    target.disabled =
+                                        input.dataset
+                                            .hasOverride !== "true";
+                                }
+                            });
                 }
             );
         }
@@ -2765,6 +3111,111 @@ export class TableManagerApplication
         );
 
         this._profileExclusions.render({ force: true });
+    }
+
+    static async #onGenerateProfile(event, target) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
+
+        if (!profileId)
+            return;
+
+        const profile =
+            TableProfileStorageService
+                .getProfiles()?.[profileId];
+
+        if (!profile || profile.type !== "content")
+            return;
+
+        const inspector =
+            buildContentInspector(profile);
+
+        if (!inspector.hasObjects) {
+            ui.notifications.warn(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.TableProfileNoObjects"
+                )
+            );
+            return;
+        }
+
+        target.disabled = true;
+        this._closeProfileActionsPopover();
+
+        try {
+            const generated =
+                await TableProfileGenerationService
+                    .generate(
+                        profile,
+                        inspector
+                    );
+
+            ui.notifications.info(
+                game.i18n.format(
+                    "COMPENDIUM_CURATOR.RollTableGenerated",
+                    { name: generated.root.name }
+                )
+            );
+
+            this.render({ force: true });
+        }
+        catch (error) {
+            console.error(
+                "Compendium Curator | Error generando RollTables.",
+                error
+            );
+
+            const key =
+                error?.message ===
+                    "TABLE_PROFILE_NO_ACTIVE_GROUPS"
+                    ? "TableProfileNoActiveGroups"
+                    : "RollTableGenerationFailed";
+
+            ui.notifications.error(
+                game.i18n.localize(
+                    `COMPENDIUM_CURATOR.${key}`
+                )
+            );
+        }
+        finally {
+            if (target.isConnected)
+                target.disabled = false;
+        }
+    }
+
+    static async #onOpenGeneratedTable(event, target) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
+        const profile = profileId
+            ? TableProfileStorageService
+                .getProfiles()?.[profileId]
+            : null;
+
+        if (!profile)
+            return;
+
+        const table =
+            await TableProfileGenerationService
+                .getRootTable(profile);
+
+        if (!table) {
+            ui.notifications.warn(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.GeneratedTableMissing"
+                )
+            );
+            return;
+        }
+
+        table.sheet.render(true);
     }
 
     static async #onRenameProfile(event, target) {

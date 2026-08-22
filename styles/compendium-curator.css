@@ -805,6 +805,7 @@
     grid-template-columns:
         minmax(0, 1fr)
         auto
+        auto
         auto;
 
     align-items: start;
@@ -866,6 +867,12 @@
     border-radius: 999px;
 
     font-size: 0.8rem;
+}
+
+.cc-table-manager-generate-button {
+    align-self: center;
+    width: auto;
+    white-space: nowrap;
 }
 
 

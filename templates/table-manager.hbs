@@ -257,6 +257,18 @@
                                 {{status}}
                             </div>
 
+                            {{#if isContent}}
+                                <button
+                                    type="button"
+                                    class="cc-table-manager-generate-button"
+                                    data-action="generateProfile"
+                                    {{#unless inspector.hasObjects}}disabled{{/unless}}
+                                >
+                                    <i class="fas fa-wand-magic-sparkles"></i>
+                                    {{localize generationActionLabel}}
+                                </button>
+                            {{/if}}
+
                             <div class="cc-table-manager-profile-menu-wrapper">
                                 <button
                                     type="button"
@@ -272,6 +284,16 @@
                                     hidden
                                 >
                                     {{#if isContent}}
+                                        {{#if hasGenerated}}
+                                            <button
+                                                type="button"
+                                                data-action="openGeneratedTable"
+                                            >
+                                                <i class="fas fa-table-list"></i>
+                                                {{localize "COMPENDIUM_CURATOR.OpenGeneratedTable"}}
+                                            </button>
+                                        {{/if}}
+
                                         <button
                                             type="button"
                                             data-action="previewProfile"
@@ -681,7 +703,9 @@
                                                                                     gap: 0.25rem;
                                                                                 "
                                                                             >
-                                                                                <span style="flex: 0 0 54px;"></span>
+                                                                                <span style="flex: 0 0 54px; text-align: center;">
+                                                                                    {{localize "COMPENDIUM_CURATOR.Weight"}}
+                                                                                </span>
                                                                                 <span style="flex: 0 0 58px; text-align: center;">%</span>
                                                                                 <span style="flex: 0 0 24px;"></span>
                                                                             </div>
@@ -742,7 +766,25 @@
                                                                                                 gap: 0.25rem;
                                                                                             "
                                                                                         >
-                                                                                            <span style="flex: 0 0 54px;"></span>
+                                                                                            <input
+                                                                                                type="number"
+                                                                                                min="0.000001"
+                                                                                                step="any"
+                                                                                                value="{{weight}}"
+                                                                                                data-cc-group-item-weight
+                                                                                                data-group-key="{{../key}}"
+                                                                                                data-uuid="{{uuid}}"
+                                                                                                data-has-override="{{hasOverride}}"
+                                                                                                aria-label="{{localize 'COMPENDIUM_CURATOR.GroupItemWeight'}}: {{name}}"
+                                                                                                title="{{localize 'COMPENDIUM_CURATOR.GroupItemWeight'}}"
+                                                                                                {{#unless ../enabled}}disabled{{/unless}}
+                                                                                                style="
+                                                                                                    flex: 0 0 54px;
+                                                                                                    width: 54px;
+                                                                                                    height: 26px;
+                                                                                                    text-align: right;
+                                                                                                "
+                                                                                            >
 
                                                                                             <span
                                                                                                 class="hint"
@@ -758,7 +800,23 @@
                                                                                                 {{probability}}
                                                                                             </span>
 
-                                                                                            <span style="flex: 0 0 24px;"></span>
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                class="unbutton"
+                                                                                                data-cc-reset-group-item-weight
+                                                                                                data-group-key="{{../key}}"
+                                                                                                data-uuid="{{uuid}}"
+                                                                                                aria-label="{{localize 'COMPENDIUM_CURATOR.ResetGroupItemWeight'}}: {{name}}"
+                                                                                                title="{{localize 'COMPENDIUM_CURATOR.ResetGroupItemWeight'}}"
+                                                                                                {{#unless hasOverride}}disabled{{/unless}}
+                                                                                                style="
+                                                                                                    flex: 0 0 24px;
+                                                                                                    width: 24px;
+                                                                                                    height: 24px;
+                                                                                                "
+                                                                                            >
+                                                                                                <i class="fas fa-rotate-left"></i>
+                                                                                            </button>
                                                                                         </div>
                                                                                     </div>
                                                                                 </li>
