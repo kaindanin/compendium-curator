@@ -39,6 +39,7 @@
                             id="cc-table-profile-name"
                             type="text"
                             name="profileName"
+                            value="{{profileName}}"
                             autocomplete="off"
                             autofocus
                         >
@@ -46,6 +47,120 @@
                     </div>
 
                 </div>
+
+                {{#if isContent}}
+                    <div
+                        style="
+                            display: flex;
+                            flex-direction: column;
+                            gap: 0.55rem;
+                            padding: 0.75rem;
+                        "
+                    >
+                        <div>
+                            <strong>
+                                {{localize "COMPENDIUM_CURATOR.ProfilePreset"}}
+                            </strong>
+                            <p class="hint" style="margin: 0.2rem 0 0;">
+                                {{localize "COMPENDIUM_CURATOR.ProfilePresetHint"}}
+                            </p>
+                        </div>
+
+                        <div
+                            style="
+                                display: grid;
+                                grid-template-columns: repeat(2, minmax(0, 1fr));
+                                gap: 0.5rem;
+                            "
+                        >
+                            {{#each presets}}
+                                <button
+                                    type="button"
+                                    data-action="selectPreset"
+                                    data-preset="{{id}}"
+                                    aria-pressed="{{#if selected}}true{{else}}false{{/if}}"
+                                    style="
+                                        display: flex;
+                                        align-items: flex-start;
+                                        gap: 0.55rem;
+                                        min-height: 78px;
+                                        padding: 0.65rem;
+                                        text-align: left;
+                                        border-color: {{#if selected}}var(--color-border-highlight-alt){{else}}var(--color-border-light-2){{/if}};
+                                        background: {{#if selected}}rgb(120 70 20 / 24%){{else}}rgb(0 0 0 / 12%){{/if}};
+                                    "
+                                >
+                                    <i
+                                        class="fas {{icon}}"
+                                        style="margin-top: 0.2rem;"
+                                    ></i>
+                                    <span>
+                                        <strong style="display: block;">
+                                            {{localizedLabel}}
+                                        </strong>
+                                        <span class="hint">
+                                            {{localizedHint}}
+                                        </span>
+                                    </span>
+                                </button>
+                            {{/each}}
+                        </div>
+
+                        <div
+                            class="cc-table-filter-detail-choice"
+                            style="
+                                display: grid;
+                                grid-template-columns: auto minmax(0, 1fr);
+                                gap: 0.6rem;
+                                align-items: start;
+                                margin-top: 0.2rem;
+                                padding: 0.65rem;
+                                background: rgb(0 0 0 / 12%);
+                                border-radius: 5px;
+                            "
+                        >
+                            <input
+                                id="cc-include-current-selection"
+                                type="checkbox"
+                                name="includeCurrentSelection"
+                                {{#if includeCurrentSelection}}checked{{/if}}
+                                {{#unless canIncludeCurrentSelection}}disabled{{/unless}}
+                                style="margin-top: 0.2rem;"
+                            >
+
+                            <label for="cc-include-current-selection">
+                                <strong style="display: block;">
+                                    {{localize "COMPENDIUM_CURATOR.IncludeCurrentSelection"}}
+                                </strong>
+
+                                {{#if canIncludeCurrentSelection}}
+                                    <span class="hint">
+                                        {{localize
+                                            "COMPENDIUM_CURATOR.IncludeCurrentSelectionCount"
+                                            count=currentSelectionCount
+                                        }}
+                                    </span>
+                                {{else}}
+                                    {{#if currentSelectionError}}
+                                        <span class="hint">
+                                            {{localize "COMPENDIUM_CURATOR.CurrentSelectionUnavailable"}}
+                                        </span>
+                                    {{else}}
+                                        {{#if currentSelectionHasFilters}}
+                                            <span class="hint">
+                                                {{localize "COMPENDIUM_CURATOR.CurrentSelectionEmpty"}}
+                                            </span>
+                                        {{else}}
+                                            <span class="hint">
+                                                {{localize "COMPENDIUM_CURATOR.CurrentSelectionNeedsFilters"}}
+                                            </span>
+                                        {{/if}}
+                                    {{/if}}
+                                {{/if}}
+                            </label>
+                        </div>
+                    </div>
+                {{/if}}
 
             </div>
 

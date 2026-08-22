@@ -2881,7 +2881,10 @@ export class TableProfileStorageService {
         );
     }
 
-    static async create(profile) {
+    static async create(
+        profile,
+        initialFilterGroup = null
+    ) {
         const name =
             String(profile?.name ?? "").trim();
 
@@ -2925,6 +2928,25 @@ export class TableProfileStorageService {
 
         const normalizedStorage =
             this.#normalizeStorage(storage);
+
+        if (initialFilterGroup) {
+            const storedGroup =
+                this.#createFilterGroupRecord(
+                    normalizedStorage,
+                    initialFilterGroup
+                );
+            const normalizedProfile =
+                normalizedStorage.profiles[id];
+
+            normalizedProfile.filterGroupIds ??= [];
+            normalizedProfile.filterGroupIds.push(
+                storedGroup.id
+            );
+            normalizedProfile.revision =
+                Number(
+                    normalizedProfile.revision ?? 1
+                ) + 1;
+        }
 
         await game.settings.set(
             MODULE_ID,
