@@ -1724,6 +1724,7 @@ export class TableManagerApplication
             manualExclusions: this.#onManualExclusions,
             generateProfile: this.#onGenerateProfile,
             openGeneratedTable: this.#onOpenGeneratedTable,
+            drawGeneratedTable: this.#onDrawGeneratedTable,
             renameProfile: this.#onRenameProfile,
             duplicateProfile: this.#onDuplicateProfile,
             deleteProfile: this.#onDeleteProfile,
@@ -3527,6 +3528,99 @@ export class TableManagerApplication
         }
 
         table.sheet.render(true);
+    }
+
+    static async #onDrawGeneratedTable(event, target) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
+        const profile = profileId
+            ? TableProfileStorageService
+                .getProfiles()?.[profileId]
+            : null;
+
+        if (!profile)
+            return;
+
+        const table =
+            await TableProfileGenerationService
+                .getRootTable(profile);
+
+        if (!table) {
+            ui.notifications.warn(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.GeneratedTableMissing"
+                )
+            );
+            return;
+        }
+
+        const field = document.createElement("div");
+        field.className = "form-group";
+
+        const label = document.createElement("label");
+        label.textContent = game.i18n.localize(
+            "COMPENDIUM_CURATOR.DrawCount"
+        );
+
+        const input = document.createElement("input");
+        input.type = "number";
+        input.name = "drawCount";
+        input.min = "1";
+        input.max = "100";
+        input.step = "1";
+        input.value = "1";
+
+        field.append(label, input);
+
+        const result =
+            await foundry.applications.api.DialogV2
+                .input({
+                    window: {
+                        title: game.i18n.format(
+                            "COMPENDIUM_CURATOR.DrawGeneratedTableTitle",
+                            { name: profile.name }
+                        )
+                    },
+                    content: field.outerHTML,
+                    ok: {
+                        label: game.i18n.localize(
+                            "COMPENDIUM_CURATOR.DrawResults"
+                        )
+                    },
+                    rejectClose: false,
+                    modal: true
+                });
+
+        if (!result)
+            return;
+
+        const count = Math.min(
+            100,
+            Math.max(
+                1,
+                Number.parseInt(
+                    result.drawCount,
+                    10
+                ) || 1
+            )
+        );
+
+        if (count === 1) {
+            await table.draw({
+                recursive: true,
+                displayChat: true
+            });
+        }
+        else {
+            await table.drawMany(count, {
+                recursive: true,
+                displayChat: true
+            });
+        }
     }
 
     static async #onRenameProfile(event, target) {
