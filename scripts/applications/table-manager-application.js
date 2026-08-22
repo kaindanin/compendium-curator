@@ -6,6 +6,7 @@ import { TableProfilePreviewApplication } from "./table-profile-preview-applicat
 import { TableProfileExclusionsApplication } from "./table-profile-exclusions-application.js";
 import { TableProfileInclusionsApplication } from "./table-profile-inclusions-application.js";
 import { TableGroupingRangeApplication } from "./table-grouping-range-application.js";
+import { TableManualGroupingApplication } from "./table-manual-grouping-application.js";
 import { TableProfileService } from "../services/table-profile-service.js";
 import { StorageService } from "../services/storage-service.js";
 import { TableFilterGroupDetailsApplication } from "./table-filter-group-details-application.js";
@@ -71,7 +72,8 @@ const GROUPING_CRITERIA = new Set([
     "spellLevel",
     "creatureType",
     "size",
-    "spellSchool"
+    "spellSchool",
+    "manual"
 ]);
 
 function getRefreshSectionTitle(key, count) {
@@ -791,6 +793,8 @@ function getInspectorGroupingLabel(criterion) {
         key = "GroupBySize";
     else if (criterion === "spellSchool")
         key = "GroupBySpellSchool";
+    else if (criterion === "manual")
+        key = "GroupByManual";
 
     return game.i18n.localize(
         `COMPENDIUM_CURATOR.${key}`
@@ -830,6 +834,13 @@ function getInspectorGroupingKey(
 
     if (criterion === "spellSchool")
         return getInspectorSpellSchool(uuid);
+
+    if (criterion === "manual") {
+        return getInspectorManualGroupKey(
+            uuid,
+            profile
+        );
+    }
 
     return getInspectorRarity(uuid);
 }
@@ -879,6 +890,13 @@ function getInspectorGroupingGroupLabel(
         return getInspectorSpellSchoolLabel(key);
     }
 
+    if (criterion === "manual") {
+        return getInspectorManualGroupLabel(
+            key,
+            profile
+        );
+    }
+
     return getInspectorRarityLabel(key);
 }
 
@@ -887,6 +905,28 @@ function getInspectorOrderedGroupKeys(
     criterion,
     profile
 ) {
+    if (criterion === "manual") {
+        const ordered = getInspectorManualGroups(
+            profile
+        )
+            .map(group => group.key)
+            .filter(key => groups.has(key));
+
+        if (groups.has("unclassified")) {
+            ordered.push("unclassified");
+        }
+
+        ordered.push(
+            ...[...groups.keys()]
+                .filter(key =>
+                    !ordered.includes(key)
+                )
+                .sort()
+        );
+
+        return ordered;
+    }
+
     if (criterion === "rarity") {
         return [
             ...CONTENT_INSPECTOR_RARITY_ORDER
@@ -1077,6 +1117,44 @@ function getInspectorIndividualWeight(
                 ? overrideWeight
                 : defaultWeight
     };
+}
+
+function getInspectorManualGroups(profile) {
+    const groups = profile?.distribution
+        ?.grouped?.manualGroups;
+
+    return Array.isArray(groups)
+        ? groups
+        : [];
+}
+
+function getInspectorManualGroupKey(
+    uuid,
+    profile
+) {
+    const group = getInspectorManualGroups(
+        profile
+    ).find(candidate =>
+        Array.isArray(candidate?.members) &&
+        candidate.members.includes(uuid)
+    );
+
+    return group?.key ?? "unclassified";
+}
+
+function getInspectorManualGroupLabel(
+    key,
+    profile
+) {
+    if (key === "unclassified") {
+        return game.i18n.localize(
+            "COMPENDIUM_CURATOR.GroupNoManualGroup"
+        );
+    }
+
+    return getInspectorManualGroups(profile)
+        .find(group => group?.key === key)
+        ?.name ?? key;
 }
 
 function getInspectorGroupItemWeight(
@@ -1654,6 +1732,8 @@ function buildContentInspector(profile) {
             groupingCriterion === "size",
         isGroupingSpellSchool:
             groupingCriterion === "spellSchool",
+        isGroupingManual:
+            groupingCriterion === "manual",
         isRangeGrouping:
             profile?.distribution
                 ?.grouped
@@ -1693,6 +1773,7 @@ export class TableManagerApplication
         this._profileInclusions = null;
         this._filterGroupDetails = null;
         this._groupingRangeEditor = null;
+        this._manualGroupingEditor = null;
         this._profileActionsPopover = null;
         this._profileActionsProfileId = null;
         this._profileActionsOutsideHandler = null;
@@ -1718,6 +1799,7 @@ export class TableManagerApplication
             createProfile: this.#onCreateProfile,
             configureDefaults: this.#onConfigureDefaults,
             editGroupingRanges: this.#onEditGroupingRanges,
+            editManualGroups: this.#onEditManualGroups,
             addCurrentFilters: this.#onAddCurrentFilters,
             previewProfile: this.#onPreviewProfile,
             manualInclusions: this.#onManualInclusions,
@@ -3094,7 +3176,8 @@ export class TableManagerApplication
             "_profileExclusions",
             "_profileInclusions",
             "_filterGroupDetails",
-            "_groupingRangeEditor"
+            "_groupingRangeEditor",
+            "_manualGroupingEditor"
         ];
 
         for (const property of applications) {
@@ -3247,6 +3330,55 @@ export class TableManagerApplication
             );
 
         this._groupingRangeEditor.render({
+            force: true
+        });
+    }
+
+    static async #onEditManualGroups(
+        event,
+        target
+    ) {
+        event.preventDefault();
+
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
+
+        if (!profileId)
+            return;
+
+        const profile =
+            TableProfileStorageService
+                .getProfiles()?.[profileId];
+
+        if (
+            !profile ||
+            getInspectorGroupingCriterion(profile) !==
+                "manual"
+        ) {
+            return;
+        }
+
+        if (this._manualGroupingEditor?.rendered) {
+            if (
+                this._manualGroupingEditor
+                    .profileId === profileId
+            ) {
+                this._manualGroupingEditor
+                    .bringToFront();
+                return;
+            }
+
+            await this._manualGroupingEditor.close();
+        }
+
+        this._manualGroupingEditor =
+            new TableManualGroupingApplication(
+                this,
+                profileId
+            );
+
+        this._manualGroupingEditor.render({
             force: true
         });
     }
@@ -3870,7 +4002,8 @@ export class TableManagerApplication
             "_profileInclusions",
             "_profileExclusions",
             "_filterGroupDetails",
-            "_groupingRangeEditor"
+            "_groupingRangeEditor",
+            "_manualGroupingEditor"
         ];
 
         for (const property of profileApplications) {

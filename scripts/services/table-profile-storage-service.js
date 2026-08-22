@@ -40,6 +40,10 @@ const GROUPING_CRITERIA = {
         criterion: "spellSchool",
         field: "system.school"
     },
+    manual: {
+        type: "manual",
+        criterion: "manual"
+    },
     cr: {
         type: "range",
         criterion: "cr",
@@ -584,6 +588,77 @@ export class TableProfileStorageService {
         };
     }
 
+    static #normalizeManualGroups(sourceGroups) {
+        const groups = [];
+        const usedKeys = new Set();
+        const usedMembers = new Set();
+
+        for (
+            const [index, sourceGroup]
+            of (
+                Array.isArray(sourceGroups)
+                    ? sourceGroups
+                    : []
+            ).entries()
+        ) {
+            const name = String(
+                sourceGroup?.name ?? ""
+            ).trim();
+            let key = String(
+                sourceGroup?.key ??
+                sourceGroup?.id ??
+                ""
+            ).trim();
+
+            if (!name)
+                continue;
+
+            if (
+                !key ||
+                key === "unclassified" ||
+                usedKeys.has(key)
+            ) {
+                key = `manual:${encodeURIComponent(name)}:${index}`;
+            }
+
+            let suffix = 1;
+
+            while (usedKeys.has(key)) {
+                key =
+                    `manual:${encodeURIComponent(name)}:${index}:${suffix}`;
+                suffix++;
+            }
+
+            usedKeys.add(key);
+
+            const members = [];
+
+            for (
+                const rawUuid
+                of Array.isArray(sourceGroup?.members)
+                    ? sourceGroup.members
+                    : []
+            ) {
+                const uuid = String(rawUuid ?? "").trim();
+
+                if (!uuid || usedMembers.has(uuid))
+                    continue;
+
+                usedMembers.add(uuid);
+                members.push(uuid);
+            }
+
+            groups.push({
+                id: key,
+                key,
+                name,
+                members
+            });
+        }
+
+        return groups;
+    }
+
     static #normalizeDistributionGroups(
         sourceGroups,
         criterion,
@@ -865,7 +940,11 @@ export class TableProfileStorageService {
             grouped: {
                 grouping,
                 groups,
-                configurations
+                configurations,
+                manualGroups:
+                    this.#normalizeManualGroups(
+                        sourceGrouped.manualGroups
+                    )
             }
         };
     }
@@ -2307,6 +2386,68 @@ export class TableProfileStorageService {
         }
 
         profile.children = children;
+        profile.revision =
+            Number(profile.revision ?? 1) + 1;
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return this.#hydrateProfile(
+            profile,
+            storage
+        );
+    }
+
+    static async setManualGroupingGroups(
+        profileId,
+        groups
+    ) {
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+        const profile =
+            storage.profiles?.[profileId];
+
+        if (
+            !profile ||
+            profile.version !== 2 ||
+            profile.type !== "content"
+        ) {
+            throw new Error(
+                "TABLE_PROFILE_NOT_FOUND"
+            );
+        }
+
+        this.#normalizeProfileDistribution(profile);
+
+        const normalized =
+            this.#normalizeManualGroups(groups);
+
+        if (!normalized.length) {
+            throw new Error(
+                "MANUAL_GROUPS_REQUIRED"
+            );
+        }
+
+        if (
+            foundry.utils.equals(
+                profile.distribution
+                    .grouped.manualGroups ?? [],
+                normalized
+            )
+        ) {
+            return this.#hydrateProfile(
+                profile,
+                storage
+            );
+        }
+
+        profile.distribution
+            .grouped.manualGroups = normalized;
         profile.revision =
             Number(profile.revision ?? 1) + 1;
 

@@ -1,0 +1,244 @@
+<section
+    style="
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+        height: 100%;
+        padding: 0.85rem;
+        overflow: hidden;
+    "
+>
+    {{#if missingProfile}}
+        <p class="hint">
+            {{localize "COMPENDIUM_CURATOR.TableProfileNotFound"}}
+        </p>
+    {{else}}
+        <header>
+            <h2 style="margin: 0 0 0.25rem;">
+                {{profileName}}
+            </h2>
+            <p class="hint" style="margin: 0;">
+                {{localize "COMPENDIUM_CURATOR.ManualGroupsHint"}}
+            </p>
+        </header>
+
+        <section
+            style="
+                display: flex;
+                flex-direction: column;
+                gap: 0.45rem;
+            "
+        >
+            <strong>
+                {{localize "COMPENDIUM_CURATOR.ManualGroups"}}
+            </strong>
+
+            {{#each groups}}
+                <div
+                    data-cc-manual-group-row
+                    data-group-key="{{key}}"
+                    style="
+                        display: grid;
+                        grid-template-columns: minmax(0, 1fr) auto 30px;
+                        gap: 0.5rem;
+                        align-items: center;
+                    "
+                >
+                    <input
+                        type="text"
+                        value="{{name}}"
+                        data-cc-manual-group-name
+                        data-group-key="{{key}}"
+                        aria-label="{{localize 'COMPENDIUM_CURATOR.ManualGroupName'}}"
+                    >
+
+                    <span class="hint">
+                        {{localize
+                            "COMPENDIUM_CURATOR.GroupObjectCount"
+                            count=count
+                        }}
+                    </span>
+
+                    <button
+                        type="button"
+                        class="unbutton"
+                        data-action="removeGroup"
+                        title="{{localize 'COMPENDIUM_CURATOR.RemoveManualGroup'}}"
+                        aria-label="{{localize 'COMPENDIUM_CURATOR.RemoveManualGroup'}}"
+                        {{#unless canRemove}}disabled{{/unless}}
+                        style="width: 30px; height: 30px;"
+                    >
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            {{/each}}
+
+            <button
+                type="button"
+                data-action="addGroup"
+                style="
+                    align-self: flex-start;
+                    width: auto;
+                    min-width: 0;
+                    padding-inline: 0.75rem;
+                "
+            >
+                <i class="fas fa-plus"></i>
+                {{localize "COMPENDIUM_CURATOR.AddManualGroup"}}
+            </button>
+        </section>
+
+        <section
+            style="
+                display: flex;
+                flex: 1 1 auto;
+                min-height: 0;
+                flex-direction: column;
+                gap: 0.45rem;
+            "
+        >
+            <div
+                style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 0.75rem;
+                "
+            >
+                <strong>
+                    {{localize "COMPENDIUM_CURATOR.ManualAssignments"}}
+                </strong>
+
+                <input
+                    type="search"
+                    data-cc-manual-group-search
+                    placeholder="{{localize 'COMPENDIUM_CURATOR.SearchObjects'}}"
+                    style="max-width: 260px;"
+                >
+            </div>
+
+            <div style="overflow: auto; min-height: 0;">
+                {{#if hasEntries}}
+                    <section class="inventory-element cc-dnd5e-document-list">
+                        <section class="items-list browser-results">
+                            <div class="items-section card">
+                                <div class="items-header header">
+                                    <h3 class="item-name">
+                                        {{localize "DND5E.CompendiumBrowser.Column.Results"}}
+                                    </h3>
+                                    <div class="item-header item-source">
+                                        {{localize "DND5E.CompendiumBrowser.Column.Source"}}
+                                    </div>
+                                    <div class="item-header item-controls">
+                                        {{localize "COMPENDIUM_CURATOR.ManualAssignment"}}
+                                    </div>
+                                </div>
+
+                                <ol class="item-list unlist">
+                                    {{#each entries}}
+                                        <li
+                                            class="item cc-dnd5e-document-entry"
+                                            data-uuid="{{uuid}}"
+                                            data-cc-manual-assignment-row
+                                            data-search-text="{{name}} {{source}}"
+                                        >
+                                            <div class="item-row">
+                                                <div
+                                                    class="item-name rollable"
+                                                    role="button"
+                                                    data-cc-open-document
+                                                >
+                                                    {{#if img}}
+                                                        <img
+                                                            class="item-image gold-icon"
+                                                            loading="lazy"
+                                                            src="{{img}}"
+                                                            alt="{{name}}"
+                                                            draggable="false"
+                                                        >
+                                                    {{/if}}
+
+                                                    <div class="name name-stacked">
+                                                        <span class="title">
+                                                            {{name}}
+                                                        </span>
+                                                        {{#if subtitle}}
+                                                            <span class="subtitle">
+                                                                {{localize subtitle}}
+                                                            </span>
+                                                        {{/if}}
+                                                    </div>
+                                                </div>
+
+                                                <div
+                                                    class="item-detail item-source {{#unless source}}empty{{/unless}}"
+                                                >
+                                                    {{#if source}}
+                                                        <span class="condensed">
+                                                            {{source}}
+                                                        </span>
+                                                    {{/if}}
+                                                </div>
+
+                                                <div class="item-detail item-controls">
+                                                    <select
+                                                        data-cc-manual-assignment
+                                                        data-uuid="{{uuid}}"
+                                                        aria-label="{{localize 'COMPENDIUM_CURATOR.ManualAssignment'}}"
+                                                    >
+                                                        <option
+                                                            value=""
+                                                            {{#if unassigned}}selected{{/if}}
+                                                        >
+                                                            {{localize "COMPENDIUM_CURATOR.UnassignedManualGroup"}}
+                                                        </option>
+                                                        {{#each options}}
+                                                            <option
+                                                                value="{{key}}"
+                                                                {{#if selected}}selected{{/if}}
+                                                            >
+                                                                {{name}}
+                                                            </option>
+                                                        {{/each}}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </li>
+                                    {{/each}}
+                                </ol>
+                            </div>
+                        </section>
+                    </section>
+                {{else}}
+                    <p class="hint">
+                        {{localize "COMPENDIUM_CURATOR.NoMatchingObjects"}}
+                    </p>
+                {{/if}}
+            </div>
+        </section>
+
+        <footer
+            style="
+                display: flex;
+                justify-content: flex-end;
+                gap: 0.5rem;
+            "
+        >
+            <button
+                type="button"
+                data-action="cancel"
+                style="width: auto; min-width: 96px;"
+            >
+                {{localize "COMPENDIUM_CURATOR.Cancel"}}
+            </button>
+            <button
+                type="button"
+                data-action="save"
+                style="width: auto; min-width: 96px;"
+            >
+                <i class="fas fa-floppy-disk"></i>
+                {{localize "COMPENDIUM_CURATOR.Save"}}
+            </button>
+        </footer>
+    {{/if}}
+</section>
