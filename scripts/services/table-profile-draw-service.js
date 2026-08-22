@@ -175,20 +175,52 @@ function sampleWithReplacement(entries, count) {
     return selected;
 }
 
+function randomStockQuantity(minimum, maximum) {
+    if (maximum <= minimum)
+        return minimum;
+
+    return minimum + Math.floor(
+        Math.random() *
+        (maximum - minimum + 1)
+    );
+}
+
+function applyStockQuantities(
+    entries,
+    minimum,
+    maximum
+) {
+    return entries.map(entry => ({
+        ...entry,
+        quantity:
+            randomStockQuantity(
+                minimum,
+                maximum
+            )
+    }));
+}
+
 function aggregateSelectedEntries(entries) {
     const aggregated = new Map();
 
     for (const entry of entries) {
+        const quantity = Math.max(
+            1,
+            Number.parseInt(
+                entry.quantity,
+                10
+            ) || 1
+        );
         const existing = aggregated.get(entry.uuid);
 
         if (existing) {
-            existing.quantity++;
+            existing.quantity += quantity;
             continue;
         }
 
         aggregated.set(entry.uuid, {
             ...entry,
-            quantity: 1
+            quantity
         });
     }
 
@@ -458,7 +490,9 @@ async function createDrawMessage(
         requestedCount,
         selectedCount,
         unique,
-        priceMultiplier
+        priceMultiplier,
+        quantityMin,
+        quantityMax
     }
 ) {
     const escape = foundry.utils.escapeHTML;
@@ -555,6 +589,17 @@ async function createDrawMessage(
                     )
                 )}</p>`
                 : ""}
+            ${quantityMax > 1
+                ? `<p class="hint">${escape(
+                    game.i18n.format(
+                        "COMPENDIUM_CURATOR.StockQuantityRangeApplied",
+                        {
+                            min: quantityMin,
+                            max: quantityMax
+                        }
+                    )
+                )}</p>`
+                : ""}
             ${priceSummary.total
                 ? `<div style="display:flex;flex-direction:column;gap:0.15rem;margin:0.45rem 0;padding:0.45rem 0.55rem;background:rgb(0 0 0 / 10%);border-radius:4px;">
                     <strong>${totalValueLabel}: ${escape(priceSummary.total)}</strong>
@@ -590,6 +635,8 @@ async function createDrawMessage(
                 selectedCount,
                 unique,
                 priceMultiplier,
+                quantityMin,
+                quantityMax,
                 stockItems:
                     entries.map(entry => ({
                         uuid: entry.uuid,
@@ -631,7 +678,9 @@ export class TableProfileDrawService {
         {
             unique = false,
             displayChat = true,
-            priceMultiplier = 1
+            priceMultiplier = 1,
+            quantityMin = 1,
+            quantityMax = 1
         } = {}
     ) {
         if (table?.documentName !== "RollTable") {
@@ -655,6 +704,26 @@ export class TableProfileDrawService {
                     Number(priceMultiplier) || 1
                 )
             );
+        const normalizedQuantityMin = Math.min(
+            100,
+            Math.max(
+                1,
+                Number.parseInt(
+                    quantityMin,
+                    10
+                ) || 1
+            )
+        );
+        const normalizedQuantityMax = Math.min(
+            100,
+            Math.max(
+                normalizedQuantityMin,
+                Number.parseInt(
+                    quantityMax,
+                    10
+                ) || normalizedQuantityMin
+            )
+        );
         const pool = await this.getUniquePool(table);
         const selected = unique
             ? sampleWithoutReplacement(
@@ -665,8 +734,16 @@ export class TableProfileDrawService {
                 pool,
                 requestedCount
             );
+        const selectedStock =
+            applyStockQuantities(
+                selected,
+                normalizedQuantityMin,
+                normalizedQuantityMax
+            );
         const aggregated =
-            aggregateSelectedEntries(selected);
+            aggregateSelectedEntries(
+                selectedStock
+            );
         const hydrated =
             await hydrateSelectedEntries(
                 aggregated,
@@ -683,7 +760,11 @@ export class TableProfileDrawService {
                             selected.length,
                         unique,
                         priceMultiplier:
-                            normalizedPriceMultiplier
+                            normalizedPriceMultiplier,
+                        quantityMin:
+                            normalizedQuantityMin,
+                        quantityMax:
+                            normalizedQuantityMax
                     }
                 )
                 : null;
@@ -694,6 +775,10 @@ export class TableProfileDrawService {
             selectedCount: selected.length,
             availableCount: pool.length,
             uniqueCount: hydrated.length,
+            quantityMin:
+                normalizedQuantityMin,
+            quantityMax:
+                normalizedQuantityMax,
             priceMultiplier:
                 normalizedPriceMultiplier,
             truncated:

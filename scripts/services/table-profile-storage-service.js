@@ -1104,6 +1104,23 @@ export class TableProfileStorageService {
                 100
             )
         );
+        const quantityMin = Math.min(
+            100,
+            this.#normalizePositiveInteger(
+                source.quantityMin,
+                1
+            )
+        );
+        const quantityMax = Math.min(
+            100,
+            Math.max(
+                quantityMin,
+                this.#normalizePositiveInteger(
+                    source.quantityMax,
+                    quantityMin
+                )
+            )
+        );
 
         profile.draw = {
             count,
@@ -1111,7 +1128,9 @@ export class TableProfileStorageService {
                 typeof source.unique === "boolean"
                     ? source.unique
                     : isShopGrouping,
-            priceAdjustment
+            priceAdjustment,
+            quantityMin,
+            quantityMax
         };
     }
 
@@ -2626,7 +2645,11 @@ export class TableProfileStorageService {
             unique:
                 preferences?.unique === true,
             priceAdjustment:
-                preferences?.priceAdjustment
+                preferences?.priceAdjustment,
+            quantityMin:
+                preferences?.quantityMin,
+            quantityMax:
+                preferences?.quantityMax
         };
 
         const normalizedStorage =

@@ -1964,7 +1964,9 @@ async function drawProfileTable(
     {
         count,
         unique,
-        priceAdjustment
+        priceAdjustment,
+        quantityMin,
+        quantityMax
     }
 ) {
     const draw =
@@ -1973,7 +1975,9 @@ async function drawProfileTable(
                 unique,
                 displayChat: true,
                 priceMultiplier:
-                    priceAdjustment / 100
+                    priceAdjustment / 100,
+                quantityMin,
+                quantityMax
             });
 
     if (!draw.availableCount) {
@@ -4163,6 +4167,75 @@ export class TableManagerApplication
             );
         uniqueField.append(uniqueHint);
 
+        const quantityField =
+            document.createElement("div");
+        quantityField.className = "form-group";
+
+        const quantityLabel =
+            document.createElement("label");
+        quantityLabel.textContent =
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.StockQuantityPerItem"
+            );
+
+        const quantityFields =
+            document.createElement("div");
+        quantityFields.className = "form-fields";
+
+        const quantityMinInput =
+            document.createElement("input");
+        quantityMinInput.type = "number";
+        quantityMinInput.name = "quantityMin";
+        quantityMinInput.min = "1";
+        quantityMinInput.max = "100";
+        quantityMinInput.step = "1";
+        quantityMinInput.value = String(
+            profile?.draw?.quantityMin ?? 1
+        );
+        quantityMinInput.setAttribute(
+            "value",
+            quantityMinInput.value
+        );
+
+        const quantitySeparator =
+            document.createElement("span");
+        quantitySeparator.className = "units";
+        quantitySeparator.textContent = "–";
+
+        const quantityMaxInput =
+            document.createElement("input");
+        quantityMaxInput.type = "number";
+        quantityMaxInput.name = "quantityMax";
+        quantityMaxInput.min = "1";
+        quantityMaxInput.max = "100";
+        quantityMaxInput.step = "1";
+        quantityMaxInput.value = String(
+            profile?.draw?.quantityMax ?? 1
+        );
+        quantityMaxInput.setAttribute(
+            "value",
+            quantityMaxInput.value
+        );
+
+        quantityFields.append(
+            quantityMinInput,
+            quantitySeparator,
+            quantityMaxInput
+        );
+        quantityField.append(
+            quantityLabel,
+            quantityFields
+        );
+
+        const quantityHint =
+            document.createElement("p");
+        quantityHint.className = "hint";
+        quantityHint.textContent =
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.StockQuantityPerItemHint"
+            );
+        quantityField.append(quantityHint);
+
         const priceField =
             document.createElement("div");
         priceField.className = "form-group";
@@ -4250,6 +4323,7 @@ export class TableManagerApplication
         form.append(
             field,
             uniqueField,
+            quantityField,
             priceField,
             rememberField
         );
@@ -4292,6 +4366,26 @@ export class TableManagerApplication
             result.uniqueResults === "on" ||
             result.uniqueResults === 1 ||
             result.uniqueResults === "1";
+        const quantityMin = Math.min(
+            100,
+            Math.max(
+                1,
+                Number.parseInt(
+                    result.quantityMin,
+                    10
+                ) || 1
+            )
+        );
+        const quantityMax = Math.min(
+            100,
+            Math.max(
+                quantityMin,
+                Number.parseInt(
+                    result.quantityMax,
+                    10
+                ) || quantityMin
+            )
+        );
         const priceAdjustment = Math.min(
             1000,
             Math.max(
@@ -4315,7 +4409,9 @@ export class TableManagerApplication
                     {
                         count,
                         unique: uniqueResults,
-                        priceAdjustment
+                        priceAdjustment,
+                        quantityMin,
+                        quantityMax
                     }
                 );
         }
@@ -4325,7 +4421,9 @@ export class TableManagerApplication
             {
                 count,
                 unique: uniqueResults,
-                priceAdjustment
+                priceAdjustment,
+                quantityMin,
+                quantityMax
             }
         );
     }
@@ -4368,7 +4466,11 @@ export class TableManagerApplication
                         preferences.unique === true,
                     priceAdjustment:
                         preferences.priceAdjustment ??
-                            100
+                            100,
+                    quantityMin:
+                        preferences.quantityMin ?? 1,
+                    quantityMax:
+                        preferences.quantityMax ?? 1
                 }
             );
         }

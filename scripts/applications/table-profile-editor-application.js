@@ -391,7 +391,9 @@ export class TableProfileEditorApplication
                 draw: {
                     count: 1,
                     unique: false,
-                    priceAdjustment: 100
+                    priceAdjustment: 100,
+                    quantityMin: 1,
+                    quantityMax: 1
                 },
                 itemRules: {
                     excludeZeroPrice: false
@@ -449,7 +451,10 @@ export class TableProfileEditorApplication
                     count:
                         isShopPreset ? 10 : 1,
                     unique: isShopPreset,
-                    priceAdjustment: 100
+                    priceAdjustment: 100,
+                    quantityMin: 1,
+                    quantityMax:
+                        isShopPreset ? 3 : 1
                 },
                 itemRules: {
                     excludeZeroPrice:
