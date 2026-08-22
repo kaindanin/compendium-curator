@@ -19,6 +19,30 @@ Hooks.once("init", () => {
 
 });
 
+Hooks.on("renderApplicationV2", app => {
+
+    if (
+        app.constructor.name !==
+            "TableManagerApplication" ||
+        !app.browserApp
+    ) {
+        return;
+    }
+
+    /*
+     * El Gestor de tablas y el modo Curador pueden convivir.
+     * El bloqueo existía durante las primeras fases del gestor,
+     * cuando ambas interfaces compartían estado de selección.
+     *
+     * El gestor actual mantiene su propio estado y puede reaccionar
+     * a los cambios del Navegador de Compendios, por lo que ya no es
+     * necesario impedir la curación mientras permanece abierto.
+     */
+    app.browserApp._ccTableManagerLocked = false;
+    app.browserApp._ccRefreshToolbar?.();
+
+});
+
 Hooks.once("ready", async () => {
 
     /*
