@@ -8,6 +8,125 @@ const TABLE_PROFILE_BUNDLE_TYPE =
 const TABLE_PROFILE_BUNDLE_VERSION = 1;
 const TABLE_PROFILE_BUNDLE_LIMIT = 500;
 
+function getPortableUuidAvailability(uuid) {
+    const value = String(uuid ?? "").trim();
+
+    if (!value)
+        return { available: false };
+
+    const parts = value.split(".");
+
+    if (
+        parts[0] === "Compendium" &&
+        parts.length >= 4
+    ) {
+        const collection =
+            `${parts[1]}.${parts[2]}`;
+        const pack = game.packs.get(collection);
+        const documentId = parts.at(-1);
+
+        return {
+            available:
+                Boolean(
+                    pack?.index?.has(documentId)
+                ),
+            missingPack:
+                pack ? null : collection
+        };
+    }
+
+    let document = null;
+
+    try {
+        document = fromUuidSync(value);
+    }
+    catch {
+        document = null;
+    }
+
+    return {
+        available: Boolean(document),
+        missingPack: null
+    };
+}
+
+function getImportedObjectAvailability(
+    storage,
+    profileIds
+) {
+    const referenced = new Set();
+
+    for (const profileId of profileIds) {
+        const profile = storage.profiles?.[profileId];
+
+        if (profile?.type !== "content")
+            continue;
+
+        for (const uuid of profile.manualIncludes ?? []) {
+            if (uuid)
+                referenced.add(uuid);
+        }
+
+        for (
+            const filterGroupId
+            of profile.filterGroupIds ?? []
+        ) {
+            const filterGroup =
+                storage.filterGroups?.[filterGroupId];
+
+            for (const uuid of filterGroup?.matches ?? []) {
+                if (uuid)
+                    referenced.add(uuid);
+            }
+        }
+    }
+
+    const unavailableUuids = [];
+    const missingPacks = new Map();
+    let missingDocumentCount = 0;
+
+    for (const uuid of referenced) {
+        const availability =
+            getPortableUuidAvailability(uuid);
+
+        if (availability.available)
+            continue;
+
+        unavailableUuids.push(uuid);
+
+        if (availability.missingPack) {
+            missingPacks.set(
+                availability.missingPack,
+                (
+                    missingPacks.get(
+                        availability.missingPack
+                    ) ?? 0
+                ) + 1
+            );
+        }
+        else {
+            missingDocumentCount++;
+        }
+    }
+
+    return {
+        referencedCount: referenced.size,
+        availableCount:
+            referenced.size - unavailableUuids.length,
+        unavailableCount: unavailableUuids.length,
+        unavailableUuids,
+        missingDocumentCount,
+        missingPacks: [...missingPacks.entries()]
+            .map(([collection, count]) => ({
+                collection,
+                count
+            }))
+            .sort((a, b) =>
+                a.collection.localeCompare(b.collection)
+            )
+    };
+}
+
 const DISTRIBUTION_MODES = new Set([
     "uniform",
     "individual",
@@ -3046,7 +3165,12 @@ export class TableProfileStorageService {
             ],
             importedFilterGroupIds: [
                 ...filterGroupIdMap.values()
-            ]
+            ],
+            availability:
+                getImportedObjectAvailability(
+                    normalizedStorage,
+                    profileIdMap.values()
+                )
         };
     }
 

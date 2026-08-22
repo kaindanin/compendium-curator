@@ -1529,6 +1529,9 @@ function buildContentInspector(profile) {
 
             const allEntries =
                 prepareDnd5eIndexedEntries(uuids)
+                    .filter(entry =>
+                        entry.available !== false
+                    )
                     .map(entry => {
                         const individual =
                             getInspectorIndividualWeight(
@@ -1582,16 +1585,16 @@ function buildContentInspector(profile) {
 
             if (isUniform) {
                 probabilityWeight =
-                    uuids.length;
+                    allEntries.length;
             }
             else if (isIndividual) {
                 probabilityWeight =
-                    uuids.reduce(
-                        (sum, uuid) =>
+                    allEntries.reduce(
+                        (sum, entry) =>
                             sum +
                             getInspectorIndividualWeight(
                                 profile,
-                                uuid
+                                entry.uuid
                             ).weight,
                         0
                     );
@@ -1611,7 +1614,7 @@ function buildContentInspector(profile) {
                         key,
                         profile
                     ),
-                count: uuids.length,
+                count: allEntries.length,
                 enabled,
                 weight: groupWeight,
                 probabilityWeight,
@@ -1692,6 +1695,12 @@ function buildContentInspector(profile) {
             };
         });
 
+    const availableCount =
+        preparedGroups.reduce(
+            (sum, group) =>
+                sum + group.count,
+            0
+        );
     const activeCount =
         isGrouped
             ? preparedGroups.reduce(
@@ -1704,7 +1713,7 @@ function buildContentInspector(profile) {
                     ),
                 0
             )
-            : finalUuids.size;
+            : availableCount;
 
     const groupingLabel =
         getInspectorGroupingLabel(
@@ -1752,7 +1761,11 @@ function buildContentInspector(profile) {
         finalCount: activeCount,
         sourceCount: finalUuids.size,
         totalWeight,
-        hasObjects: finalUuids.size > 0,
+        unavailableCount:
+            finalUuids.size - availableCount,
+        hasUnavailableObjects:
+            finalUuids.size > availableCount,
+        hasObjects: availableCount > 0,
         groups
     };
 }
@@ -3467,6 +3480,43 @@ export class TableManagerApplication
                             }
                         )
                     );
+
+                    if (
+                        imported.availability
+                            ?.unavailableCount > 0
+                    ) {
+                        const unavailableSources =
+                            imported.availability
+                                .missingPacks
+                                .map(pack =>
+                                    `${pack.collection} (${pack.count})`
+                                );
+
+                        if (
+                            imported.availability
+                                .missingDocumentCount > 0
+                        ) {
+                            unavailableSources.push(
+                                `${game.i18n.localize(
+                                    "COMPENDIUM_CURATOR.MissingDocuments"
+                                )} (${imported.availability.missingDocumentCount})`
+                            );
+                        }
+
+                        ui.notifications.warn(
+                            game.i18n.format(
+                                "COMPENDIUM_CURATOR.ImportedUnavailableObjects",
+                                {
+                                    count:
+                                        imported.availability
+                                            .unavailableCount,
+                                    packs:
+                                        unavailableSources.join(", ")
+                                }
+                            ),
+                            { permanent: true }
+                        );
+                    }
                 }
                 catch (error) {
                     console.error(

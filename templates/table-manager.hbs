@@ -437,6 +437,19 @@
                                             <strong>{{inspector.finalCount}}</strong>
                                         </div>
 
+                                        {{#if inspector.hasUnavailableObjects}}
+                                            <p
+                                                class="notification warning"
+                                                style="margin: 0; padding: 0.55rem 0.7rem;"
+                                            >
+                                                <i class="fas fa-triangle-exclamation"></i>
+                                                {{localize
+                                                    "COMPENDIUM_CURATOR.UnavailableProfileObjects"
+                                                    count=inspector.unavailableCount
+                                                }}
+                                            </p>
+                                        {{/if}}
+
                                         <div class="cc-table-filter-detail-block">
                                             <div class="cc-table-filter-detail-heading">
                                                 <strong>
