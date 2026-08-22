@@ -13,6 +13,9 @@ import { TableFilterGroupDetailsApplication } from "./table-filter-group-details
 import { TableProfileGenerationService } from "../services/table-profile-generation-service.js";
 import { TableProfileDrawService } from "../services/table-profile-draw-service.js";
 import {
+    TableProfileRollTableImportService
+} from "../services/table-profile-rolltable-import-service.js";
+import {
     activateDnd5eDocumentEntries,
     getDnd5eDistributionIndexEntry,
     prepareDnd5eDocumentEntries,
@@ -1443,8 +1446,12 @@ function updateRenderedProfileStatus(
 }
 
 function buildContentInspector(profile) {
-    const hiddenUuids =
-        new Set(
+    const includeHidden =
+        profile?.itemRules
+            ?.includeHidden === true;
+    const hiddenUuids = includeHidden
+        ? new Set()
+        : new Set(
             StorageService.getHiddenUuids()
         );
 
@@ -1796,6 +1803,7 @@ function buildContentInspector(profile) {
             finalUuids.size >
                 sourceAvailableCount,
         excludeZeroPrice,
+        includeHidden,
         priceExcludedCount,
         hasPriceExcluded:
             priceExcludedCount > 0,
@@ -2061,6 +2069,7 @@ export class TableManagerApplication
         actions: {
             changeManagerTab: this.#onChangeManagerTab,
             clearManagerSearch: this.#onClearManagerSearch,
+            importRollTable: this.#onImportRollTable,
             generateVisibleProfiles:
                 this.#onGenerateVisibleProfiles,
             createProfile: this.#onCreateProfile,
@@ -2568,6 +2577,68 @@ export class TableManagerApplication
                                     target.checked =
                                         profile?.itemRules
                                             ?.excludeZeroPrice ===
+                                        true;
+                                }
+                            })
+                            .finally(() => {
+                                if (target.isConnected)
+                                    target.disabled = false;
+                            });
+                }
+            );
+        }
+
+        for (
+            const ruleInput
+            of this.element.querySelectorAll(
+                "[data-cc-include-hidden]"
+            )
+        ) {
+            ruleInput.addEventListener(
+                "change",
+                event => {
+                    const target = event.currentTarget;
+                    const profileElement = target.closest(
+                        "[data-profile-id]"
+                    );
+                    const profileId =
+                        profileElement?.dataset?.profileId;
+
+                    if (!profileId)
+                        return;
+
+                    target.disabled = true;
+                    this._openContentInspectors.add(
+                        profileId
+                    );
+
+                    this._distributionSaveQueue =
+                        this._distributionSaveQueue
+                            .catch(() => {})
+                            .then(() =>
+                                TableProfileStorageService
+                                    .setIncludeHidden(
+                                        profileId,
+                                        target.checked
+                                    )
+                            )
+                            .then(() =>
+                                this.render({ force: true })
+                            )
+                            .catch(error => {
+                                console.error(
+                                    "Compendium Curator | Error cambiando la regla de objetos ocultos.",
+                                    error
+                                );
+
+                                const profile =
+                                    TableProfileStorageService
+                                        .getProfiles()?.[profileId];
+
+                                if (target.isConnected) {
+                                    target.checked =
+                                        profile?.itemRules
+                                            ?.includeHidden ===
                                         true;
                                 }
                             })
@@ -3797,6 +3868,247 @@ export class TableManagerApplication
         );
 
         input.click();
+    }
+
+    static async #onImportRollTable(event, target) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const tables = game.tables
+            .filter(table =>
+                table.flags?.["compendium-curator"]
+                    ?.managed !== true
+            )
+            .sort((a, b) =>
+                String(a.name ?? "").localeCompare(
+                    String(b.name ?? ""),
+                    game.i18n.lang,
+                    { sensitivity: "base" }
+                )
+            );
+
+        if (!tables.length) {
+            ui.notifications.warn(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.NoRollTablesToImport"
+                )
+            );
+            return;
+        }
+
+        const tableField =
+            document.createElement("div");
+        tableField.className = "form-group";
+
+        const tableLabel =
+            document.createElement("label");
+        tableLabel.textContent =
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.SourceRollTable"
+            );
+
+        const tableFields =
+            document.createElement("div");
+        tableFields.className = "form-fields";
+
+        const select =
+            document.createElement("select");
+        select.name = "tableUuid";
+
+        for (const table of tables) {
+            const option =
+                document.createElement("option");
+            option.value = table.uuid;
+            option.textContent =
+                `${table.name} (${table.results.size})`;
+            select.append(option);
+        }
+
+        tableFields.append(select);
+        tableField.append(
+            tableLabel,
+            tableFields
+        );
+
+        const generateField =
+            document.createElement("div");
+        generateField.className = "form-group";
+
+        const generateLabel =
+            document.createElement("label");
+        generateLabel.textContent =
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.GenerateAfterImport"
+            );
+
+        const generateFields =
+            document.createElement("div");
+        generateFields.className = "form-fields";
+
+        const generateInput =
+            document.createElement("input");
+        generateInput.type = "checkbox";
+        generateInput.name = "generateAfterImport";
+        generateInput.checked = true;
+        generateInput.setAttribute(
+            "checked",
+            ""
+        );
+
+        generateFields.append(generateInput);
+        generateField.append(
+            generateLabel,
+            generateFields
+        );
+
+        const hint = document.createElement("p");
+        hint.className = "hint";
+        hint.textContent = game.i18n.localize(
+            "COMPENDIUM_CURATOR.ImportRollTableHint"
+        );
+
+        const form = document.createElement("div");
+        form.append(
+            tableField,
+            generateField,
+            hint
+        );
+
+        const result =
+            await foundry.applications.api.DialogV2
+                .input({
+                    window: {
+                        title: game.i18n.localize(
+                            "COMPENDIUM_CURATOR.ImportFromRollTable"
+                        )
+                    },
+                    content: form.innerHTML,
+                    ok: {
+                        label: game.i18n.localize(
+                            "COMPENDIUM_CURATOR.Import"
+                        )
+                    },
+                    rejectClose: false,
+                    modal: true
+                });
+
+        if (!result)
+            return;
+
+        const table = await fromUuid(
+            String(result.tableUuid ?? "")
+        );
+
+        if (table?.documentName !== "RollTable") {
+            ui.notifications.error(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.RollTableImportFailed"
+                )
+            );
+            return;
+        }
+
+        const generateAfterImport = [
+            true,
+            "true",
+            "on",
+            1,
+            "1"
+        ].includes(result.generateAfterImport);
+
+        target.disabled = true;
+
+        try {
+            const imported =
+                await TableProfileRollTableImportService
+                    .importTable(table);
+            let generated = false;
+            let generationFailed = false;
+
+            if (generateAfterImport) {
+                try {
+                    await this
+                        .generateStoredProfileTables(
+                            imported.rootProfile.id
+                        );
+                    generated = true;
+                }
+                catch (error) {
+                    generationFailed = true;
+                    console.error(
+                        "Compendium Curator | La RollTable se importó, pero no se pudo generar el perfil resultante.",
+                        error
+                    );
+                }
+            }
+
+            this._activeTab =
+                imported.rootProfile.type ===
+                    "nested"
+                    ? "nested"
+                    : "content";
+            this._searchQuery =
+                imported.rootProfile.name;
+            await this.render({ force: true });
+
+            ui.notifications.info(
+                game.i18n.format(
+                    generated
+                        ? "COMPENDIUM_CURATOR.RollTableImportedAndGenerated"
+                        : "COMPENDIUM_CURATOR.RollTableImported",
+                    {
+                        table: table.name,
+                        profiles:
+                            imported.createdProfiles
+                                .length,
+                        objects: imported.imported
+                    }
+                )
+            );
+
+            if (generationFailed) {
+                ui.notifications.warn(
+                    game.i18n.localize(
+                        "COMPENDIUM_CURATOR.RollTableImportedGenerationFailed"
+                    )
+                );
+            }
+
+            const omitted =
+                imported.unsupported +
+                imported.unavailable;
+
+            if (omitted > 0) {
+                ui.notifications.warn(
+                    game.i18n.format(
+                        "COMPENDIUM_CURATOR.RollTableImportOmitted",
+                        { count: omitted }
+                    )
+                );
+            }
+        }
+        catch (error) {
+            console.error(
+                "Compendium Curator | Error importando una RollTable existente.",
+                error
+            );
+
+            const key =
+                error?.message ===
+                    "ROLLTABLE_IMPORT_NO_SUPPORTED_RESULTS"
+                    ? "RollTableImportNoSupportedResults"
+                    : "RollTableImportFailed";
+
+            ui.notifications.error(
+                game.i18n.localize(
+                    `COMPENDIUM_CURATOR.${key}`
+                )
+            );
+        }
+        finally {
+            if (target.isConnected)
+                target.disabled = false;
+        }
     }
 
     refreshProfileEditor() {

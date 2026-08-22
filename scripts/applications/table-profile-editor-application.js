@@ -435,7 +435,8 @@ export class TableProfileEditorApplication
                     quantityMax: 1
                 },
                 itemRules: {
-                    excludeZeroPrice: false
+                    excludeZeroPrice: false,
+                    includeHidden: false
                 },
                 generation: {
                     masterUuid: null,
@@ -497,7 +498,8 @@ export class TableProfileEditorApplication
                 },
                 itemRules: {
                     excludeZeroPrice:
-                        isShopPreset
+                        isShopPreset,
+                    includeHidden: false
                 },
                 distribution: {
                     version: 2,
