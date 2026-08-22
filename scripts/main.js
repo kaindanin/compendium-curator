@@ -3,6 +3,7 @@ import { registerSettings } from "./settings.js";
 import { registerCompendiumBrowserHooks } from "./hooks/compendium-browser.js";
 import { StorageService } from "./services/storage-service.js";
 import { ensureDnd5eDistributionIndexes } from "./ui/dnd5e-document-list.js";
+import { registerTableStockTransferHooks } from "./services/table-stock-transfer-service.js";
 
 Hooks.once("init", () => {
 
@@ -10,6 +11,7 @@ Hooks.once("init", () => {
 
     registerSettings();
     registerCompendiumBrowserHooks();
+    registerTableStockTransferHooks();
 
     debug("Settings registradas");
 
