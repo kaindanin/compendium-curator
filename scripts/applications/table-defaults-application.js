@@ -1,6 +1,9 @@
 import {
     TableDefaultsService
 } from "../services/table-defaults-service.js";
+import {
+    TableGenerationTargetService
+} from "../services/table-generation-target-service.js";
 
 const {
     ApplicationV2,
@@ -39,7 +42,7 @@ export class TableDefaultsApplication
 
         position: {
             width: 520,
-            height: 560
+            height: 650
         },
 
         actions: {
@@ -83,6 +86,31 @@ export class TableDefaultsApplication
                 })
             );
 
+        const selectedTarget =
+            TableGenerationTargetService
+                .choiceValue(
+                    defaults.generationTarget
+                );
+
+        context.generationTargets =
+            TableGenerationTargetService
+                .getTargetChoices()
+                .map(choice => ({
+                    ...choice,
+                    selected:
+                        choice.value ===
+                        selectedTarget
+                }));
+
+        context.generationDestinationLabel =
+            game.i18n.lang.startsWith("es")
+                ? "Destino de generación"
+                : "Generation destination";
+        context.generationDestinationHint =
+            game.i18n.lang.startsWith("es")
+                ? "Las nuevas RollTables se guardarán aquí salvo que un perfil tenga un destino propio. El compendio automático se crea en este mundo cuando haga falta."
+                : "New RollTables are stored here unless a profile has its own destination. The automatic compendium is created in this world when needed.";
+
         return context;
 
     }
@@ -112,10 +140,33 @@ export class TableDefaultsApplication
 
         }
 
+        const previous =
+            TableDefaultsService.get();
+        const generationTarget =
+            TableGenerationTargetService
+                .parseChoice(
+                    this.element
+                        .querySelector(
+                            '[name="generationTarget"]'
+                        )
+                        ?.value
+                );
+
         await TableDefaultsService.set({
             grouping: "rarity",
-            rarityWeights
+            rarityWeights,
+            generationTarget
         });
+
+        if (
+            !foundry.utils.equals(
+                previous.generationTarget,
+                generationTarget
+            )
+        ) {
+            await TableGenerationTargetService
+                .markInheritedProfilesPending();
+        }
 
         ui.notifications.info(
             game.i18n.localize(

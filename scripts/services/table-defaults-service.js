@@ -13,6 +13,28 @@ const DEFAULT_RARITY_WEIGHTS = {
     artifact: 1
 };
 
+function normalizeGenerationTarget(target) {
+    const mode = String(
+        target?.mode ?? ""
+    ).trim();
+
+    if (mode === "world") {
+        return {
+            mode: "world",
+            packId: null
+        };
+    }
+
+    const packId = String(
+        target?.packId ?? ""
+    ).trim();
+
+    return {
+        mode: "compendium",
+        packId: packId || null
+    };
+}
+
 export class TableDefaultsService {
 
     static get() {
@@ -48,14 +70,19 @@ export class TableDefaultsService {
         }
 
         return {
-            version: 1,
+            version: 2,
 
             grouping:
                 stored.grouping === "rarity"
                     ? "rarity"
                     : "rarity",
 
-            rarityWeights
+            rarityWeights,
+
+            generationTarget:
+                normalizeGenerationTarget(
+                    stored.generationTarget
+                )
         };
 
     }
@@ -87,9 +114,13 @@ export class TableDefaultsService {
         }
 
         const normalized = {
-            version: 1,
+            version: 2,
             grouping: "rarity",
-            rarityWeights
+            rarityWeights,
+            generationTarget:
+                normalizeGenerationTarget(
+                    data?.generationTarget
+                )
         };
 
         await game.settings.set(

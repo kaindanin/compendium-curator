@@ -1,5 +1,6 @@
 import { MODULE_ID } from "../settings.js";
 import { TableProfileStorageService } from "./table-profile-storage-service.js";
+import { TableGenerationTargetService } from "./table-generation-target-service.js";
 
 const MANAGED_FOLDER_NODE = "rolltable-folder";
 const INTERNAL_FOLDER_NODE =
@@ -101,9 +102,18 @@ function buildTableResults(
 
         return {
             type: CONST.TABLE_RESULT_TYPES.DOCUMENT,
-            name: String(entry.name ?? entry.documentUuid ?? ""),
-            img: String(entry.img ?? "icons/svg/d20-grey.svg"),
-            documentUuid: String(entry.documentUuid ?? ""),
+            name: String(
+                entry.name ??
+                entry.documentUuid ??
+                ""
+            ),
+            img: String(
+                entry.img ??
+                "icons/svg/d20-grey.svg"
+            ),
+            documentUuid: String(
+                entry.documentUuid ?? ""
+            ),
             weight,
             range: [start, end],
             drawn: false,
@@ -126,36 +136,9 @@ function buildTableResults(
 
     return {
         results,
-        formula: `1d${Math.max(1, cursor - 1)}`
+        formula:
+            `1d${Math.max(1, cursor - 1)}`
     };
-}
-
-function isManagedTable(table, profileId, nodeId) {
-    const flags = table?.flags?.[MODULE_ID];
-
-    return Boolean(
-        table?.documentName === "RollTable" &&
-        flags?.managed === true &&
-        flags?.profileId === profileId &&
-        flags?.nodeId === nodeId
-    );
-}
-
-async function resolveManagedTable(
-    profileId,
-    nodeId,
-    storedUuid = null
-) {
-    if (storedUuid) {
-        const stored = await fromUuid(storedUuid);
-
-        if (isManagedTable(stored, profileId, nodeId))
-            return stored;
-    }
-
-    return game.tables.find(table =>
-        isManagedTable(table, profileId, nodeId)
-    ) ?? null;
 }
 
 async function getManagedFolder() {
@@ -219,8 +202,27 @@ async function getInternalManagedFolder(
     });
 }
 
-async function replaceTableResults(table, entries) {
-    const currentIds = table.results.map(result => result.id);
+async function getTargetFolders(target) {
+    if (target.mode !== "world") {
+        return {
+            root: null,
+            internal: null
+        };
+    }
+
+    const root = await getManagedFolder();
+    const internal =
+        await getInternalManagedFolder(root);
+
+    return { root, internal };
+}
+
+async function replaceTableResults(
+    table,
+    entries
+) {
+    const currentIds = table.results
+        .map(result => result.id);
 
     if (currentIds.length) {
         await table.deleteEmbeddedDocuments(
@@ -245,13 +247,17 @@ async function reconcileTable({
     entries,
     storedUuid,
     folder,
+    target,
     replacement = true
 }) {
-    let table = await resolveManagedTable(
-        profile.id,
-        nodeId,
-        storedUuid
-    );
+    let table =
+        await TableGenerationTargetService
+            .resolveManagedTable(
+                profile.id,
+                nodeId,
+                storedUuid,
+                target
+            );
 
     const prepared = buildTableResults(
         entries,
@@ -262,8 +268,9 @@ async function reconcileTable({
 
     const tableData = {
         name,
-        img: img || "icons/svg/d20-grey.svg",
-        folder: folder?.id ?? null,
+        img:
+            img ||
+            "icons/svg/d20-grey.svg",
         description: game.i18n.format(
             "COMPENDIUM_CURATOR.GeneratedTableDescription",
             { profile: profile.name }
@@ -280,12 +287,20 @@ async function reconcileTable({
         }
     };
 
+    if (target.mode === "world") {
+        tableData.folder =
+            folder?.id ?? null;
+    }
+
     if (!table) {
-        table = await RollTable.create({
-            ...tableData,
-            folder: folder?.id ?? null,
-            results: prepared.results
-        });
+        table = await RollTable.create(
+            {
+                ...tableData,
+                results: prepared.results
+            },
+            TableGenerationTargetService
+                .getCreateContext(target)
+        );
     }
     else {
         await table.update(tableData);
@@ -299,7 +314,8 @@ async function reconcileTable({
 }
 
 function getStoredNodeUuid(profile, nodeId) {
-    const stored = profile?.generation?.nodes?.[nodeId];
+    const stored =
+        profile?.generation?.nodes?.[nodeId];
 
     if (typeof stored === "string")
         return stored;
@@ -307,9 +323,15 @@ function getStoredNodeUuid(profile, nodeId) {
     return stored?.uuid ?? null;
 }
 
-function getInternalItemWeight(profile, groupKey, uuid) {
-    const distribution = profile?.distribution
-        ?.grouped?.groups?.[groupKey]?.distribution;
+function getInternalItemWeight(
+    profile,
+    groupKey,
+    uuid
+) {
+    const distribution =
+        profile?.distribution
+            ?.grouped?.groups?.[groupKey]
+            ?.distribution;
 
     if (distribution?.mode !== "individual")
         return 1;
@@ -323,9 +345,18 @@ function getInternalItemWeight(profile, groupKey, uuid) {
     );
 }
 
-function buildDirectEntries(profile, inspector) {
+function buildDirectEntries(
+    profile,
+    inspector
+) {
+    void profile;
+
     return inspector.groups.flatMap(group =>
-        (group.allEntries ?? group.entries ?? []).map(entry => ({
+        (
+            group.allEntries ??
+            group.entries ??
+            []
+        ).map(entry => ({
             documentUuid: entry.uuid,
             name: entry.name,
             img: entry.img,
@@ -352,19 +383,22 @@ function buildUniqueGroupedEntries(
                 group.allEntries ??
                 group.entries ??
                 [];
-            const weighted = entries.map(entry => ({
-                entry,
-                weight: getInternalItemWeight(
-                    profile,
-                    group.key,
-                    entry.uuid
-                )
-            }));
-            const internalTotal = weighted.reduce(
-                (sum, candidate) =>
-                    sum + candidate.weight,
-                0
-            );
+            const weighted =
+                entries.map(entry => ({
+                    entry,
+                    weight:
+                        getInternalItemWeight(
+                            profile,
+                            group.key,
+                            entry.uuid
+                        )
+                }));
+            const internalTotal =
+                weighted.reduce(
+                    (sum, candidate) =>
+                        sum + candidate.weight,
+                    0
+                );
 
             if (internalTotal <= 0)
                 return [];
@@ -384,19 +418,24 @@ function buildUniqueGroupedEntries(
         });
 }
 
-function buildGroupedNodes(profile, inspector) {
+function buildGroupedNodes(
+    profile,
+    inspector
+) {
     return inspector.groups
-        .filter(group =>
-            group.count > 0
-        )
+        .filter(group => group.count > 0)
         .map(group => {
-            const configured = profile?.distribution
-                ?.grouped?.groups?.[group.key];
+            const configured =
+                profile?.distribution
+                    ?.grouped?.groups?.[
+                        group.key
+                    ];
             const groupId = String(
                 configured?.id ??
                 `auto:${inspector.groupingCriterion}:${encodeURIComponent(group.key)}`
             );
-            const nodeId = `group:${groupId}`;
+            const nodeId =
+                `group:${groupId}`;
             const entries = (
                 group.allEntries ??
                 group.entries ??
@@ -406,20 +445,24 @@ function buildGroupedNodes(profile, inspector) {
                 name: entry.name,
                 img: entry.img,
                 resultKey: entry.uuid,
-                weight: getInternalItemWeight(
-                    profile,
-                    group.key,
-                    entry.uuid
-                )
+                weight:
+                    getInternalItemWeight(
+                        profile,
+                        group.key,
+                        entry.uuid
+                    )
             }));
 
             return {
                 nodeId,
-                name: `${profile.name} — ${group.label}`,
+                name:
+                    `${profile.name} — ${group.label}`,
                 label: group.label,
                 enabled: group.enabled,
                 img:
-                    entries.find(entry => entry.img)?.img ??
+                    entries.find(entry =>
+                        entry.img
+                    )?.img ??
                     "icons/svg/d20-grey.svg",
                 weight: group.weight,
                 entries
@@ -427,34 +470,42 @@ function buildGroupedNodes(profile, inspector) {
         });
 }
 
-async function removeStaleManagedTables(
+async function finalizeGeneration(
     profile,
-    desiredNodeIds
+    root,
+    nodes
 ) {
-    for (
-        const [nodeId, stored]
-        of Object.entries(
-            profile?.generation?.nodes ?? {}
-        )
-    ) {
-        if (
-            nodeId === ROOT_NODE_ID ||
-            desiredNodeIds.has(nodeId)
-        ) {
-            continue;
-        }
+    const keepUuids = new Set(
+        Object.values(nodes)
+            .map(node => node?.uuid)
+            .filter(Boolean)
+    );
 
-        const uuid =
-            typeof stored === "string"
-                ? stored
-                : stored?.uuid;
-        const table = uuid
-            ? await fromUuid(uuid)
-            : null;
+    await TableGenerationTargetService
+        .removePreviousGeneratedTables(
+            profile,
+            keepUuids
+        );
 
-        if (isManagedTable(table, profile.id, nodeId))
-            await table.delete();
-    }
+    const updatedProfile =
+        await TableProfileStorageService
+            .setGenerationState(
+                profile.id,
+                {
+                    rootUuid: root.uuid,
+                    nodes,
+                    generatedRevision:
+                        Number(
+                            profile.revision ?? 1
+                        )
+                }
+            );
+
+    return {
+        root,
+        nodes,
+        profile: updatedProfile
+    };
 }
 
 export class TableProfileGenerationService {
@@ -463,17 +514,8 @@ export class TableProfileGenerationService {
         if (!profile?.id)
             return 0;
 
-        const tables = game.tables.filter(table =>
-            table.flags?.[MODULE_ID]?.managed === true &&
-            table.flags?.[MODULE_ID]?.profileId ===
-                profile.id
-        );
-
-        for (const table of tables) {
-            await table.delete();
-        }
-
-        return tables.length;
+        return TableGenerationTargetService
+            .deleteGeneratedTables(profile);
     }
 
     static async generate(profile, inspector) {
@@ -481,154 +523,212 @@ export class TableProfileGenerationService {
             !profile?.id ||
             profile.type !== "content"
         ) {
-            throw new Error("INVALID_TABLE_PROFILE");
+            throw new Error(
+                "INVALID_TABLE_PROFILE"
+            );
         }
 
         if (!inspector?.hasObjects) {
-            throw new Error("TABLE_PROFILE_NO_OBJECTS");
-        }
-
-        const folder = await getManagedFolder();
-        const nodes = {};
-        let rootEntries;
-
-        const flattenUniqueGroups =
-            inspector.isGrouped &&
-            profile.draw?.unique === true;
-
-        if (
-            flattenUniqueGroups &&
-            !inspector.groups.some(group =>
-                group.enabled &&
-                group.count > 0
-            )
-        ) {
             throw new Error(
-                "TABLE_PROFILE_NO_ACTIVE_GROUPS"
+                "TABLE_PROFILE_NO_OBJECTS"
             );
         }
 
-        if (
-            inspector.isGrouped &&
-            !flattenUniqueGroups
-        ) {
-            const internalFolder =
-                await getInternalManagedFolder(
-                    folder
-                );
-            const groupNodes = buildGroupedNodes(
-                profile,
-                inspector
-            );
+        const target =
+            await TableGenerationTargetService
+                .resolveTarget(profile);
 
-            if (!groupNodes.some(node => node.enabled)) {
-                throw new Error("TABLE_PROFILE_NO_ACTIVE_GROUPS");
-            }
+        return TableGenerationTargetService
+            .withWritableTarget(
+                target,
+                async () => {
+                    const folders =
+                        await getTargetFolders(
+                            target
+                        );
+                    const nodes = {};
+                    let rootEntries;
 
-            for (const node of groupNodes) {
-                const table = await reconcileTable({
-                    profile,
-                    nodeId: node.nodeId,
-                    name: node.name,
-                    img: node.img,
-                    entries: node.entries,
-                    storedUuid:
-                        getStoredNodeUuid(
-                            profile,
-                            node.nodeId
-                        ),
-                    folder: internalFolder,
-                    replacement:
-                        profile.draw?.unique !== true
-                });
+                    const flattenUniqueGroups =
+                        inspector.isGrouped &&
+                        profile.draw?.unique === true;
 
-                nodes[node.nodeId] = {
-                    uuid: table.uuid
-                };
-                node.table = table;
-            }
-
-            rootEntries = groupNodes
-                .filter(node => node.enabled)
-                .map(node => ({
-                    documentUuid: node.table.uuid,
-                    name: node.label,
-                    img: node.table.img,
-                    resultKey: node.nodeId,
-                    weight: node.weight
-                }));
-        }
-        else if (flattenUniqueGroups) {
-            rootEntries =
-                buildUniqueGroupedEntries(
-                    profile,
-                    inspector
-                );
-        }
-        else {
-            rootEntries = buildDirectEntries(
-                profile,
-                inspector
-            );
-        }
-
-        const root = await reconcileTable({
-            profile,
-            nodeId: ROOT_NODE_ID,
-            name: profile.name,
-            img:
-                rootEntries.find(entry => entry.img)?.img ??
-                "icons/svg/d20-grey.svg",
-            entries: rootEntries,
-            storedUuid:
-                profile.generation?.rootUuid ??
-                getStoredNodeUuid(profile, ROOT_NODE_ID),
-            folder,
-            replacement:
-                profile.draw?.unique !== true
-        });
-
-        nodes[ROOT_NODE_ID] = {
-            uuid: root.uuid
-        };
-
-        await removeStaleManagedTables(
-            profile,
-            new Set(Object.keys(nodes))
-        );
-
-        const updatedProfile =
-            await TableProfileStorageService
-                .setGenerationState(
-                    profile.id,
-                    {
-                        rootUuid: root.uuid,
-                        nodes,
-                        generatedRevision:
-                            Number(profile.revision ?? 1)
+                    if (
+                        flattenUniqueGroups &&
+                        !inspector.groups.some(
+                            group =>
+                                group.enabled &&
+                                group.count > 0
+                        )
+                    ) {
+                        throw new Error(
+                            "TABLE_PROFILE_NO_ACTIVE_GROUPS"
+                        );
                     }
-                );
 
-        return {
-            root,
-            nodes,
-            profile: updatedProfile
-        };
+                    if (
+                        inspector.isGrouped &&
+                        !flattenUniqueGroups
+                    ) {
+                        const groupNodes =
+                            buildGroupedNodes(
+                                profile,
+                                inspector
+                            );
+
+                        if (
+                            !groupNodes.some(
+                                node => node.enabled
+                            )
+                        ) {
+                            throw new Error(
+                                "TABLE_PROFILE_NO_ACTIVE_GROUPS"
+                            );
+                        }
+
+                        for (const node of groupNodes) {
+                            const table =
+                                await reconcileTable({
+                                    profile,
+                                    nodeId:
+                                        node.nodeId,
+                                    name: node.name,
+                                    img: node.img,
+                                    entries:
+                                        node.entries,
+                                    storedUuid:
+                                        getStoredNodeUuid(
+                                            profile,
+                                            node.nodeId
+                                        ),
+                                    folder:
+                                        folders.internal,
+                                    target,
+                                    replacement:
+                                        profile.draw?.unique !==
+                                        true
+                                });
+
+                            nodes[node.nodeId] = {
+                                uuid: table.uuid
+                            };
+                            node.table = table;
+                        }
+
+                        rootEntries = groupNodes
+                            .filter(node =>
+                                node.enabled
+                            )
+                            .map(node => ({
+                                documentUuid:
+                                    node.table.uuid,
+                                name: node.label,
+                                img: node.table.img,
+                                resultKey:
+                                    node.nodeId,
+                                weight:
+                                    node.weight
+                            }));
+                    }
+                    else if (flattenUniqueGroups) {
+                        rootEntries =
+                            buildUniqueGroupedEntries(
+                                profile,
+                                inspector
+                            );
+                    }
+                    else {
+                        rootEntries =
+                            buildDirectEntries(
+                                profile,
+                                inspector
+                            );
+                    }
+
+                    const root =
+                        await reconcileTable({
+                            profile,
+                            nodeId: ROOT_NODE_ID,
+                            name: profile.name,
+                            img:
+                                rootEntries.find(
+                                    entry => entry.img
+                                )?.img ??
+                                "icons/svg/d20-grey.svg",
+                            entries: rootEntries,
+                            storedUuid:
+                                profile.generation
+                                    ?.rootUuid ??
+                                getStoredNodeUuid(
+                                    profile,
+                                    ROOT_NODE_ID
+                                ),
+                            folder: folders.root,
+                            target,
+                            replacement:
+                                profile.draw?.unique !==
+                                true
+                        });
+
+                    nodes[ROOT_NODE_ID] = {
+                        uuid: root.uuid
+                    };
+
+                    return finalizeGeneration(
+                        profile,
+                        root,
+                        nodes
+                    );
+                }
+            );
     }
 
     static async getRootTable(profile) {
         if (!profile?.id)
             return null;
 
-        return resolveManagedTable(
-            profile.id,
-            ROOT_NODE_ID,
+        const storedUuid =
             profile.generation?.rootUuid ??
-                getStoredNodeUuid(
-                    profile,
-                    ROOT_NODE_ID
-                )
-        );
+            getStoredNodeUuid(
+                profile,
+                ROOT_NODE_ID
+            );
+
+        if (storedUuid) {
+            try {
+                const stored =
+                    await fromUuid(storedUuid);
+                const flags =
+                    stored?.flags?.[MODULE_ID];
+
+                if (
+                    stored?.documentName ===
+                        "RollTable" &&
+                    flags?.managed === true &&
+                    flags?.profileId ===
+                        profile.id &&
+                    flags?.nodeId ===
+                        ROOT_NODE_ID
+                ) {
+                    return stored;
+                }
+            }
+            catch {
+                // Continue with target lookup.
+            }
+        }
+
+        const target =
+            await TableGenerationTargetService
+                .resolveTarget(profile);
+
+        return TableGenerationTargetService
+            .resolveManagedTable(
+                profile.id,
+                ROOT_NODE_ID,
+                null,
+                target
+            );
     }
 
     static async generateNested(
@@ -639,7 +739,9 @@ export class TableProfileGenerationService {
             !profile?.id ||
             profile.type !== "nested"
         ) {
-            throw new Error("INVALID_TABLE_PROFILE");
+            throw new Error(
+                "INVALID_TABLE_PROFILE"
+            );
         }
 
         const activeChildren = (
@@ -657,62 +759,72 @@ export class TableProfileGenerationService {
             );
         }
 
-        const folder = await getManagedFolder();
-        const entries = activeChildren.map(child => ({
-            documentUuid: child.table.uuid,
-            name: child.profile.name,
-            img:
-                child.table.img ??
-                "icons/svg/d20-grey.svg",
-            resultKey: child.profile.id,
-            weight:
-                normalizePositiveWeight(
-                    child.weight,
-                    1
-                )
-        }));
-        const root = await reconcileTable({
-            profile,
-            nodeId: ROOT_NODE_ID,
-            name: profile.name,
-            img:
-                entries.find(entry => entry.img)?.img ??
-                "icons/svg/d20-grey.svg",
-            entries,
-            storedUuid:
-                profile.generation?.rootUuid ??
-                getStoredNodeUuid(profile, ROOT_NODE_ID),
-            folder,
-            replacement: true
-        });
-        const nodes = {
-            [ROOT_NODE_ID]: {
-                uuid: root.uuid
-            }
-        };
+        const target =
+            await TableGenerationTargetService
+                .resolveTarget(profile);
 
-        await removeStaleManagedTables(
-            profile,
-            new Set(Object.keys(nodes))
-        );
+        return TableGenerationTargetService
+            .withWritableTarget(
+                target,
+                async () => {
+                    const folders =
+                        await getTargetFolders(
+                            target
+                        );
+                    const entries =
+                        activeChildren.map(
+                            child => ({
+                                documentUuid:
+                                    child.table.uuid,
+                                name:
+                                    child.profile.name,
+                                img:
+                                    child.table.img ??
+                                    "icons/svg/d20-grey.svg",
+                                resultKey:
+                                    child.profile.id,
+                                weight:
+                                    normalizePositiveWeight(
+                                        child.weight,
+                                        1
+                                    )
+                            })
+                        );
+                    const root =
+                        await reconcileTable({
+                            profile,
+                            nodeId: ROOT_NODE_ID,
+                            name: profile.name,
+                            img:
+                                entries.find(entry =>
+                                    entry.img
+                                )?.img ??
+                                "icons/svg/d20-grey.svg",
+                            entries,
+                            storedUuid:
+                                profile.generation
+                                    ?.rootUuid ??
+                                getStoredNodeUuid(
+                                    profile,
+                                    ROOT_NODE_ID
+                                ),
+                            folder: folders.root,
+                            target,
+                            replacement: true
+                        });
+                    const nodes = {
+                        [ROOT_NODE_ID]: {
+                            uuid: root.uuid
+                        }
+                    };
 
-        const updatedProfile =
-            await TableProfileStorageService
-                .setGenerationState(
-                    profile.id,
-                    {
-                        rootUuid: root.uuid,
-                        nodes,
-                        generatedRevision:
-                            Number(profile.revision ?? 1)
-                    }
-                );
-
-        return {
-            root,
-            nodes,
-            profile: updatedProfile
-        };
+                    return finalizeGeneration(
+                        profile,
+                        root,
+                        nodes
+                    );
+                }
+            );
     }
 
 }
