@@ -268,6 +268,8 @@
     "ProfileNameRequired": "You must enter a profile name.",
     "ProfileNameInvalid": "The name is invalid or a profile with that name already exists.",
     "ProfileDeleteConfirm": "Delete the profile {profile}? All its rules will be lost.",
+    "GeneratedTableRemoved": "The RollTable managed by this profile was also removed.",
+    "GeneratedTablesRemoved": "{count} RollTables managed by this profile were also removed.",
     "ProfileDeleteForbidden": "The only profile and the public profile cannot be deleted.",
     "LoadFilterGroupFilters": "Load saved filters",
     "FilterGroupFiltersLoaded": "Saved filters loaded into the Compendium Browser.",

@@ -4222,7 +4222,22 @@ export class TableManagerApplication
         }
 
         this._openContentInspectors.delete(profileId);
+        const deletedTables =
+            await TableProfileGenerationService
+                .deleteGeneratedTables(profile);
         await TableProfileStorageService.removeProfile(profileId);
+
+        if (deletedTables > 0) {
+            ui.notifications.info(
+                game.i18n.format(
+                    deletedTables === 1
+                        ? "COMPENDIUM_CURATOR.GeneratedTableRemoved"
+                        : "COMPENDIUM_CURATOR.GeneratedTablesRemoved",
+                    { count: deletedTables }
+                )
+            );
+        }
+
         this.render({ force: true });
     }
 

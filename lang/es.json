@@ -267,6 +267,8 @@
     "ProfileNameRequired": "Debes introducir un nombre para el perfil.",
     "ProfileNameInvalid": "El nombre no es válido o ya existe un perfil con ese nombre.",
     "ProfileDeleteConfirm": "¿Eliminar el perfil {profile}? Todas sus reglas se perderán.",
+    "GeneratedTableRemoved": "También se eliminó la RollTable gestionada por este perfil.",
+    "GeneratedTablesRemoved": "También se eliminaron {count} RollTables gestionadas por este perfil.",
     "ProfileDeleteForbidden": "No se puede eliminar el único perfil ni el perfil público.",
     "LoadFilterGroupFilters": "Cargar filtros guardados",
     "FilterGroupFiltersLoaded": "Filtros guardados cargados en el Navegador de Compendios.",

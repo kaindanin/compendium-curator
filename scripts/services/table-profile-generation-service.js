@@ -349,6 +349,23 @@ async function removeStaleManagedTables(
 
 export class TableProfileGenerationService {
 
+    static async deleteGeneratedTables(profile) {
+        if (!profile?.id)
+            return 0;
+
+        const tables = game.tables.filter(table =>
+            table.flags?.[MODULE_ID]?.managed === true &&
+            table.flags?.[MODULE_ID]?.profileId ===
+                profile.id
+        );
+
+        for (const table of tables) {
+            await table.delete();
+        }
+
+        return tables.length;
+    }
+
     static async generate(profile, inspector) {
         if (
             !profile?.id ||
