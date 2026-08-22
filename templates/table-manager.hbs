@@ -177,15 +177,6 @@
                                 <button
                                     type="button"
                                     class="cc-table-manager-filter-group-control"
-                                    data-action="refreshFilterGroup"
-                                    title="{{localize 'COMPENDIUM_CURATOR.RefreshFilterGroup'}}"
-                                >
-                                    <i class="fas fa-arrows-rotate"></i>
-                                </button>
-
-                                <button
-                                    type="button"
-                                    class="cc-table-manager-filter-group-control"
                                     data-action="editFilterGroup"
                                     title="{{localize 'COMPENDIUM_CURATOR.EditFilterGroupCriteria'}}"
                                 >
@@ -523,26 +514,6 @@
                                                         </strong>
                                                         <span class="hint">
                                                             {{localize "COMPENDIUM_CURATOR.ExcludeZeroPriceHint"}}
-                                                        </span>
-                                                    </span>
-                                                </label>
-
-                                                <label
-                                                    for="cc-include-hidden-{{id}}"
-                                                    style="display:grid;grid-template-columns:auto minmax(0, 1fr);gap:0.6rem;align-items:start;cursor:pointer;margin-top:0.65rem;padding-top:0.65rem;border-top:1px solid rgb(255 255 255 / 7%);"
-                                                >
-                                                    <input
-                                                        id="cc-include-hidden-{{id}}"
-                                                        type="checkbox"
-                                                        data-cc-include-hidden
-                                                        {{#if inspector.includeHidden}}checked{{/if}}
-                                                    >
-                                                    <span>
-                                                        <strong style="display:block;">
-                                                            {{localize "COMPENDIUM_CURATOR.IncludeHiddenObjects"}}
-                                                        </strong>
-                                                        <span class="hint">
-                                                            {{localize "COMPENDIUM_CURATOR.IncludeHiddenObjectsHint"}}
                                                         </span>
                                                     </span>
                                                 </label>

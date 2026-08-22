@@ -6,6 +6,9 @@ import { ensureDnd5eDistributionIndexes } from "./ui/dnd5e-document-list.js";
 import {
     registerItemPilesIntegration
 } from "./integrations/item-piles.js";
+import {
+    registerTableManagerSynchronization
+} from "./services/table-manager-sync-service.js";
 
 Hooks.once("init", () => {
 
@@ -14,32 +17,9 @@ Hooks.once("init", () => {
     registerSettings();
     registerCompendiumBrowserHooks();
     registerItemPilesIntegration();
+    registerTableManagerSynchronization();
 
     debug("Settings registradas");
-
-});
-
-Hooks.on("renderApplicationV2", app => {
-
-    if (
-        app.constructor.name !==
-            "TableManagerApplication" ||
-        !app.browserApp
-    ) {
-        return;
-    }
-
-    /*
-     * El Gestor de tablas y el modo Curador pueden convivir.
-     * El bloqueo existía durante las primeras fases del gestor,
-     * cuando ambas interfaces compartían estado de selección.
-     *
-     * El gestor actual mantiene su propio estado y puede reaccionar
-     * a los cambios del Navegador de Compendios, por lo que ya no es
-     * necesario impedir la curación mientras permanece abierto.
-     */
-    app.browserApp._ccTableManagerLocked = false;
-    app.browserApp._ccRefreshToolbar?.();
 
 });
 
