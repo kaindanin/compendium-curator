@@ -528,11 +528,6 @@ async function createDrawMessage(
             "COMPENDIUM_CURATOR.StockValueBreakdown"
         )
     );
-    const addToActorLabel = escape(
-        game.i18n.localize(
-            "COMPENDIUM_CURATOR.AddStockToActor"
-        )
-    );
     const rows = entries.map(entry => `
         <li style="display:flex;align-items:center;gap:0.5rem;margin:0.25rem 0;">
             <img
@@ -611,15 +606,6 @@ async function createDrawMessage(
             <ol style="margin:0.5rem 0;padding-left:1.25rem;">
                 ${rows}
             </ol>
-            <footer class="card-buttons">
-                <button
-                    type="button"
-                    data-cc-stock-transfer
-                >
-                    <i class="fas fa-boxes-packing"></i>
-                    ${addToActorLabel}
-                </button>
-            </footer>
         </section>
     `);
 
@@ -629,19 +615,13 @@ async function createDrawMessage(
         flags: {
             [MODULE_ID]: {
                 uniqueTableDraw: unique,
-                stockTableDraw: true,
                 tableUuid: table.uuid,
                 requestedCount,
                 selectedCount,
                 unique,
                 priceMultiplier,
                 quantityMin,
-                quantityMax,
-                stockItems:
-                    entries.map(entry => ({
-                        uuid: entry.uuid,
-                        quantity: entry.quantity
-                    }))
+                quantityMax
             }
         }
     });
