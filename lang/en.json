@@ -208,6 +208,7 @@
     "UniqueDrawSummary": "{count} unique results ({requested} requested).",
     "UniqueDrawNoObjects": "The table contains no items available for a unique draw.",
     "UniqueDrawLimited": "{requested} items were requested, but the table only contains {available} unique results.",
+    "ItemPrice": "Price",
     "DrawResults": "Draw",
     "RollTableGenerated": "Table “{name}” generated and updated.",
     "RollTableGenerationFailed": "The table could not be generated.",

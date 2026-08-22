@@ -144,6 +144,74 @@ function sampleWithoutReplacement(entries, count) {
     return selected;
 }
 
+function formatItemPrice(document) {
+    const price = document?.system?.price;
+    const value = Number(price?.value);
+    const denomination = String(
+        price?.denomination ?? ""
+    ).trim();
+
+    if (
+        !Number.isFinite(value) ||
+        value <= 0 ||
+        !denomination
+    ) {
+        return "";
+    }
+
+    const currency =
+        CONFIG.DND5E?.currencies?.[
+            denomination
+        ];
+    const rawLabel =
+        currency?.abbreviation ??
+        currency?.label ??
+        denomination;
+    const label = game.i18n.has(rawLabel)
+        ? game.i18n.localize(rawLabel)
+        : String(rawLabel);
+    const formattedValue =
+        new Intl.NumberFormat(
+            game.i18n.lang,
+            {
+                maximumFractionDigits: 3
+            }
+        ).format(value);
+
+    return `${formattedValue} ${label}`;
+}
+
+async function hydrateSelectedEntries(entries) {
+    return Promise.all(
+        entries.map(async entry => {
+            let document = null;
+
+            try {
+                document = await fromUuid(
+                    entry.uuid
+                );
+            }
+            catch (error) {
+                console.warn(
+                    "Compendium Curator | No se pudo cargar un objeto del stock.",
+                    entry.uuid,
+                    error
+                );
+            }
+
+            return {
+                ...entry,
+                name:
+                    document?.name ?? entry.name,
+                img:
+                    document?.img ?? entry.img,
+                price:
+                    formatItemPrice(document)
+            };
+        })
+    );
+}
+
 async function enrichChatContent(content) {
     const editor =
         foundry.applications?.ux
@@ -164,6 +232,11 @@ async function createUniqueDrawMessage(
     requestedCount
 ) {
     const escape = foundry.utils.escapeHTML;
+    const priceLabel = escape(
+        game.i18n.localize(
+            "COMPENDIUM_CURATOR.ItemPrice"
+        )
+    );
     const rows = entries.map(entry => `
         <li style="display:flex;align-items:center;gap:0.5rem;margin:0.25rem 0;">
             <img
@@ -173,7 +246,12 @@ async function createUniqueDrawMessage(
                 height="32"
                 style="border:0;border-radius:3px;"
             >
-            <span>@UUID[${entry.uuid}]{${escape(entry.name)}}</span>
+            <span style="display:flex;flex-direction:column;min-width:0;">
+                <span>@UUID[${entry.uuid}]{${escape(entry.name)}}</span>
+                ${entry.price
+                    ? `<small class="hint"><strong>${priceLabel}:</strong> ${escape(entry.price)}</small>`
+                    : ""}
+            </span>
         </li>
     `).join("");
     const content = await enrichChatContent(`
@@ -251,21 +329,23 @@ export class TableProfileDrawService {
             pool,
             Math.min(requestedCount, pool.length)
         );
+        const hydrated =
+            await hydrateSelectedEntries(selected);
         const message =
-            displayChat && selected.length
+            displayChat && hydrated.length
                 ? await createUniqueDrawMessage(
                     table,
-                    selected,
+                    hydrated,
                     requestedCount
                 )
                 : null;
 
         return {
-            results: selected,
+            results: hydrated,
             requestedCount,
             availableCount: pool.length,
             truncated:
-                selected.length < requestedCount,
+                hydrated.length < requestedCount,
             message
         };
     }
