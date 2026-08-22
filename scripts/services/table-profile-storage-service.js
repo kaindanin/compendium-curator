@@ -1609,6 +1609,98 @@ export class TableProfileStorageService {
         };
     }
 
+    static async updateFilterGroupCriteria(
+        filterGroupId,
+        browserState,
+        uuids
+    ) {
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+
+        const filterGroup =
+            storage.filterGroups?.[
+                filterGroupId
+            ];
+
+        if (!filterGroup) {
+            throw new Error(
+                "TABLE_FILTER_GROUP_NOT_FOUND"
+            );
+        }
+
+        const browser =
+            foundry.utils.deepClone(
+                browserState ?? {}
+            );
+
+        const matches =
+            this.#normalizeMatches(uuids);
+
+        const previousMatches =
+            this.#normalizeMatches(
+                filterGroup.matches
+            );
+
+        const changed =
+            !foundry.utils.equals(
+                filterGroup.browser ?? {},
+                browser
+            ) ||
+            previousMatches.length !==
+                matches.length ||
+            previousMatches.some(
+                (uuid, index) =>
+                    uuid !== matches[index]
+            );
+
+        filterGroup.browser = browser;
+        filterGroup.matches = matches;
+        filterGroup.refreshedAt = Date.now();
+
+        if (changed) {
+            filterGroup.revision =
+                Number(
+                    filterGroup.revision ?? 1
+                ) + 1;
+
+            for (
+                const profile
+                of Object.values(
+                    storage.profiles ?? {}
+                )
+            ) {
+                if (
+                    !Array.from(
+                        profile.filterGroupIds ?? []
+                    ).includes(filterGroupId)
+                ) {
+                    continue;
+                }
+
+                profile.revision =
+                    Number(
+                        profile.revision ?? 1
+                    ) + 1;
+            }
+        }
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return {
+            filterGroup:
+                foundry.utils.deepClone(
+                    filterGroup
+                ),
+            changed
+        };
+    }
+
     static isFilterGroupNameTaken(
         profileId,
         name,

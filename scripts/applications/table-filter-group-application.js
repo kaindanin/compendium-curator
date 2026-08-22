@@ -56,21 +56,34 @@ export class TableFilterGroupApplication
         const createMode =
             options.createMode === true;
 
+        const editFilterGroupId =
+            String(
+                options.editFilterGroupId ?? ""
+            ).trim() || null;
+
+        const editMode =
+            Boolean(editFilterGroupId);
+
         const applicationOptions = {
             ...options
         };
 
         delete applicationOptions.createMode;
+        delete applicationOptions.editFilterGroupId;
 
-        if (createMode) {
+        if (createMode || editMode) {
 
             applicationOptions.id =
-                "compendium-curator-table-filter-group-creator";
+                editMode
+                    ? "compendium-curator-table-filter-group-criteria-editor"
+                    : "compendium-curator-table-filter-group-creator";
 
             applicationOptions.window = {
                 ...(applicationOptions.window ?? {}),
                 title:
-                    "COMPENDIUM_CURATOR.AddFilterGroupTitle"
+                    editMode
+                        ? "COMPENDIUM_CURATOR.EditFilterGroupCriteria"
+                        : "COMPENDIUM_CURATOR.AddFilterGroupTitle"
             };
 
             applicationOptions.position = {
@@ -87,6 +100,11 @@ export class TableFilterGroupApplication
         this.managerApp = managerApp;
         this.profileId = profileId ?? null;
         this.isCreateMode = createMode;
+        this.isEditMode = editMode;
+        this.isDraftMode =
+            createMode || editMode;
+        this.filterGroupId =
+            editFilterGroupId;
 
         this._draftName = "";
         this._draft = null;
@@ -105,7 +123,7 @@ export class TableFilterGroupApplication
         this._closeApplicationHook = null;
         this._browserFilterInputHandler = null;
 
-        if (this.isCreateMode) {
+        if (this.isDraftMode) {
 
             this._browserRenderHook =
                 Hooks.on(
@@ -151,6 +169,14 @@ export class TableFilterGroupApplication
                         return;
                     }
 
+                    if (
+                        !this.browserApp
+                            ?.element
+                            ?.contains(target)
+                    ) {
+                        return;
+                    }
+
                     const insideFilters =
                         Boolean(
                             target.closest(
@@ -171,25 +197,43 @@ export class TableFilterGroupApplication
                         return;
                     }
 
+                    if (
+                        searchField &&
+                        this.browserApp
+                            ?.currentFilters
+                    ) {
+                        const name =
+                            String(
+                                target.value ?? ""
+                            );
+
+                        if (name) {
+                            this.browserApp
+                                .currentFilters
+                                .name = name;
+                        }
+                        else {
+                            delete this.browserApp
+                                .currentFilters
+                                .name;
+                        }
+                    }
+
                     this.scheduleRefresh();
 
                 };
 
-            this.browserApp
-                ?.element
-                ?.addEventListener(
-                    "input",
-                    this._browserFilterInputHandler,
-                    true
-                );
+            document.addEventListener(
+                "input",
+                this._browserFilterInputHandler,
+                true
+            );
 
-            this.browserApp
-                ?.element
-                ?.addEventListener(
-                    "change",
-                    this._browserFilterInputHandler,
-                    true
-                );
+            document.addEventListener(
+                "change",
+                this._browserFilterInputHandler,
+                true
+            );
 
         }
 
@@ -216,6 +260,8 @@ export class TableFilterGroupApplication
                 this.#onCreateCurrentFilters,
             create:
                 this.#onCreate,
+            update:
+                this.#onUpdate,
             save:
                 this.#onSave,
             cancel:
@@ -280,7 +326,7 @@ export class TableFilterGroupApplication
         immediate = false
     } = {}) {
 
-        if (!this.isCreateMode)
+        if (!this.isDraftMode)
             return;
 
         this._previewGeneration++;
@@ -368,7 +414,8 @@ export class TableFilterGroupApplication
 
         const createButton =
             this.element.querySelector(
-                '[data-action="create"]'
+                '[data-action="create"], ' +
+                '[data-action="update"]'
             );
 
         if (createButton) {
@@ -386,7 +433,7 @@ export class TableFilterGroupApplication
     async _refreshLivePreview() {
 
         if (
-            !this.isCreateMode ||
+            !this.isDraftMode ||
             !this.rendered
         ) {
             return;
@@ -573,10 +620,46 @@ export class TableFilterGroupApplication
         context.isCreateMode =
             this.isCreateMode;
 
-        if (this.isCreateMode) {
+        context.isEditMode =
+            this.isEditMode;
+
+        context.isDraftMode =
+            this.isDraftMode;
+
+        context.draftAction =
+            this.isEditMode
+                ? "update"
+                : "create";
+
+        context.draftSubmitLabel =
+            this.isEditMode
+                ? "COMPENDIUM_CURATOR.SaveChanges"
+                : "COMPENDIUM_CURATOR.Create";
+
+        if (this.isDraftMode) {
+
+            const editedGroup =
+                this.isEditMode
+                    ? TableProfileStorageService
+                        .getFilterGroup(
+                            this.filterGroupId
+                        )
+                    : null;
+
+            if (
+                this.isEditMode &&
+                !editedGroup
+            ) {
+                context.exists = false;
+                return context;
+            }
+
+            context.exists = true;
 
             context.filterGroupName =
-                this._draftName;
+                this.isEditMode
+                    ? editedGroup.name
+                    : this._draftName;
 
             const profile =
                 this.profileId
@@ -715,24 +798,29 @@ export class TableFilterGroupApplication
             options
         );
 
-        if (this.isCreateMode) {
+        if (this.isDraftMode) {
 
             const nameInput =
                 this.element.querySelector(
                     '[name="filterGroupName"]'
                 );
 
-            nameInput?.addEventListener(
-                "input",
-                event => {
-                    this._draftName =
-                        String(
-                            event.target?.value ?? ""
-                        );
-                }
-            );
+            if (this.isCreateMode) {
+                nameInput?.addEventListener(
+                    "input",
+                    event => {
+                        this._draftName =
+                            String(
+                                event.target?.value ?? ""
+                            );
+                    }
+                );
+            }
 
-            if (!this._didInitialFocus) {
+            if (
+                this.isCreateMode &&
+                !this._didInitialFocus
+            ) {
                 this._didInitialFocus = true;
                 nameInput?.focus();
             }
@@ -991,9 +1079,59 @@ export class TableFilterGroupApplication
     }
 
 
+    static async #onUpdate() {
+
+        if (!this.isEditMode)
+            return;
+
+        if (
+            this._previewLoading ||
+            this._previewRunning ||
+            this._previewPending ||
+            !this._draft
+        ) {
+            return;
+        }
+
+        if (
+            (this._draft.includedCount ?? 0) === 0
+        ) {
+            ui.notifications.warn(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.FilterGroupNoObjects"
+                )
+            );
+            return;
+        }
+
+        await TableProfileStorageService
+            .updateFilterGroupCriteria(
+                this.filterGroupId,
+                this._draft.browser,
+                this._draft.matches
+            );
+
+        await this.close();
+
+        this._refreshParentApplications();
+
+        this.managerApp
+            ?._refreshApplicationsForFilterGroup(
+                this.filterGroupId
+            );
+
+        ui.notifications.info(
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.FilterGroupCriteriaSaved"
+            )
+        );
+
+    }
+
+
     static async #onSave() {
 
-        if (this.isCreateMode)
+        if (this.isDraftMode)
             return;
 
         const selectedIds =
@@ -1055,21 +1193,17 @@ export class TableFilterGroupApplication
             this._browserFilterInputHandler
         ) {
 
-            this.browserApp
-                ?.element
-                ?.removeEventListener(
-                    "input",
-                    this._browserFilterInputHandler,
-                    true
-                );
+            document.removeEventListener(
+                "input",
+                this._browserFilterInputHandler,
+                true
+            );
 
-            this.browserApp
-                ?.element
-                ?.removeEventListener(
-                    "change",
-                    this._browserFilterInputHandler,
-                    true
-                );
+            document.removeEventListener(
+                "change",
+                this._browserFilterInputHandler,
+                true
+            );
 
             this._browserFilterInputHandler =
                 null;
@@ -1083,6 +1217,15 @@ export class TableFilterGroupApplication
         ) {
             this.browserApp
                 ._ccFilterGroupCreator = null;
+        }
+
+        if (
+            this.browserApp
+                ?._ccFilterGroupCriteriaEditor ===
+            this
+        ) {
+            this.browserApp
+                ._ccFilterGroupCriteriaEditor = null;
         }
 
         await super._preClose(options);

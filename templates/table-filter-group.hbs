@@ -1,6 +1,6 @@
 <div class="cc-table-filter-group">
 
-    {{#if isCreateMode}}
+    {{#if isDraftMode}}
 
         <div
             class="cc-table-filter-group-content"
@@ -10,13 +10,24 @@
             <header>
 
                 <h2 style="margin: 0;">
-                    {{localize
-                        "COMPENDIUM_CURATOR.FilterGroups"
-                    }}
+                    {{#if isEditMode}}
+                        {{filterGroupName}}
+                    {{else}}
+                        {{localize
+                            "COMPENDIUM_CURATOR.FilterGroups"
+                        }}
+                    {{/if}}
                 </h2>
 
                 <p class="hint cc-table-filter-group-intro">
-                    {{#if linkToProfile}}
+                    {{#if isEditMode}}
+
+                        {{localize
+                            "COMPENDIUM_CURATOR.EditFilterGroupCriteriaHint"
+                            name=filterGroupName
+                        }}
+
+                    {{else if linkToProfile}}
 
                         {{localize
                             "COMPENDIUM_CURATOR.AddFilterGroupHint"
@@ -35,7 +46,9 @@
             </header>
 
 
-            <section class="cc-table-profile-editor-section">
+            {{#unless isEditMode}}
+
+                <section class="cc-table-profile-editor-section">
 
                 <div
                     class="
@@ -73,7 +86,9 @@
 
                 </div>
 
-            </section>
+                </section>
+
+            {{/unless}}
 
 
             <section>
@@ -427,7 +442,7 @@
 
             <button
                 type="button"
-                data-action="create"
+                data-action="{{draftAction}}"
                 style="
                     flex: 0 0 auto;
                     width: auto;
@@ -442,9 +457,7 @@
                     {{/unless}}
                 {{/if}}
             >
-                {{localize
-                    "COMPENDIUM_CURATOR.Create"
-                }}
+                {{localize draftSubmitLabel}}
             </button>
 
         </footer>

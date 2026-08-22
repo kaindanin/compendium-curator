@@ -2014,6 +2014,7 @@ export class TableManagerApplication
         this._profileEditor = null;
         this._defaultsEditor = null;
         this._filterGroupEditor = null;
+        this._filterCriteriaEditor = null;
         this._profilePreview = null;
         this._profileExclusions = null;
         this._profileInclusions = null;
@@ -2066,6 +2067,7 @@ export class TableManagerApplication
             toggleProfileActions: this.#onToggleProfileActions,
             filterGroupDetails: this.#onFilterGroupDetails,
             refreshFilterGroup: this.#onRefreshFilterGroup,
+            editFilterGroup: this.#onEditFilterGroup,
             loadFilterGroup: this.#onLoadFilterGroup,
             unlinkFilterGroup: this.#onUnlinkFilterGroup
         },
@@ -3502,6 +3504,7 @@ export class TableManagerApplication
             "_profileEditor",
             "_defaultsEditor",
             "_filterGroupEditor",
+            "_filterCriteriaEditor",
             "_profilePreview",
             "_profileExclusions",
             "_profileInclusions",
@@ -4631,6 +4634,7 @@ export class TableManagerApplication
 
         const profileApplications = [
             "_filterGroupEditor",
+            "_filterCriteriaEditor",
             "_profilePreview",
             "_profileInclusions",
             "_profileExclusions",
@@ -4944,6 +4948,14 @@ export class TableManagerApplication
         ) {
             await this._filterGroupDetails.close();
             this._filterGroupDetails = null;
+        }
+
+        if (
+            this._filterCriteriaEditor?.rendered &&
+            this._filterCriteriaEditor.filterGroupId === filterGroupId
+        ) {
+            await this._filterCriteriaEditor.close();
+            this._filterCriteriaEditor = null;
         }
 
         ui.notifications.info(
@@ -5357,6 +5369,83 @@ export class TableManagerApplication
 
         this.render({ force: true });
         this._refreshApplicationsForFilterGroup(filterGroupId);
+    }
+
+    static async #onEditFilterGroup(event, target) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const filterGroupId = target
+            .closest("[data-filter-group-id]")
+            ?.dataset?.filterGroupId;
+
+        if (!filterGroupId)
+            return;
+
+        const filterGroup =
+            TableProfileStorageService
+                .getFilterGroup(filterGroupId);
+
+        if (!filterGroup?.browser) {
+            ui.notifications.warn(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.FilterGroupNotFound"
+                )
+            );
+            return;
+        }
+
+        if (this._filterCriteriaEditor?.rendered) {
+            if (
+                this._filterCriteriaEditor
+                    .filterGroupId ===
+                filterGroupId
+            ) {
+                this._filterCriteriaEditor
+                    .bringToFront();
+                return;
+            }
+
+            await this._filterCriteriaEditor.close();
+        }
+
+        const loaded =
+            await TableProfileService
+                .loadBrowserFilters(
+                    this.browserApp,
+                    filterGroup.browser
+                );
+
+        if (loaded === null)
+            return;
+
+        if (loaded === false) {
+            ui.notifications.warn(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.FilterGroupFiltersLoadFailed"
+                )
+            );
+            return;
+        }
+
+        this._filterCriteriaEditor =
+            new TableFilterGroupApplication(
+                this.browserApp,
+                this,
+                null,
+                {
+                    editFilterGroupId:
+                        filterGroupId
+                }
+            );
+
+        this.browserApp
+            ._ccFilterGroupCriteriaEditor =
+                this._filterCriteriaEditor;
+
+        this._filterCriteriaEditor.render({
+            force: true
+        });
     }
 
     static async #onLoadFilterGroup(event, target) {
