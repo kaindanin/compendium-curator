@@ -2,10 +2,14 @@ const DISTRIBUTION_INDEX_FIELDS = {
     Item: [
         "system.rarity",
         "system.source",
-        "system.level"
+        "system.level",
+        "system.school"
     ],
     Actor: [
         "system.details.cr",
+        "system.details.type.value",
+        "system.details.type.custom",
+        "system.traits.size",
         "system.source"
     ]
 };

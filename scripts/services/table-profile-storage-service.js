@@ -25,6 +25,21 @@ const GROUPING_CRITERIA = {
         criterion: "source",
         field: "system.source"
     },
+    creatureType: {
+        type: "field",
+        criterion: "creatureType",
+        field: "system.details.type.value"
+    },
+    size: {
+        type: "field",
+        criterion: "size",
+        field: "system.traits.size"
+    },
+    spellSchool: {
+        type: "field",
+        criterion: "spellSchool",
+        field: "system.school"
+    },
     cr: {
         type: "range",
         criterion: "cr",

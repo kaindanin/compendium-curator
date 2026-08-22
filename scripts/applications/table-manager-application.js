@@ -67,7 +67,10 @@ const GROUPING_CRITERIA = new Set([
     "type",
     "source",
     "cr",
-    "spellLevel"
+    "spellLevel",
+    "creatureType",
+    "size",
+    "spellSchool"
 ]);
 
 function getRefreshSectionTitle(key, count) {
@@ -644,6 +647,110 @@ function getInspectorSpellLevelLabel(
         : key;
 }
 
+function getInspectorConfigLabel(
+    collection,
+    key
+) {
+    const config = collection?.[key];
+    const label =
+        typeof config === "string"
+            ? config
+            : config?.label;
+
+    return label
+        ? game.i18n.localize(label)
+        : key;
+}
+
+function getInspectorCreatureType(uuid) {
+    const document =
+        getIndexedDocument(uuid);
+    const type =
+        document?.system?.details?.type;
+    const value = String(
+        typeof type === "string"
+            ? type
+            : type?.value ?? ""
+    ).trim();
+
+    if (!value)
+        return "unclassified";
+
+    if (value !== "custom")
+        return value;
+
+    const custom = String(
+        type?.custom ?? ""
+    ).trim();
+
+    return custom
+        ? `custom:${custom}`
+        : "unclassified";
+}
+
+function getInspectorCreatureTypeLabel(key) {
+    if (key === "unclassified") {
+        return game.i18n.localize(
+            "COMPENDIUM_CURATOR.GroupNoCreatureType"
+        );
+    }
+
+    if (key.startsWith("custom:")) {
+        return key.slice("custom:".length);
+    }
+
+    return getInspectorConfigLabel(
+        CONFIG.DND5E?.creatureTypes,
+        key
+    );
+}
+
+function getInspectorActorSize(uuid) {
+    const document =
+        getIndexedDocument(uuid);
+    const size = String(
+        document?.system?.traits?.size ?? ""
+    ).trim();
+
+    return size || "unclassified";
+}
+
+function getInspectorActorSizeLabel(key) {
+    if (key === "unclassified") {
+        return game.i18n.localize(
+            "COMPENDIUM_CURATOR.GroupNoSize"
+        );
+    }
+
+    return getInspectorConfigLabel(
+        CONFIG.DND5E?.actorSizes,
+        key
+    );
+}
+
+function getInspectorSpellSchool(uuid) {
+    const document =
+        getIndexedDocument(uuid);
+    const school = String(
+        document?.system?.school ?? ""
+    ).trim();
+
+    return school || "unclassified";
+}
+
+function getInspectorSpellSchoolLabel(key) {
+    if (key === "unclassified") {
+        return game.i18n.localize(
+            "COMPENDIUM_CURATOR.GroupNoSpellSchool"
+        );
+    }
+
+    return getInspectorConfigLabel(
+        CONFIG.DND5E?.spellSchools,
+        key
+    );
+}
+
 function getInspectorGroupingLabel(criterion) {
     let key = "GroupByRarity";
 
@@ -655,6 +762,12 @@ function getInspectorGroupingLabel(criterion) {
         key = "GroupByChallengeRating";
     else if (criterion === "spellLevel")
         key = "GroupBySpellLevel";
+    else if (criterion === "creatureType")
+        key = "GroupByCreatureType";
+    else if (criterion === "size")
+        key = "GroupBySize";
+    else if (criterion === "spellSchool")
+        key = "GroupBySpellSchool";
 
     return game.i18n.localize(
         `COMPENDIUM_CURATOR.${key}`
@@ -685,6 +798,15 @@ function getInspectorGroupingKey(
             profile
         );
     }
+
+    if (criterion === "creatureType")
+        return getInspectorCreatureType(uuid);
+
+    if (criterion === "size")
+        return getInspectorActorSize(uuid);
+
+    if (criterion === "spellSchool")
+        return getInspectorSpellSchool(uuid);
 
     return getInspectorRarity(uuid);
 }
@@ -718,6 +840,20 @@ function getInspectorGroupingGroupLabel(
             key,
             profile
         );
+    }
+
+    if (criterion === "creatureType") {
+        return getInspectorCreatureTypeLabel(
+            key
+        );
+    }
+
+    if (criterion === "size") {
+        return getInspectorActorSizeLabel(key);
+    }
+
+    if (criterion === "spellSchool") {
+        return getInspectorSpellSchoolLabel(key);
     }
 
     return getInspectorRarityLabel(key);
@@ -773,6 +909,54 @@ function getInspectorOrderedGroupKeys(
                 )
                 .sort()
         );
+
+        return ordered;
+    }
+
+    const configuredOrder =
+        criterion === "creatureType"
+            ? Object.keys(
+                CONFIG.DND5E?.creatureTypes ?? {}
+            )
+            : criterion === "size"
+                ? Object.keys(
+                    CONFIG.DND5E?.actorSizes ?? {}
+                )
+                : criterion === "spellSchool"
+                    ? Object.keys(
+                        CONFIG.DND5E?.spellSchools ?? {}
+                    )
+                    : [];
+
+    if (configuredOrder.length) {
+        const ordered = configuredOrder
+            .filter(key => groups.has(key));
+
+        ordered.push(
+            ...[...groups.keys()]
+                .filter(key =>
+                    key !== "unclassified" &&
+                    !ordered.includes(key)
+                )
+                .sort((a, b) =>
+                    getInspectorGroupingGroupLabel(
+                        criterion,
+                        a,
+                        profile
+                    ).localeCompare(
+                        getInspectorGroupingGroupLabel(
+                            criterion,
+                            b,
+                            profile
+                        ),
+                        game.i18n.lang,
+                        { sensitivity: "base" }
+                    )
+                )
+        );
+
+        if (groups.has("unclassified"))
+            ordered.push("unclassified");
 
         return ordered;
     }
@@ -1330,6 +1514,12 @@ function buildContentInspector(profile) {
             groupingCriterion === "cr",
         isGroupingSpellLevel:
             groupingCriterion === "spellLevel",
+        isGroupingCreatureType:
+            groupingCriterion === "creatureType",
+        isGroupingSize:
+            groupingCriterion === "size",
+        isGroupingSpellSchool:
+            groupingCriterion === "spellSchool",
         isRangeGrouping:
             profile?.distribution
                 ?.grouped

@@ -471,6 +471,24 @@
                                                         >
                                                             {{localize "COMPENDIUM_CURATOR.GroupBySpellLevel"}}
                                                         </option>
+                                                        <option
+                                                            value="creatureType"
+                                                            {{#if inspector.isGroupingCreatureType}}selected{{/if}}
+                                                        >
+                                                            {{localize "COMPENDIUM_CURATOR.GroupByCreatureType"}}
+                                                        </option>
+                                                        <option
+                                                            value="size"
+                                                            {{#if inspector.isGroupingSize}}selected{{/if}}
+                                                        >
+                                                            {{localize "COMPENDIUM_CURATOR.GroupBySize"}}
+                                                        </option>
+                                                        <option
+                                                            value="spellSchool"
+                                                            {{#if inspector.isGroupingSpellSchool}}selected{{/if}}
+                                                        >
+                                                            {{localize "COMPENDIUM_CURATOR.GroupBySpellSchool"}}
+                                                        </option>
                                                     </select>
 
                                                     {{#if inspector.isRangeGrouping}}
