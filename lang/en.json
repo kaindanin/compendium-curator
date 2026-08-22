@@ -229,6 +229,8 @@
     "ItemPrice": "Price",
     "ItemUnitPrice": "Unit price",
     "ItemSubtotal": "Subtotal",
+    "TotalStockValue": "Total value",
+    "StockValueBreakdown": "Breakdown",
     "DrawResults": "Draw",
     "RollTableGenerated": "Table “{name}” generated and updated.",
     "RollTableAutoUpdated": "Table “{name}” was updated automatically before use.",

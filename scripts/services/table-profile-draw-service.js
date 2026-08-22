@@ -239,24 +239,35 @@ function getItemPrice(
     ) {
         return {
             unit: "",
-            subtotal: ""
+            subtotal: "",
+            unitValue: null,
+            subtotalValue: null,
+            denomination: ""
         };
     }
+
+    const adjustedUnitValue =
+        value * priceMultiplier;
+    const adjustedSubtotalValue =
+        adjustedUnitValue * quantity;
 
     return {
         unit:
             formatCurrencyAmount(
-                value * priceMultiplier,
+                adjustedUnitValue,
                 denomination
             ),
         subtotal:
             quantity > 1
                 ? formatCurrencyAmount(
-                    value * priceMultiplier *
-                        quantity,
+                    adjustedSubtotalValue,
                     denomination
                 )
-                : ""
+                : "",
+        unitValue: adjustedUnitValue,
+        subtotalValue:
+            adjustedSubtotalValue,
+        denomination
     };
 }
 
@@ -303,10 +314,127 @@ async function hydrateSelectedEntries(
                     document?.img ?? entry.img,
                 price: price.unit,
                 unitPrice: price.unit,
-                subtotalPrice: price.subtotal
+                subtotalPrice: price.subtotal,
+                priceValue: price.unitValue,
+                subtotalValue:
+                    price.subtotalValue,
+                priceDenomination:
+                    price.denomination
             };
         })
     );
+}
+
+function buildPriceSummary(entries) {
+    const totals = new Map();
+
+    for (const entry of entries) {
+        const value = Number(
+            entry.subtotalValue
+        );
+        const denomination = String(
+            entry.priceDenomination ?? ""
+        ).trim();
+
+        if (
+            !Number.isFinite(value) ||
+            value <= 0 ||
+            !denomination
+        ) {
+            continue;
+        }
+
+        totals.set(
+            denomination,
+            (
+                totals.get(denomination) ?? 0
+            ) + value
+        );
+    }
+
+    if (!totals.size) {
+        return {
+            total: "",
+            breakdown: ""
+        };
+    }
+
+    const currencies =
+        CONFIG.DND5E?.currencies ?? {};
+    const orderedTotals = [...totals.entries()]
+        .sort(([left], [right]) => {
+            const leftConversion = Number(
+                currencies[left]?.conversion
+            );
+            const rightConversion = Number(
+                currencies[right]?.conversion
+            );
+
+            return (
+                Number.isFinite(leftConversion)
+                    ? leftConversion
+                    : Number.MAX_SAFE_INTEGER
+            ) - (
+                Number.isFinite(rightConversion)
+                    ? rightConversion
+                    : Number.MAX_SAFE_INTEGER
+            );
+        });
+    const breakdown = orderedTotals
+        .map(([denomination, value]) =>
+            formatCurrencyAmount(
+                value,
+                denomination
+            )
+        )
+        .join(" + ");
+
+    if (orderedTotals.length === 1) {
+        return {
+            total: breakdown,
+            breakdown: ""
+        };
+    }
+
+    const baseCurrency =
+        Object.entries(currencies)
+            .find(([, currency]) =>
+                Number(currency?.conversion) === 1
+            );
+    let normalizedTotal = 0;
+    let canNormalize = Boolean(baseCurrency);
+
+    for (
+        const [denomination, value]
+        of orderedTotals
+    ) {
+        const conversion = Number(
+            currencies[denomination]
+                ?.conversion
+        );
+
+        if (
+            !Number.isFinite(conversion) ||
+            conversion <= 0
+        ) {
+            canNormalize = false;
+            break;
+        }
+
+        normalizedTotal += value / conversion;
+    }
+
+    return {
+        total:
+            canNormalize
+                ? formatCurrencyAmount(
+                    normalizedTotal,
+                    baseCurrency[0]
+                )
+                : breakdown,
+        breakdown:
+            canNormalize ? breakdown : ""
+    };
 }
 
 async function enrichChatContent(content) {
@@ -354,6 +482,18 @@ async function createDrawMessage(
             game.i18n.lang,
             { maximumFractionDigits: 2 }
         ).format(priceMultiplier * 100);
+    const priceSummary =
+        buildPriceSummary(entries);
+    const totalValueLabel = escape(
+        game.i18n.localize(
+            "COMPENDIUM_CURATOR.TotalStockValue"
+        )
+    );
+    const breakdownLabel = escape(
+        game.i18n.localize(
+            "COMPENDIUM_CURATOR.StockValueBreakdown"
+        )
+    );
     const rows = entries.map(entry => `
         <li style="display:flex;align-items:center;gap:0.5rem;margin:0.25rem 0;">
             <img
@@ -409,6 +549,14 @@ async function createDrawMessage(
                         { percent: priceAdjustment }
                     )
                 )}</p>`
+                : ""}
+            ${priceSummary.total
+                ? `<div style="display:flex;flex-direction:column;gap:0.15rem;margin:0.45rem 0;padding:0.45rem 0.55rem;background:rgb(0 0 0 / 10%);border-radius:4px;">
+                    <strong>${totalValueLabel}: ${escape(priceSummary.total)}</strong>
+                    ${priceSummary.breakdown
+                        ? `<small class="hint">${breakdownLabel}: ${escape(priceSummary.breakdown)}</small>`
+                        : ""}
+                </div>`
                 : ""}
             <ol style="margin:0.5rem 0;padding-left:1.25rem;">
                 ${rows}

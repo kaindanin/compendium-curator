@@ -228,6 +228,8 @@
     "ItemPrice": "Precio",
     "ItemUnitPrice": "Precio unitario",
     "ItemSubtotal": "Subtotal",
+    "TotalStockValue": "Valor total",
+    "StockValueBreakdown": "Desglose",
     "DrawResults": "Tirar",
     "RollTableGenerated": "Tabla «{name}» generada y actualizada.",
     "RollTableAutoUpdated": "Tabla «{name}» actualizada automáticamente antes de usarla.",
