@@ -145,6 +145,8 @@ export class TableProfileEditorApplication
         actions: {
             selectPreset: this.#onSelectPreset,
             save: this.#onSave,
+            saveAndGenerate:
+                this.#onSaveAndGenerate,
             cancel: this.#onCancel
         },
         window: {
@@ -294,6 +296,13 @@ export class TableProfileEditorApplication
             context.includeCurrentSelection =
                 this._includeCurrentSelection &&
                 context.canIncludeCurrentSelection;
+            context.canGenerateImmediately =
+                context.includeCurrentSelection &&
+                Boolean(
+                    this.browserApp
+                        ?._ccTableManager
+                        ?.generateStoredProfileTables
+                );
         }
 
         return context;
@@ -321,6 +330,16 @@ export class TableProfileEditorApplication
             event => {
                 this._includeCurrentSelection =
                     event.target.checked === true;
+
+                const generateButton =
+                    this.element.querySelector(
+                        '[data-action="saveAndGenerate"]'
+                    );
+
+                if (generateButton) {
+                    generateButton.disabled =
+                        !this._includeCurrentSelection;
+                }
             }
         );
     }
@@ -356,6 +375,26 @@ export class TableProfileEditorApplication
     }
 
     static async #onSave(event, target) {
+        return this._saveProfile(
+            event,
+            target,
+            false
+        );
+    }
+
+    static async #onSaveAndGenerate(event, target) {
+        return this._saveProfile(
+            event,
+            target,
+            true
+        );
+    }
+
+    async _saveProfile(
+        event,
+        target,
+        generateImmediately
+    ) {
         const nameInput =
             this.element.querySelector(
                 '[name="profileName"]'
@@ -540,10 +579,25 @@ export class TableProfileEditorApplication
             }
         }
 
+        if (
+            generateImmediately &&
+            !initialFilterGroup
+        ) {
+            ui.notifications.warn(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.CurrentSelectionUnavailable"
+                )
+            );
+            return;
+        }
+
         target.disabled = true;
 
+        let createdProfile;
+
         try {
-            await TableProfileStorageService.create(
+            createdProfile =
+                await TableProfileStorageService.create(
                 profile,
                 initialFilterGroup
             );
@@ -574,6 +628,34 @@ export class TableProfileEditorApplication
         const tableManager =
             this.browserApp?._ccTableManager;
 
+        let generated = null;
+
+        if (
+            generateImmediately &&
+            tableManager
+                ?.generateStoredProfileTables
+        ) {
+            try {
+                generated =
+                    await tableManager
+                        .generateStoredProfileTables(
+                            createdProfile.id
+                        );
+            }
+            catch (error) {
+                console.error(
+                    "Compendium Curator | Error generando la RollTable al crear el perfil.",
+                    error
+                );
+
+                ui.notifications.error(
+                    game.i18n.localize(
+                        "COMPENDIUM_CURATOR.RollTableGenerationFailed"
+                    )
+                );
+            }
+        }
+
         if (tableManager?.rendered) {
             tableManager._activeTab =
                 profileType === "nested"
@@ -584,9 +666,14 @@ export class TableProfileEditorApplication
         }
 
         ui.notifications.info(
-            game.i18n.localize(
-                "COMPENDIUM_CURATOR.TableProfileSaved"
-            )
+            generated
+                ? game.i18n.format(
+                    "COMPENDIUM_CURATOR.RollTableGenerated",
+                    { name: generated.root.name }
+                )
+                : game.i18n.localize(
+                    "COMPENDIUM_CURATOR.TableProfileSaved"
+                )
         );
 
         await this.close();

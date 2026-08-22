@@ -2037,6 +2037,20 @@ export class TableManagerApplication
             new Set();
     }
 
+    async generateStoredProfileTables(profileId) {
+        const profile =
+            TableProfileStorageService
+                .getProfiles()?.[profileId];
+
+        if (!profile) {
+            throw new Error(
+                "TABLE_PROFILE_NOT_FOUND"
+            );
+        }
+
+        return generateProfileTables(profile);
+    }
+
     static DEFAULT_OPTIONS = {
         id: "compendium-curator-table-manager",
         classes: [

@@ -70,6 +70,8 @@
     "TableProfiles": "Table profiles",
     "TableProfilesHint": "Create and manage reusable profiles for generating RollTables.",
     "CreateTableProfile": "Create profile",
+    "CreateAndGenerate": "Create and generate table",
+    "CreateAndGenerateHint": "Create the profile with the items from the current filters and generate its RollTable immediately.",
     "CreateFilterGroup": "Create filter group",
     "ManageFilterGroups": "Manage filter groups",
     "EditContent": "Edit content",

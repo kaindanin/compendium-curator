@@ -194,6 +194,21 @@
             }}
         </button>
 
+        {{#if isContent}}
+            <button
+                type="button"
+                data-action="saveAndGenerate"
+                data-tooltip="COMPENDIUM_CURATOR.CreateAndGenerateHint"
+                {{#unless canGenerateImmediately}}disabled{{/unless}}
+                style="flex: 0 0 auto; width: auto; min-width: 96px; padding-inline: 1rem;"
+            >
+                <i class="fas fa-wand-magic-sparkles"></i>
+                {{localize
+                    "COMPENDIUM_CURATOR.CreateAndGenerate"
+                }}
+            </button>
+        {{/if}}
+
     </footer>
 
 </section>
