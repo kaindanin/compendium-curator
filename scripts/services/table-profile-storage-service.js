@@ -3,6 +3,11 @@ import {
     TABLE_PROFILES_SETTING
 } from "../settings.js";
 
+const TABLE_PROFILE_BUNDLE_TYPE =
+    "compendium-curator-table-profile-bundle";
+const TABLE_PROFILE_BUNDLE_VERSION = 1;
+const TABLE_PROFILE_BUNDLE_LIMIT = 500;
+
 const DISTRIBUTION_MODES = new Set([
     "uniform",
     "individual",
@@ -2666,6 +2671,383 @@ export class TableProfileStorageService {
                 )
             ])
         );
+    }
+
+    static exportProfileBundle(profileId) {
+        const storage = this.getStorage();
+        const rootProfile =
+            storage.profiles?.[profileId];
+
+        if (!rootProfile) {
+            throw new Error(
+                "TABLE_PROFILE_NOT_FOUND"
+            );
+        }
+
+        const profileIds = new Set();
+        const pending = [profileId];
+
+        while (pending.length) {
+            const currentId = pending.shift();
+            const profile =
+                storage.profiles?.[currentId];
+
+            if (!profile || profileIds.has(currentId))
+                continue;
+
+            profileIds.add(currentId);
+
+            if (profile.type === "nested") {
+                for (const child of profile.children ?? []) {
+                    pending.push(child.profileId);
+                }
+            }
+        }
+
+        const profiles = {};
+        const filterGroupIds = new Set();
+
+        for (const currentId of profileIds) {
+            const profile = foundry.utils.deepClone(
+                storage.profiles[currentId]
+            );
+
+            profile.generation = {
+                masterUuid: null,
+                groupUuids: {},
+                rootUuid: null,
+                nodes: {},
+                generatedRevision: 0
+            };
+            delete profile.filterGroups;
+            profiles[currentId] = profile;
+
+            for (
+                const filterGroupId
+                of profile.filterGroupIds ?? []
+            ) {
+                filterGroupIds.add(filterGroupId);
+            }
+        }
+
+        const filterGroups = {};
+
+        for (const filterGroupId of filterGroupIds) {
+            const filterGroup =
+                storage.filterGroups?.[filterGroupId];
+
+            if (filterGroup) {
+                filterGroups[filterGroupId] =
+                    foundry.utils.deepClone(
+                        filterGroup
+                    );
+            }
+        }
+
+        return {
+            type: TABLE_PROFILE_BUNDLE_TYPE,
+            version: TABLE_PROFILE_BUNDLE_VERSION,
+            moduleVersion:
+                game.modules.get(MODULE_ID)?.version ??
+                null,
+            exportedAt: Date.now(),
+            rootProfileId: profileId,
+            profiles,
+            filterGroups
+        };
+    }
+
+    static async importProfileBundle(bundle) {
+        const sourceProfiles = bundle?.profiles;
+        const sourceFilterGroups =
+            bundle?.filterGroups ?? {};
+        const rootProfileId = String(
+            bundle?.rootProfileId ?? ""
+        ).trim();
+
+        if (
+            bundle?.type !==
+                TABLE_PROFILE_BUNDLE_TYPE ||
+            bundle?.version !==
+                TABLE_PROFILE_BUNDLE_VERSION ||
+            !sourceProfiles ||
+            typeof sourceProfiles !== "object" ||
+            Array.isArray(sourceProfiles) ||
+            !sourceFilterGroups ||
+            typeof sourceFilterGroups !== "object" ||
+            Array.isArray(sourceFilterGroups) ||
+            !sourceProfiles[rootProfileId]
+        ) {
+            throw new Error(
+                "INVALID_TABLE_PROFILE_BUNDLE"
+            );
+        }
+
+        const profileEntries =
+            Object.entries(sourceProfiles);
+        const filterGroupEntries =
+            Object.entries(sourceFilterGroups);
+
+        if (
+            !profileEntries.length ||
+            profileEntries.length >
+                TABLE_PROFILE_BUNDLE_LIMIT ||
+            filterGroupEntries.length >
+                TABLE_PROFILE_BUNDLE_LIMIT
+        ) {
+            throw new Error(
+                "INVALID_TABLE_PROFILE_BUNDLE"
+            );
+        }
+
+        for (
+            const [sourceId, profile]
+            of profileEntries
+        ) {
+            if (
+                !sourceId ||
+                !profile ||
+                profile.version !== 2 ||
+                !["content", "nested"].includes(
+                    profile.type
+                ) ||
+                !String(profile.name ?? "").trim() ||
+                !Array.isArray(
+                    profile.filterGroupIds ?? []
+                ) ||
+                (
+                    profile.type === "nested" &&
+                    !Array.isArray(
+                        profile.children ?? []
+                    )
+                )
+            ) {
+                throw new Error(
+                    "INVALID_TABLE_PROFILE_BUNDLE"
+                );
+            }
+
+            for (
+                const filterGroupId
+                of profile.filterGroupIds ?? []
+            ) {
+                if (!sourceFilterGroups[filterGroupId]) {
+                    throw new Error(
+                        "INVALID_TABLE_PROFILE_BUNDLE"
+                    );
+                }
+            }
+
+            if (profile.type === "nested") {
+                for (const child of profile.children ?? []) {
+                    const childProfile =
+                        sourceProfiles[
+                            child?.profileId
+                        ];
+
+                    if (childProfile?.type !== "content") {
+                        throw new Error(
+                            "INVALID_TABLE_PROFILE_BUNDLE"
+                        );
+                    }
+                }
+            }
+        }
+
+        for (
+            const [sourceId, filterGroup]
+            of filterGroupEntries
+        ) {
+            if (
+                !sourceId ||
+                !filterGroup ||
+                !String(filterGroup.name ?? "").trim() ||
+                !Array.isArray(filterGroup.matches)
+            ) {
+                throw new Error(
+                    "INVALID_TABLE_PROFILE_BUNDLE"
+                );
+            }
+        }
+
+        const storage = foundry.utils.deepClone(
+            this.getStorage()
+        );
+        const profileIdMap = new Map();
+        const filterGroupIdMap = new Map();
+
+        storage.profiles ??= {};
+        storage.filterGroups ??= {};
+
+        const getUniqueProfileName = rawName => {
+            const desired = String(rawName).trim();
+
+            if (!this.#isProfileNameTakenInStorage(
+                storage,
+                desired
+            )) {
+                return desired;
+            }
+
+            const base = game.i18n.format(
+                "COMPENDIUM_CURATOR.ImportedCopyName",
+                { name: desired }
+            );
+            let candidate = base;
+            let index = 2;
+
+            while (this.#isProfileNameTakenInStorage(
+                storage,
+                candidate
+            )) {
+                candidate = `${base} (${index})`;
+                index++;
+            }
+
+            return candidate;
+        };
+
+        const getUniqueFilterGroupName = rawName => {
+            const desired = String(rawName).trim();
+
+            if (!this.#isFilterGroupNameTakenInStorage(
+                storage,
+                desired
+            )) {
+                return desired;
+            }
+
+            const base = game.i18n.format(
+                "COMPENDIUM_CURATOR.ImportedCopyName",
+                { name: desired }
+            );
+            let candidate = base;
+            let index = 2;
+
+            while (this.#isFilterGroupNameTakenInStorage(
+                storage,
+                candidate
+            )) {
+                candidate = `${base} (${index})`;
+                index++;
+            }
+
+            return candidate;
+        };
+
+        for (
+            const [sourceId, filterGroup]
+            of filterGroupEntries
+        ) {
+            const imported =
+                this.#createFilterGroupRecord(
+                    storage,
+                    {
+                        ...foundry.utils.deepClone(
+                            filterGroup
+                        ),
+                        name:
+                            getUniqueFilterGroupName(
+                                filterGroup.name
+                            )
+                    }
+                );
+
+            filterGroupIdMap.set(
+                sourceId,
+                imported.id
+            );
+        }
+
+        for (const [sourceId] of profileEntries) {
+            let newId;
+
+            do {
+                newId = foundry.utils.randomID();
+            }
+            while (
+                storage.profiles[newId] ||
+                [...profileIdMap.values()]
+                    .includes(newId)
+            );
+
+            profileIdMap.set(sourceId, newId);
+        }
+
+        for (
+            const [sourceId, sourceProfile]
+            of profileEntries
+        ) {
+            const profile = foundry.utils.deepClone(
+                sourceProfile
+            );
+            const newId = profileIdMap.get(sourceId);
+
+            profile.id = newId;
+            profile.name = getUniqueProfileName(
+                profile.name
+            );
+            profile.revision = 1;
+            profile.filterGroupIds = [
+                ...new Set(
+                    (profile.filterGroupIds ?? [])
+                        .map(id =>
+                            filterGroupIdMap.get(id)
+                        )
+                        .filter(Boolean)
+                )
+            ];
+            profile.generation = {
+                masterUuid: null,
+                groupUuids: {},
+                rootUuid: null,
+                nodes: {},
+                generatedRevision: 0
+            };
+            delete profile.filterGroups;
+
+            if (profile.type === "nested") {
+                profile.children = (
+                    profile.children ?? []
+                ).map(child => ({
+                    ...child,
+                    profileId:
+                        profileIdMap.get(
+                            child.profileId
+                        )
+                }));
+            }
+
+            storage.profiles[newId] = profile;
+        }
+
+        const normalizedStorage =
+            this.#normalizeStorage(storage);
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            normalizedStorage
+        );
+
+        const importedRootId =
+            profileIdMap.get(rootProfileId);
+
+        return {
+            rootProfile:
+                this.#hydrateProfile(
+                    normalizedStorage.profiles[
+                        importedRootId
+                    ],
+                    normalizedStorage
+                ),
+            importedProfileIds: [
+                ...profileIdMap.values()
+            ],
+            importedFilterGroupIds: [
+                ...filterGroupIdMap.values()
+            ]
+        };
     }
 
     static getFilterGroups() {

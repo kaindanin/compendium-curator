@@ -1798,6 +1798,7 @@ export class TableManagerApplication
             changeManagerTab: this.#onChangeManagerTab,
             clearManagerSearch: this.#onClearManagerSearch,
             createProfile: this.#onCreateProfile,
+            importProfileBundle: this.#onImportProfileBundle,
             configureDefaults: this.#onConfigureDefaults,
             editGroupingRanges: this.#onEditGroupingRanges,
             editManualGroups: this.#onEditManualGroups,
@@ -1810,6 +1811,7 @@ export class TableManagerApplication
             drawGeneratedTable: this.#onDrawGeneratedTable,
             renameProfile: this.#onRenameProfile,
             duplicateProfile: this.#onDuplicateProfile,
+            exportProfileBundle: this.#onExportProfileBundle,
             deleteProfile: this.#onDeleteProfile,
             renameFilterGroup: this.#onRenameFilterGroup,
             duplicateFilterGroup: this.#onDuplicateFilterGroup,
@@ -3257,6 +3259,112 @@ export class TableManagerApplication
         this._profileEditor.render({ force: true });
     }
 
+    static #onExportProfileBundle(event, target) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
+        const profile = profileId
+            ? TableProfileStorageService
+                .getProfiles()?.[profileId]
+            : null;
+
+        if (!profile)
+            return;
+
+        const bundle =
+            TableProfileStorageService
+                .exportProfileBundle(profileId);
+        const safeName = String(profile.name)
+            .replace(
+                /[<>:"/\\|?*\u0000-\u001F]/g,
+                "-"
+            )
+            .trim() || "table-profile";
+
+        foundry.utils.saveDataToFile(
+            JSON.stringify(bundle, null, 2),
+            "application/json",
+            `compendium-curator-table-${safeName}.json`
+        );
+
+        ui.notifications.info(
+            game.i18n.format(
+                "COMPENDIUM_CURATOR.TableProfileExported",
+                { name: profile.name }
+            )
+        );
+        this._closeProfileActionsPopover();
+    }
+
+    static #onImportProfileBundle(event) {
+        event.preventDefault();
+
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".json,application/json";
+
+        input.addEventListener(
+            "change",
+            async () => {
+                const file = input.files?.[0];
+
+                if (!file)
+                    return;
+
+                try {
+                    const bundle = JSON.parse(
+                        await file.text()
+                    );
+                    const imported =
+                        await TableProfileStorageService
+                            .importProfileBundle(bundle);
+                    const root = imported.rootProfile;
+
+                    this._activeTab =
+                        root?.type === "nested"
+                            ? "nested"
+                            : "content";
+                    this._searchQuery = "";
+                    this.render({ force: true });
+
+                    ui.notifications.info(
+                        game.i18n.format(
+                            "COMPENDIUM_CURATOR.TableProfileBundleImported",
+                            {
+                                name: root?.name ?? "",
+                                profiles:
+                                    imported
+                                        .importedProfileIds
+                                        .length,
+                                groups:
+                                    imported
+                                        .importedFilterGroupIds
+                                        .length
+                            }
+                        )
+                    );
+                }
+                catch (error) {
+                    console.error(
+                        "Compendium Curator | Error importando un paquete de tablas.",
+                        error
+                    );
+                    ui.notifications.error(
+                        game.i18n.localize(
+                            "COMPENDIUM_CURATOR.TableProfileBundleInvalid"
+                        )
+                    );
+                }
+            },
+            { once: true }
+        );
+
+        input.click();
+    }
+
     refreshProfileEditor() {
         if (!this._profileEditor?.rendered)
             return;
@@ -3879,6 +3987,7 @@ export class TableManagerApplication
         input.autocomplete = "off";
         input.autofocus = true;
         input.value = profile.name;
+        input.setAttribute("value", profile.name);
 
         field.append(label, input);
 
@@ -4002,6 +4111,7 @@ export class TableManagerApplication
         input.autocomplete = "off";
         input.autofocus = true;
         input.value = suggestedName;
+        input.setAttribute("value", suggestedName);
 
         field.append(label, input);
 
@@ -4147,6 +4257,10 @@ export class TableManagerApplication
         input.autocomplete = "off";
         input.autofocus = true;
         input.value = filterGroup.name;
+        input.setAttribute(
+            "value",
+            filterGroup.name
+        );
 
         field.append(label, input);
 
@@ -4264,6 +4378,7 @@ export class TableManagerApplication
         input.autocomplete = "off";
         input.autofocus = true;
         input.value = suggestedName;
+        input.setAttribute("value", suggestedName);
 
         field.append(label, input);
 
