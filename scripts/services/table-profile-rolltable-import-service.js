@@ -160,7 +160,7 @@ function buildContentProfile(name, entries) {
         manualExcludes: [],
         draw: buildDrawPreferences(name),
         itemRules: {
-            excludeZeroPrice: isShopName(name),
+            excludeZeroPrice: false,
             includeHidden: true
         },
         distribution: {
@@ -373,6 +373,116 @@ async function rollbackProfiles(profiles) {
 }
 
 export class TableProfileRollTableImportService {
+
+    static async getIndependentTables(tables) {
+        const candidates = Array.from(
+            new Map(
+                (Array.isArray(tables) ? tables : [])
+                    .filter(table =>
+                        table?.documentName ===
+                            "RollTable"
+                    )
+                    .map(table => [
+                        table.uuid,
+                        table
+                    ])
+            ).values()
+        );
+        const candidateUuids = new Set(
+            candidates.map(table => table.uuid)
+        );
+        const referencedUuids = new Set();
+
+        for (const table of candidates) {
+            const immediate =
+                await getImmediateChildTables(
+                    table
+                );
+
+            for (const child of immediate.children) {
+                if (
+                    candidateUuids.has(
+                        child.table.uuid
+                    )
+                ) {
+                    referencedUuids.add(
+                        child.table.uuid
+                    );
+                }
+            }
+        }
+
+        return candidates.filter(table =>
+            !referencedUuids.has(table.uuid)
+        );
+    }
+
+    static async importTables(tables) {
+        const requested = Array.from(
+            new Map(
+                (Array.isArray(tables) ? tables : [])
+                    .filter(table =>
+                        table?.documentName ===
+                            "RollTable"
+                    )
+                    .map(table => [
+                        table.uuid,
+                        table
+                    ])
+            ).values()
+        );
+        const roots =
+            await this.getIndependentTables(
+                requested
+            );
+        const imported = [];
+        const failures = [];
+
+        for (const table of roots) {
+            try {
+                imported.push(
+                    await this.importTable(table)
+                );
+            }
+            catch (error) {
+                failures.push({
+                    table,
+                    error
+                });
+            }
+        }
+
+        return {
+            requested,
+            roots,
+            skippedNested:
+                requested.length - roots.length,
+            imported,
+            failures,
+            createdProfiles:
+                imported.flatMap(result =>
+                    result.createdProfiles
+                ),
+            importedObjects:
+                imported.reduce(
+                    (sum, result) =>
+                        sum + result.imported,
+                    0
+                ),
+            unsupported:
+                imported.reduce(
+                    (sum, result) =>
+                        sum + result.unsupported,
+                    0
+                ),
+            unavailable:
+                imported.reduce(
+                    (sum, result) =>
+                        sum + result.unavailable,
+                    0
+                )
+        };
+    }
 
     static async importTable(table) {
         if (table?.documentName !== "RollTable") {

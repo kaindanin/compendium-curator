@@ -3896,38 +3896,108 @@ export class TableManagerApplication
             return;
         }
 
-        const tableField =
-            document.createElement("div");
-        tableField.className = "form-group";
+        const tablesByFolder = new Map();
 
-        const tableLabel =
-            document.createElement("label");
-        tableLabel.textContent =
-            game.i18n.localize(
-                "COMPENDIUM_CURATOR.SourceRollTable"
+        for (const table of tables) {
+            if (!table.folder)
+                continue;
+
+            const folderTables =
+                tablesByFolder.get(
+                    table.folder.id
+                ) ?? [];
+
+            folderTables.push(table);
+            tablesByFolder.set(
+                table.folder.id,
+                folderTables
+            );
+        }
+
+        const folderGroups = Array.from(
+            tablesByFolder
+        )
+            .map(([folderId, folderTables]) => ({
+                id: folderId,
+                name:
+                    folderTables[0]?.folder?.name ??
+                    folderId,
+                tables: folderTables
+            }))
+            .sort((a, b) =>
+                b.tables.length - a.tables.length ||
+                String(a.name).localeCompare(
+                    String(b.name),
+                    game.i18n.lang,
+                    { sensitivity: "base" }
+                )
             );
 
-        const tableFields =
+        const sourceField =
             document.createElement("div");
-        tableFields.className = "form-fields";
+        sourceField.className = "form-group";
+
+        const sourceLabel =
+            document.createElement("label");
+        sourceLabel.textContent =
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.RollTableImportSource"
+            );
+
+        const sourceFields =
+            document.createElement("div");
+        sourceFields.className = "form-fields";
 
         const select =
             document.createElement("select");
-        select.name = "tableUuid";
+        select.name = "importSource";
+
+        if (folderGroups.length) {
+            const folderGroup =
+                document.createElement("optgroup");
+            folderGroup.label =
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.RollTableFolders"
+                );
+
+            for (const folder of folderGroups) {
+                const option =
+                    document.createElement("option");
+                option.value = `folder:${folder.id}`;
+                option.textContent = game.i18n.format(
+                    "COMPENDIUM_CURATOR.RollTableFolderOption",
+                    {
+                        name: folder.name,
+                        count: folder.tables.length
+                    }
+                );
+                folderGroup.append(option);
+            }
+
+            select.append(folderGroup);
+        }
+
+        const tableGroup =
+            document.createElement("optgroup");
+        tableGroup.label =
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.IndividualRollTables"
+            );
 
         for (const table of tables) {
             const option =
                 document.createElement("option");
-            option.value = table.uuid;
+            option.value = `table:${table.uuid}`;
             option.textContent =
                 `${table.name} (${table.results.size})`;
-            select.append(option);
+            tableGroup.append(option);
         }
 
-        tableFields.append(select);
-        tableField.append(
-            tableLabel,
-            tableFields
+        select.append(tableGroup);
+        sourceFields.append(select);
+        sourceField.append(
+            sourceLabel,
+            sourceFields
         );
 
         const generateField =
@@ -3969,7 +4039,7 @@ export class TableManagerApplication
 
         const form = document.createElement("div");
         form.append(
-            tableField,
+            sourceField,
             generateField,
             hint
         );
@@ -3995,11 +4065,34 @@ export class TableManagerApplication
         if (!result)
             return;
 
-        const table = await fromUuid(
-            String(result.tableUuid ?? "")
+        const importSource = String(
+            result.importSource ?? ""
         );
+        let selectedTables = [];
+        let selectedSourceName = "";
 
-        if (table?.documentName !== "RollTable") {
+        if (importSource.startsWith("folder:")) {
+            const folderId =
+                importSource.slice("folder:".length);
+            const folder = folderGroups.find(
+                candidate => candidate.id === folderId
+            );
+
+            selectedTables = folder?.tables ?? [];
+            selectedSourceName = folder?.name ?? "";
+        }
+        else if (importSource.startsWith("table:")) {
+            const table = await fromUuid(
+                importSource.slice("table:".length)
+            );
+
+            if (table?.documentName === "RollTable") {
+                selectedTables = [table];
+                selectedSourceName = table.name;
+            }
+        }
+
+        if (!selectedTables.length) {
             ui.notifications.error(
                 game.i18n.localize(
                     "COMPENDIUM_CURATOR.RollTableImportFailed"
@@ -4019,70 +4112,155 @@ export class TableManagerApplication
         target.disabled = true;
 
         try {
-            const imported =
+            const batch =
                 await TableProfileRollTableImportService
-                    .importTable(table);
-            let generated = false;
-            let generationFailed = false;
+                    .importTables(selectedTables);
+
+            if (!batch.imported.length) {
+                throw (
+                    batch.failures[0]?.error ??
+                    new Error(
+                        "ROLLTABLE_IMPORT_NO_SUPPORTED_RESULTS"
+                    )
+                );
+            }
+
+            let generatedCount = 0;
+            const generationFailures = [];
 
             if (generateAfterImport) {
-                try {
-                    await this
-                        .generateStoredProfileTables(
-                            imported.rootProfile.id
+                for (const imported of batch.imported) {
+                    try {
+                        await this
+                            .generateStoredProfileTables(
+                                imported.rootProfile.id
+                            );
+                        generatedCount++;
+                    }
+                    catch (error) {
+                        generationFailures.push({
+                            profile:
+                                imported.rootProfile,
+                            error
+                        });
+                        console.error(
+                            "Compendium Curator | La RollTable se importó, pero no se pudo generar el perfil resultante.",
+                            {
+                                profile:
+                                    imported.rootProfile
+                                        .name,
+                                error
+                            }
                         );
-                    generated = true;
-                }
-                catch (error) {
-                    generationFailed = true;
-                    console.error(
-                        "Compendium Curator | La RollTable se importó, pero no se pudo generar el perfil resultante.",
-                        error
-                    );
+                    }
                 }
             }
 
+            const firstRoot =
+                batch.imported[0].rootProfile;
+            const hasContentRoots =
+                batch.imported.some(imported =>
+                    imported.rootProfile.type ===
+                        "content"
+                );
+
             this._activeTab =
-                imported.rootProfile.type ===
-                    "nested"
-                    ? "nested"
-                    : "content";
+                hasContentRoots
+                    ? "content"
+                    : "nested";
             this._searchQuery =
-                imported.rootProfile.name;
+                batch.imported.length === 1
+                    ? firstRoot.name
+                    : "";
             await this.render({ force: true });
 
-            ui.notifications.info(
-                game.i18n.format(
-                    generated
-                        ? "COMPENDIUM_CURATOR.RollTableImportedAndGenerated"
-                        : "COMPENDIUM_CURATOR.RollTableImported",
-                    {
-                        table: table.name,
-                        profiles:
-                            imported.createdProfiles
-                                .length,
-                        objects: imported.imported
-                    }
-                )
-            );
+            if (
+                selectedTables.length === 1 &&
+                batch.imported.length === 1
+            ) {
+                const imported = batch.imported[0];
 
-            if (generationFailed) {
+                ui.notifications.info(
+                    game.i18n.format(
+                        generatedCount === 1
+                            ? "COMPENDIUM_CURATOR.RollTableImportedAndGenerated"
+                            : "COMPENDIUM_CURATOR.RollTableImported",
+                        {
+                            table: selectedSourceName,
+                            profiles:
+                                imported.createdProfiles
+                                    .length,
+                            objects: imported.imported
+                        }
+                    )
+                );
+            }
+            else {
+                ui.notifications.info(
+                    game.i18n.format(
+                        "COMPENDIUM_CURATOR.RollTableBatchImported",
+                        {
+                            source: selectedSourceName,
+                            tables: batch.imported.length,
+                            profiles:
+                                batch.createdProfiles
+                                    .length,
+                            objects:
+                                batch.importedObjects,
+                            generated:
+                                generatedCount
+                        }
+                    )
+                );
+            }
+
+            if (generationFailures.length > 0) {
                 ui.notifications.warn(
-                    game.i18n.localize(
-                        "COMPENDIUM_CURATOR.RollTableImportedGenerationFailed"
+                    game.i18n.format(
+                        "COMPENDIUM_CURATOR.RollTableBatchGenerationFailed",
+                        {
+                            count:
+                                generationFailures.length
+                        }
                     )
                 );
             }
 
             const omitted =
-                imported.unsupported +
-                imported.unavailable;
+                batch.unsupported +
+                batch.unavailable;
 
             if (omitted > 0) {
                 ui.notifications.warn(
                     game.i18n.format(
                         "COMPENDIUM_CURATOR.RollTableImportOmitted",
                         { count: omitted }
+                    )
+                );
+            }
+
+            if (
+                batch.failures.length > 0 ||
+                batch.skippedNested > 0
+            ) {
+                console.warn(
+                    "Compendium Curator | Algunas RollTables del lote no se importaron como raíces independientes.",
+                    {
+                        failures: batch.failures,
+                        skippedNested:
+                            batch.skippedNested
+                    }
+                );
+
+                ui.notifications.warn(
+                    game.i18n.format(
+                        "COMPENDIUM_CURATOR.RollTableBatchSkipped",
+                        {
+                            failed:
+                                batch.failures.length,
+                            nested:
+                                batch.skippedNested
+                        }
                     )
                 );
             }
