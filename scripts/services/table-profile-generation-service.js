@@ -2,9 +2,6 @@ import { MODULE_ID } from "../settings.js";
 import { TableProfileStorageService } from "./table-profile-storage-service.js";
 import { TableGenerationTargetService } from "./table-generation-target-service.js";
 
-const MANAGED_FOLDER_NODE = "rolltable-folder";
-const INTERNAL_FOLDER_NODE =
-    "rolltable-internal-folder";
 const ROOT_NODE_ID = "root";
 const MAX_TABLE_RANGE = 1_000_000;
 const WEIGHT_PRECISION = 1000;
@@ -141,82 +138,6 @@ function buildTableResults(
     };
 }
 
-async function getManagedFolder() {
-    const existing = game.folders.find(folder =>
-        folder.type === "RollTable" &&
-        folder.flags?.[MODULE_ID]?.managed === true &&
-        folder.flags?.[MODULE_ID]?.nodeId ===
-            MANAGED_FOLDER_NODE
-    );
-
-    if (existing)
-        return existing;
-
-    return Folder.create({
-        name: "Compendium Curator",
-        type: "RollTable",
-        flags: {
-            [MODULE_ID]: {
-                managed: true,
-                nodeId: MANAGED_FOLDER_NODE
-            }
-        }
-    });
-}
-
-async function getInternalManagedFolder(
-    rootFolder
-) {
-    const existing = game.folders.find(folder =>
-        folder.type === "RollTable" &&
-        folder.flags?.[MODULE_ID]?.managed === true &&
-        folder.flags?.[MODULE_ID]?.nodeId ===
-            INTERNAL_FOLDER_NODE
-    );
-
-    if (existing) {
-        if (
-            rootFolder?.id &&
-            existing.folder?.id !== rootFolder.id
-        ) {
-            await existing.update({
-                folder: rootFolder.id
-            });
-        }
-
-        return existing;
-    }
-
-    return Folder.create({
-        name: game.i18n.localize(
-            "COMPENDIUM_CURATOR.InternalTablesFolder"
-        ),
-        type: "RollTable",
-        folder: rootFolder?.id ?? null,
-        flags: {
-            [MODULE_ID]: {
-                managed: true,
-                nodeId: INTERNAL_FOLDER_NODE
-            }
-        }
-    });
-}
-
-async function getTargetFolders(target) {
-    if (target.mode !== "world") {
-        return {
-            root: null,
-            internal: null
-        };
-    }
-
-    const root = await getManagedFolder();
-    const internal =
-        await getInternalManagedFolder(root);
-
-    return { root, internal };
-}
-
 async function replaceTableResults(
     table,
     entries
@@ -246,7 +167,6 @@ async function reconcileTable({
     img,
     entries,
     storedUuid,
-    folder,
     target,
     replacement = true
 }) {
@@ -287,22 +207,27 @@ async function reconcileTable({
         }
     };
 
-    if (target.mode === "world") {
-        tableData.folder =
-            folder?.id ?? null;
-    }
-
     if (!table) {
+        const createData = {
+            ...tableData,
+            results: prepared.results
+        };
+
+        if (target.mode === "world")
+            createData.folder = null;
+
         table = await RollTable.create(
-            {
-                ...tableData,
-                results: prepared.results
-            },
+            createData,
             TableGenerationTargetService
                 .getCreateContext(target)
         );
     }
     else {
+        /*
+         * La ubicación es decisión del usuario una vez creada.
+         * No incluimos `folder` ni cambiamos de pack al actualizar,
+         * por lo que mover una tabla manualmente no se deshace.
+         */
         await table.update(tableData);
         await replaceTableResults(
             table,
@@ -542,10 +467,6 @@ export class TableProfileGenerationService {
             .withWritableTarget(
                 target,
                 async () => {
-                    const folders =
-                        await getTargetFolders(
-                            target
-                        );
                     const nodes = {};
                     let rootEntries;
 
@@ -601,8 +522,6 @@ export class TableProfileGenerationService {
                                             profile,
                                             node.nodeId
                                         ),
-                                    folder:
-                                        folders.internal,
                                     target,
                                     replacement:
                                         profile.draw?.unique !==
@@ -663,7 +582,6 @@ export class TableProfileGenerationService {
                                     profile,
                                     ROOT_NODE_ID
                                 ),
-                            folder: folders.root,
                             target,
                             replacement:
                                 profile.draw?.unique !==
@@ -714,20 +632,14 @@ export class TableProfileGenerationService {
                 }
             }
             catch {
-                // Continue with target lookup.
+                // Continue with managed-table discovery.
             }
         }
 
-        const target =
-            await TableGenerationTargetService
-                .resolveTarget(profile);
-
         return TableGenerationTargetService
-            .resolveManagedTable(
+            .findManagedTable(
                 profile.id,
-                ROOT_NODE_ID,
-                null,
-                target
+                ROOT_NODE_ID
             );
     }
 
@@ -767,10 +679,6 @@ export class TableProfileGenerationService {
             .withWritableTarget(
                 target,
                 async () => {
-                    const folders =
-                        await getTargetFolders(
-                            target
-                        );
                     const entries =
                         activeChildren.map(
                             child => ({
@@ -808,7 +716,6 @@ export class TableProfileGenerationService {
                                     profile,
                                     ROOT_NODE_ID
                                 ),
-                            folder: folders.root,
                             target,
                             replacement: true
                         });

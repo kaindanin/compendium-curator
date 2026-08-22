@@ -1,58 +1,28 @@
-import {
-    MODULE_ID,
-    TABLE_PROFILES_SETTING
-} from "../settings.js";
+import { MODULE_ID } from "../settings.js";
 import {
     TableDefaultsService
 } from "./table-defaults-service.js";
-import {
-    TableProfileStorageService
-} from "./table-profile-storage-service.js";
 
 const AUTO_PACK_VALUE = "auto";
 const WORLD_VALUE = "world";
-const INHERIT_VALUE = "inherit";
 const PACK_PREFIX = "pack:";
+const ROOT_NODE_ID = "root";
 const DEFAULT_PACK_NAME =
     "compendium-curator-tables";
 const DEFAULT_PACK_LABEL =
     "Compendium Curator Tables";
-
-function normalizeMode(value, allowInherit = false) {
-    const mode = String(value ?? "").trim();
-
-    if (
-        allowInherit &&
-        (!mode || mode === "inherit")
-    ) {
-        return "inherit";
-    }
-
-    return mode === "world"
-        ? "world"
-        : "compendium";
-}
 
 function normalizePackId(value) {
     const packId = String(value ?? "").trim();
     return packId || null;
 }
 
-function normalizeTarget(
-    target,
-    { allowInherit = false } = {}
-) {
-    const mode = normalizeMode(
-        target?.mode,
-        allowInherit
-    );
-
-    if (mode === "inherit") {
-        return {
-            mode: "inherit",
-            packId: null
-        };
-    }
+function normalizeTarget(target) {
+    const mode =
+        String(target?.mode ?? "").trim() ===
+        "world"
+            ? "world"
+            : "compendium";
 
     if (mode === "world") {
         return {
@@ -67,6 +37,13 @@ function normalizeTarget(
             target?.packId
         )
     };
+}
+
+function isUserRollTablePack(pack) {
+    return Boolean(
+        pack?.documentName === "RollTable" &&
+        pack?.metadata?.packageType === "world"
+    );
 }
 
 function isManagedTable(
@@ -152,24 +129,116 @@ async function withWritablePack(pack, callback) {
     }
 }
 
+async function findManagedEntryInPack(
+    pack,
+    profileId,
+    nodeId = null
+) {
+    if (!isUserRollTablePack(pack))
+        return null;
+
+    const index = await pack.getIndex({
+        fields: [
+            `flags.${MODULE_ID}`
+        ]
+    });
+
+    return Array.from(index).find(candidate => {
+        const flags =
+            candidate?.flags?.[MODULE_ID];
+
+        return Boolean(
+            flags?.managed === true &&
+            flags?.profileId === profileId &&
+            (
+                nodeId === null ||
+                flags?.nodeId === nodeId
+            )
+        );
+    }) ?? null;
+}
+
+async function findManagedTableAnywhere(
+    profileId,
+    nodeId = null
+) {
+    const worldTable = game.tables.find(table =>
+        isManagedTable(
+            table,
+            profileId,
+            nodeId
+        )
+    );
+
+    if (worldTable)
+        return worldTable;
+
+    for (
+        const pack
+        of TableGenerationTargetService
+            .getCompatiblePacks()
+    ) {
+        const entry =
+            await findManagedEntryInPack(
+                pack,
+                profileId,
+                nodeId
+            );
+
+        if (entry)
+            return pack.getDocument(entry._id);
+    }
+
+    return null;
+}
+
+async function findManagedTablesAnywhere(profileId) {
+    const tables = game.tables.filter(table =>
+        isManagedTable(table, profileId)
+    );
+
+    for (
+        const pack
+        of TableGenerationTargetService
+            .getCompatiblePacks()
+    ) {
+        const index = await pack.getIndex({
+            fields: [
+                `flags.${MODULE_ID}`
+            ]
+        });
+
+        for (const entry of Array.from(index)) {
+            const flags =
+                entry?.flags?.[MODULE_ID];
+
+            if (
+                flags?.managed !== true ||
+                flags?.profileId !== profileId
+            ) {
+                continue;
+            }
+
+            const table =
+                await pack.getDocument(entry._id);
+
+            if (table)
+                tables.push(table);
+        }
+    }
+
+    return tables;
+}
+
 export class TableGenerationTargetService {
 
-    static normalizeTarget(
-        target,
-        options = {}
-    ) {
-        return normalizeTarget(
-            target,
-            options
-        );
+    static normalizeTarget(target) {
+        return normalizeTarget(target);
     }
 
     static getCompatiblePacks() {
         return Array.from(game.packs)
-            .filter(pack =>
-                pack?.documentName ===
-                    "RollTable"
-            )
+            .filter(isUserRollTablePack)
             .sort((a, b) =>
                 String(a.title ?? "")
                     .localeCompare(
@@ -180,42 +249,34 @@ export class TableGenerationTargetService {
             );
     }
 
-    static getConfiguredProfileTarget(profile) {
-        return normalizeTarget(
-            profile?.output?.target,
-            { allowInherit: true }
-        );
-    }
-
     static getDefaultTarget() {
-        return normalizeTarget(
+        const target = normalizeTarget(
             TableDefaultsService.get()
                 .generationTarget
         );
-    }
 
-    static getEffectiveConfiguredTarget(profile) {
-        const profileTarget =
-            this.getConfiguredProfileTarget(
-                profile
+        if (
+            target.mode === "compendium" &&
+            target.packId
+        ) {
+            const pack = game.packs.get(
+                target.packId
             );
 
-        return profileTarget.mode === "inherit"
-            ? this.getDefaultTarget()
-            : normalizeTarget(profileTarget);
+            if (!isUserRollTablePack(pack)) {
+                return {
+                    mode: "compendium",
+                    packId: null
+                };
+            }
+        }
+
+        return target;
     }
 
-    static choiceValue(
-        target,
-        { allowInherit = false } = {}
-    ) {
-        const normalized = normalizeTarget(
-            target,
-            { allowInherit }
-        );
-
-        if (normalized.mode === "inherit")
-            return INHERIT_VALUE;
+    static choiceValue(target) {
+        const normalized =
+            normalizeTarget(target);
 
         if (normalized.mode === "world")
             return WORLD_VALUE;
@@ -225,22 +286,9 @@ export class TableGenerationTargetService {
             : AUTO_PACK_VALUE;
     }
 
-    static parseChoice(
-        value,
-        { allowInherit = false } = {}
-    ) {
+    static parseChoice(value) {
         const normalized =
             String(value ?? "").trim();
-
-        if (
-            allowInherit &&
-            normalized === INHERIT_VALUE
-        ) {
-            return {
-                mode: "inherit",
-                packId: null
-            };
-        }
 
         if (normalized === WORLD_VALUE) {
             return {
@@ -271,43 +319,22 @@ export class TableGenerationTargetService {
         };
     }
 
-    static getTargetChoices({
-        allowInherit = false
-    } = {}) {
-        const choices = [];
-
-        if (allowInherit) {
-            choices.push({
-                value: INHERIT_VALUE,
+    static getTargetChoices() {
+        const choices = [
+            {
+                value: AUTO_PACK_VALUE,
                 label:
                     game.i18n.lang.startsWith("es")
-                        ? "Usar el destino predeterminado"
-                        : "Use default destination"
-            });
-        }
-
-        choices.push({
-            value: AUTO_PACK_VALUE,
-            label:
-                game.i18n.lang.startsWith("es")
-                    ? "Compendio de Curator (automático)"
-                    : "Curator compendium (automatic)"
-        });
+                        ? "Compendium Curator Tables (automático)"
+                        : "Compendium Curator Tables (automatic)"
+            }
+        ];
 
         for (const pack of this.getCompatiblePacks()) {
-            const packageType = String(
-                pack.metadata?.packageType ??
-                ""
-            );
-            const suffix = packageType
-                ? ` · ${packageType}`
-                : "";
-
             choices.push({
                 value:
                     `${PACK_PREFIX}${pack.collection}`,
-                label:
-                    `${pack.title}${suffix}`
+                label: String(pack.title ?? "")
             });
         }
 
@@ -328,18 +355,12 @@ export class TableGenerationTargetService {
         const canonical =
             game.packs.get(canonicalId);
 
-        if (
-            canonical?.documentName ===
-            "RollTable"
-        ) {
+        if (isUserRollTablePack(canonical))
             return canonical;
-        }
 
         const existing =
             this.getCompatiblePacks()
                 .find(pack =>
-                    pack.metadata?.packageType ===
-                        "world" &&
                     pack.title ===
                         DEFAULT_PACK_LABEL
                 );
@@ -367,13 +388,11 @@ export class TableGenerationTargetService {
         });
     }
 
-    static async resolveTarget(profile) {
-        const configured =
-            this.getEffectiveConfiguredTarget(
-                profile
-            );
+    static async resolveSelectedTarget(target) {
+        const normalized =
+            normalizeTarget(target);
 
-        if (configured.mode === "world") {
+        if (normalized.mode === "world") {
             return {
                 mode: "world",
                 packId: null,
@@ -382,16 +401,13 @@ export class TableGenerationTargetService {
             };
         }
 
-        const pack = configured.packId
+        const pack = normalized.packId
             ? game.packs.get(
-                configured.packId
+                normalized.packId
             )
             : await this.ensureDefaultPack();
 
-        if (
-            !pack ||
-            pack.documentName !== "RollTable"
-        ) {
+        if (!isUserRollTablePack(pack)) {
             throw new Error(
                 "INVALID_ROLLTABLE_GENERATION_TARGET"
             );
@@ -403,6 +419,165 @@ export class TableGenerationTargetService {
             pack,
             key: `pack:${pack.collection}`
         };
+    }
+
+    static async getTargetFromDocument(document) {
+        if (!document)
+            return null;
+
+        if (!document.pack) {
+            return {
+                mode: "world",
+                packId: null,
+                pack: null,
+                key: "world"
+            };
+        }
+
+        const pack = game.packs.get(
+            document.pack
+        );
+
+        if (!isUserRollTablePack(pack))
+            return null;
+
+        return {
+            mode: "compendium",
+            packId: pack.collection,
+            pack,
+            key: `pack:${pack.collection}`
+        };
+    }
+
+    static async resolveExistingTarget(profile) {
+        for (
+            const uuid
+            of getStoredGeneratedUuids(profile)
+        ) {
+            const table = await resolveUuid(uuid);
+
+            if (
+                !isManagedTable(
+                    table,
+                    profile.id
+                )
+            ) {
+                continue;
+            }
+
+            const target =
+                await this.getTargetFromDocument(
+                    table
+                );
+
+            if (target)
+                return target;
+        }
+
+        const discovered =
+            await findManagedTableAnywhere(
+                profile.id,
+                ROOT_NODE_ID
+            );
+
+        return this.getTargetFromDocument(
+            discovered
+        );
+    }
+
+    static async promptForTarget(profile) {
+        const choices = this.getTargetChoices();
+        const selected = this.choiceValue(
+            this.getDefaultTarget()
+        );
+        const escape = foundry.utils.escapeHTML;
+        const options = choices
+            .map(choice => {
+                const value = escape(
+                    String(choice.value)
+                );
+                const label = escape(
+                    String(choice.label)
+                );
+                const selectedAttribute =
+                    choice.value === selected
+                        ? " selected"
+                        : "";
+
+                return (
+                    `<option value="${value}"${selectedAttribute}>${label}</option>`
+                );
+            })
+            .join("");
+        const destinationLabel =
+            game.i18n.lang.startsWith("es")
+                ? "Guardar en"
+                : "Save to";
+        const destinationHint =
+            game.i18n.lang.startsWith("es")
+                ? "Solo se elige al crear esta RollTable. Después puedes moverla manualmente y Curator no cambiará su ubicación al actualizarla."
+                : "This is only chosen when creating this RollTable. Afterwards you can move it manually and Curator will not change its location when updating it.";
+        const title =
+            game.i18n.lang.startsWith("es")
+                ? `Generar «${profile.name}»`
+                : `Generate “${profile.name}”`;
+        const generateLabel =
+            game.i18n.lang.startsWith("es")
+                ? "Generar"
+                : "Generate";
+        const result =
+            await foundry.applications.api.DialogV2
+                .input({
+                    window: { title },
+                    content: `
+                        <div class="form-group">
+                            <label>${escape(destinationLabel)}</label>
+                            <div class="form-fields">
+                                <select name="generationTarget">
+                                    ${options}
+                                </select>
+                            </div>
+                            <p class="hint">
+                                ${escape(destinationHint)}
+                            </p>
+                        </div>
+                    `,
+                    ok: {
+                        label: generateLabel
+                    },
+                    rejectClose: false,
+                    modal: true
+                });
+
+        if (!result)
+            return null;
+
+        return this.resolveSelectedTarget(
+            this.parseChoice(
+                result.generationTarget
+            )
+        );
+    }
+
+    static async resolveTarget(profile) {
+        const existing =
+            await this.resolveExistingTarget(
+                profile
+            );
+
+        if (existing)
+            return existing;
+
+        const selected =
+            await this.promptForTarget(profile);
+
+        if (!selected) {
+            throw new Error(
+                "ROLLTABLE_GENERATION_CANCELLED"
+            );
+        }
+
+        return selected;
     }
 
     static async withWritableTarget(
@@ -471,28 +646,26 @@ export class TableGenerationTargetService {
             ) ?? null;
         }
 
-        const index =
-            await target.pack.getIndex({
-                fields: [
-                    `flags.${MODULE_ID}`
-                ]
-            });
-        const entry = Array.from(index)
-            .find(candidate => {
-                const flags =
-                    candidate?.flags?.[MODULE_ID];
-
-                return (
-                    flags?.managed === true &&
-                    flags?.profileId ===
-                        profileId &&
-                    flags?.nodeId === nodeId
-                );
-            });
+        const entry =
+            await findManagedEntryInPack(
+                target.pack,
+                profileId,
+                nodeId
+            );
 
         return entry
             ? target.pack.getDocument(entry._id)
             : null;
+    }
+
+    static async findManagedTable(
+        profileId,
+        nodeId = null
+    ) {
+        return findManagedTableAnywhere(
+            profileId,
+            nodeId
+        );
     }
 
     static getStoredGeneratedUuids(profile) {
@@ -532,7 +705,7 @@ export class TableGenerationTargetService {
                 table.pack
             );
 
-            if (!pack)
+            if (!isUserRollTablePack(pack))
                 continue;
 
             if (!packTables.has(pack.collection)) {
@@ -574,104 +747,62 @@ export class TableGenerationTargetService {
     }
 
     static async deleteGeneratedTables(profile) {
-        return this.removePreviousGeneratedTables(
-            profile,
-            new Set()
+        const tables =
+            await findManagedTablesAnywhere(
+                profile.id
+            );
+        const worldTables = tables.filter(
+            table => !table.pack
         );
-    }
+        const packTables = new Map();
 
-    static async setProfileTarget(
-        profileId,
-        target
-    ) {
-        const storage =
-            foundry.utils.deepClone(
-                TableProfileStorageService
-                    .getStorage()
-            );
-        const profile =
-            storage.profiles?.[profileId];
-
-        if (!profile) {
-            throw new Error(
-                "TABLE_PROFILE_NOT_FOUND"
-            );
-        }
-
-        const normalized = normalizeTarget(
-            target,
-            { allowInherit: true }
-        );
-        const previous =
-            this.getConfiguredProfileTarget(
-                profile
-            );
-
-        if (
-            foundry.utils.equals(
-                previous,
-                normalized
-            )
-        ) {
-            return foundry.utils.deepClone(
-                profile
-            );
-        }
-
-        profile.output = {
-            ...foundry.utils.deepClone(
-                profile.output ?? {}
-            ),
-            target: normalized
-        };
-        profile.revision =
-            Number(profile.revision ?? 1) + 1;
-
-        await game.settings.set(
-            MODULE_ID,
-            TABLE_PROFILES_SETTING,
-            storage
-        );
-
-        return foundry.utils.deepClone(profile);
-    }
-
-    static async markInheritedProfilesPending() {
-        const storage =
-            foundry.utils.deepClone(
-                TableProfileStorageService
-                    .getStorage()
-            );
-        let changed = false;
-
-        for (
-            const profile
-            of Object.values(
-                storage.profiles ?? {}
-            )
-        ) {
-            const target =
-                this.getConfiguredProfileTarget(
-                    profile
-                );
-
-            if (target.mode !== "inherit")
+        for (const table of tables) {
+            if (!table.pack)
                 continue;
 
-            profile.revision =
-                Number(profile.revision ?? 1) + 1;
-            changed = true;
+            const pack = game.packs.get(
+                table.pack
+            );
+
+            if (!isUserRollTablePack(pack))
+                continue;
+
+            if (!packTables.has(pack.collection)) {
+                packTables.set(
+                    pack.collection,
+                    { pack, tables: [] }
+                );
+            }
+
+            packTables.get(pack.collection)
+                .tables.push(table);
         }
 
-        if (changed) {
-            await game.settings.set(
-                MODULE_ID,
-                TABLE_PROFILES_SETTING,
-                storage
+        for (const table of worldTables)
+            await table.delete();
+
+        for (
+            const { pack, tables: packDocuments }
+            of packTables.values()
+        ) {
+            await withWritablePack(
+                pack,
+                async () => {
+                    for (const table of packDocuments)
+                        await table.delete();
+                }
             );
         }
 
-        return changed;
+        return (
+            worldTables.length +
+            Array.from(packTables.values())
+                .reduce(
+                    (sum, entry) =>
+                        sum + entry.tables.length,
+                    0
+                )
+        );
     }
 
 }

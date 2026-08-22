@@ -104,12 +104,12 @@ export class TableDefaultsApplication
 
         context.generationDestinationLabel =
             game.i18n.lang.startsWith("es")
-                ? "Destino de generación"
-                : "Generation destination";
+                ? "Ubicación sugerida al generar"
+                : "Suggested generation location";
         context.generationDestinationHint =
             game.i18n.lang.startsWith("es")
-                ? "Las nuevas RollTables se guardarán aquí salvo que un perfil tenga un destino propio. El compendio automático se crea en este mundo cuando haga falta."
-                : "New RollTables are stored here unless a profile has its own destination. The automatic compendium is created in this world when needed.";
+                ? "Esta opción solo aparecerá preseleccionada al generar una RollTable nueva. Podrás elegir otra ubicación antes de crearla y las tablas existentes no se moverán si cambias este valor."
+                : "This option is only preselected when generating a new RollTable. You can choose another location before creating it, and existing tables are not moved when this value changes.";
 
         return context;
 
@@ -140,8 +140,6 @@ export class TableDefaultsApplication
 
         }
 
-        const previous =
-            TableDefaultsService.get();
         const generationTarget =
             TableGenerationTargetService
                 .parseChoice(
@@ -157,16 +155,6 @@ export class TableDefaultsApplication
             rarityWeights,
             generationTarget
         });
-
-        if (
-            !foundry.utils.equals(
-                previous.generationTarget,
-                generationTarget
-            )
-        ) {
-            await TableGenerationTargetService
-                .markInheritedProfilesPending();
-        }
 
         ui.notifications.info(
             game.i18n.localize(
