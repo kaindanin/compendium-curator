@@ -149,6 +149,33 @@ const GROUPING_CRITERIA = {
         criterion: "source",
         field: "system.source"
     },
+    price: {
+        type: "range",
+        criterion: "price",
+        field: "system.price",
+        ranges: [
+            {
+                key: "0-10",
+                min: 0,
+                max: 10
+            },
+            {
+                key: "10.01-100",
+                min: 10.01,
+                max: 100
+            },
+            {
+                key: "100.01-1000",
+                min: 100.01,
+                max: 1000
+            },
+            {
+                key: "1000.01-plus",
+                min: 1000.01,
+                max: null
+            }
+        ]
+    },
     creatureType: {
         type: "field",
         criterion: "creatureType",

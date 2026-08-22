@@ -72,6 +72,7 @@ const GROUPING_CRITERIA = new Set([
     "rarity",
     "type",
     "source",
+    "price",
     "cr",
     "spellLevel",
     "creatureType",
@@ -414,6 +415,30 @@ function normalizeInspectorSpellLevel(value) {
         : null;
 }
 
+function normalizeInspectorPrice(document) {
+    const price = document?.system?.price;
+    const value = Number(price?.value);
+    const denomination = String(
+        price?.denomination ?? ""
+    ).trim();
+    const conversion = Number(
+        CONFIG.DND5E?.currencies?.[
+            denomination
+        ]?.conversion
+    );
+
+    if (
+        !Number.isFinite(value) ||
+        value < 0 ||
+        !Number.isFinite(conversion) ||
+        conversion <= 0
+    ) {
+        return null;
+    }
+
+    return value / conversion;
+}
+
 function getInspectorDistributionMode(profile) {
     const mode = String(
         profile?.distribution?.mode ?? ""
@@ -676,6 +701,75 @@ function getInspectorSpellLevelLabel(
         : key;
 }
 
+function getInspectorPriceKey(
+    uuid,
+    profile
+) {
+    const price = normalizeInspectorPrice(
+        getIndexedDocument(uuid)
+    );
+
+    if (price === null)
+        return "unclassified";
+
+    const range =
+        getInspectorGroupingRanges(
+            profile,
+            "price"
+        ).find(candidate => {
+            const min = Number(candidate?.min);
+            const rawMax = candidate?.max;
+            const max =
+                rawMax === null ||
+                rawMax === undefined ||
+                rawMax === ""
+                    ? null
+                    : Number(rawMax);
+
+            if (!Number.isFinite(min))
+                return false;
+
+            return (
+                price >= min &&
+                (
+                    max === null ||
+                    (
+                        Number.isFinite(max) &&
+                        price <= max
+                    )
+                )
+            );
+        });
+
+    return range?.key ?? "unclassified";
+}
+
+function getInspectorPriceLabel(
+    key,
+    profile
+) {
+    if (key === "unclassified") {
+        return game.i18n.localize(
+            "COMPENDIUM_CURATOR.GroupNoPrice"
+        );
+    }
+
+    const range =
+        getInspectorGroupingRanges(
+            profile,
+            "price"
+        ).find(candidate =>
+            candidate?.key === key
+        );
+
+    return range
+        ? getInspectorRangeLabel(
+            "price",
+            range
+        )
+        : key;
+}
+
 function getInspectorConfigLabel(
     collection,
     key
@@ -787,6 +881,8 @@ function getInspectorGroupingLabel(criterion) {
         key = "GroupByType";
     else if (criterion === "source")
         key = "GroupBySource";
+    else if (criterion === "price")
+        key = "GroupByPrice";
     else if (criterion === "cr")
         key = "GroupByChallengeRating";
     else if (criterion === "spellLevel")
@@ -815,6 +911,13 @@ function getInspectorGroupingKey(
 
     if (criterion === "source")
         return getInspectorDocumentSource(uuid);
+
+    if (criterion === "price") {
+        return getInspectorPriceKey(
+            uuid,
+            profile
+        );
+    }
 
     if (criterion === "cr") {
         return getInspectorChallengeRatingKey(
@@ -863,6 +966,13 @@ function getInspectorGroupingGroupLabel(
     if (criterion === "source") {
         return getInspectorDocumentSourceLabel(
             key
+        );
+    }
+
+    if (criterion === "price") {
+        return getInspectorPriceLabel(
+            key,
+            profile
         );
     }
 
@@ -951,6 +1061,7 @@ function getInspectorOrderedGroupKeys(
     }
 
     if (
+        criterion === "price" ||
         criterion === "cr" ||
         criterion === "spellLevel"
     ) {
@@ -1767,6 +1878,8 @@ function buildContentInspector(profile) {
             groupingCriterion === "type",
         isGroupingSource:
             groupingCriterion === "source",
+        isGroupingPrice:
+            groupingCriterion === "price",
         isGroupingCr:
             groupingCriterion === "cr",
         isGroupingSpellLevel:

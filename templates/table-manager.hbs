@@ -624,6 +624,12 @@
                                                             {{localize "COMPENDIUM_CURATOR.GroupBySource"}}
                                                         </option>
                                                         <option
+                                                            value="price"
+                                                            {{#if inspector.isGroupingPrice}}selected{{/if}}
+                                                        >
+                                                            {{localize "COMPENDIUM_CURATOR.GroupByPrice"}}
+                                                        </option>
+                                                        <option
                                                             value="cr"
                                                             {{#if inspector.isGroupingCr}}selected{{/if}}
                                                         >

@@ -29,6 +29,12 @@ const CONTENT_PRESETS = [
         hint: "PresetShopByTypeHint"
     },
     {
+        id: "shopPrice",
+        icon: "fa-coins",
+        label: "PresetShopByPrice",
+        hint: "PresetShopByPriceHint"
+    },
+    {
         id: "shopManual",
         icon: "fa-layer-group",
         label: "PresetCustomShop",
@@ -99,6 +105,14 @@ function getGroupingDefinition(criterion) {
         return {
             type: "manual",
             criterion: "manual"
+        };
+    }
+
+    if (criterion === "price") {
+        return {
+            type: "range",
+            criterion: "price",
+            field: "system.price"
         };
     }
 
@@ -464,18 +478,18 @@ export class TableProfileEditorApplication
             )
                 ? this.selectedPreset
                 : "loot";
-            const criterion =
-                preset === "shopType"
-                    ? "type"
-                    : preset === "shopManual"
-                        ? "manual"
-                        : "rarity";
+            const criterion = {
+                shopType: "type",
+                shopPrice: "price",
+                shopManual: "manual"
+            }[preset] ?? "rarity";
             const distributionMode =
                 preset === "simple"
                     ? "individual"
                     : "grouped";
             const isShopPreset = [
                 "shopType",
+                "shopPrice",
                 "shopManual"
             ].includes(preset);
 

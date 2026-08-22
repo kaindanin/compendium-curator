@@ -10,6 +10,8 @@ function getCriterionLabel(criterion) {
 
     if (criterion === "cr")
         key = "GroupByChallengeRating";
+    else if (criterion === "price")
+        key = "GroupByPrice";
     else if (criterion === "spellLevel")
         key = "GroupBySpellLevel";
 
