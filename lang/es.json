@@ -216,6 +216,7 @@
     "ItemPrice": "Precio",
     "DrawResults": "Tirar",
     "RollTableGenerated": "Tabla «{name}» generada y actualizada.",
+    "RollTableAutoUpdated": "Tabla «{name}» actualizada automáticamente antes de usarla.",
     "RollTableGenerationFailed": "No se pudo generar la tabla.",
     "GeneratedTableMissing": "La tabla generada ya no existe. Puedes generarla de nuevo.",
     "TableProfileNoObjects": "El perfil no contiene objetos para generar.",

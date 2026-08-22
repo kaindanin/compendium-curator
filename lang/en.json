@@ -217,6 +217,7 @@
     "ItemPrice": "Price",
     "DrawResults": "Draw",
     "RollTableGenerated": "Table “{name}” generated and updated.",
+    "RollTableAutoUpdated": "Table “{name}” was updated automatically before use.",
     "RollTableGenerationFailed": "The table could not be generated.",
     "GeneratedTableMissing": "The generated table no longer exists. You can generate it again.",
     "TableProfileNoObjects": "The profile has no items to generate.",

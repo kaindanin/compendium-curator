@@ -1757,6 +1757,109 @@ function buildContentInspector(profile) {
     };
 }
 
+async function generateProfileTables(profile) {
+    if (profile.type === "content") {
+        const inspector =
+            buildContentInspector(profile);
+
+        if (!inspector.hasObjects) {
+            throw new Error(
+                "TABLE_PROFILE_NO_OBJECTS"
+            );
+        }
+
+        return TableProfileGenerationService
+            .generate(profile, inspector);
+    }
+
+    const profiles =
+        TableProfileStorageService.getProfiles();
+    const children = [];
+
+    for (
+        const childConfiguration
+        of profile.children ?? []
+    ) {
+        if (!childConfiguration.enabled)
+            continue;
+
+        const childProfile = profiles?.[
+            childConfiguration.profileId
+        ];
+
+        if (
+            !childProfile ||
+            childProfile.type !== "content"
+        ) {
+            continue;
+        }
+
+        const childInspector =
+            buildContentInspector(childProfile);
+
+        if (!childInspector.hasObjects)
+            continue;
+
+        const childGenerated =
+            await TableProfileGenerationService
+                .generate(
+                    childProfile,
+                    childInspector
+                );
+
+        children.push({
+            profile: childProfile,
+            table: childGenerated.root,
+            weight: childConfiguration.weight
+        });
+    }
+
+    return TableProfileGenerationService
+        .generateNested(profile, children);
+}
+
+async function profileNeedsRegeneration(profile) {
+    const revision = Number(profile?.revision ?? 1);
+    const generatedRevision = Number(
+        profile?.generation?.generatedRevision ?? 0
+    );
+    const root =
+        await TableProfileGenerationService
+            .getRootTable(profile);
+
+    if (
+        !root ||
+        generatedRevision !== revision
+    ) {
+        return true;
+    }
+
+    if (profile.type !== "nested")
+        return false;
+
+    const profiles =
+        TableProfileStorageService.getProfiles();
+
+    for (const child of profile.children ?? []) {
+        if (!child.enabled)
+            continue;
+
+        const childProfile =
+            profiles?.[child.profileId];
+
+        if (
+            !childProfile ||
+            await profileNeedsRegeneration(
+                childProfile
+            )
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 export class TableManagerApplication
     extends HandlebarsApplicationMixin(
         ApplicationV2
@@ -3266,7 +3369,7 @@ export class TableManagerApplication
         const profileId = target
             .closest("[data-profile-id]")
             ?.dataset?.profileId;
-        const profile = profileId
+        let profile = profileId
             ? TableProfileStorageService
                 .getProfiles()?.[profileId]
             : null;
@@ -3617,80 +3720,8 @@ export class TableManagerApplication
         this._closeProfileActionsPopover();
 
         try {
-            let generated;
-
-            if (profile.type === "content") {
-                const inspector =
-                    buildContentInspector(profile);
-
-                if (!inspector.hasObjects) {
-                    throw new Error(
-                        "TABLE_PROFILE_NO_OBJECTS"
-                    );
-                }
-
-                generated =
-                    await TableProfileGenerationService
-                        .generate(
-                            profile,
-                            inspector
-                        );
-            }
-            else {
-                const profiles =
-                    TableProfileStorageService
-                        .getProfiles();
-                const children = [];
-
-                for (
-                    const childConfiguration
-                    of profile.children ?? []
-                ) {
-                    if (!childConfiguration.enabled)
-                        continue;
-
-                    const childProfile =
-                        profiles?.[
-                            childConfiguration.profileId
-                        ];
-
-                    if (
-                        !childProfile ||
-                        childProfile.type !== "content"
-                    ) {
-                        continue;
-                    }
-
-                    const childInspector =
-                        buildContentInspector(
-                            childProfile
-                        );
-
-                    if (!childInspector.hasObjects)
-                        continue;
-
-                    const childGenerated =
-                        await TableProfileGenerationService
-                            .generate(
-                                childProfile,
-                                childInspector
-                            );
-
-                    children.push({
-                        profile: childProfile,
-                        table: childGenerated.root,
-                        weight:
-                            childConfiguration.weight
-                    });
-                }
-
-                generated =
-                    await TableProfileGenerationService
-                        .generateNested(
-                            profile,
-                            children
-                        );
-            }
+            const generated =
+                await generateProfileTables(profile);
 
             ui.notifications.info(
                 game.i18n.format(
@@ -3747,7 +3778,7 @@ export class TableManagerApplication
         const profileId = target
             .closest("[data-profile-id]")
             ?.dataset?.profileId;
-        const profile = profileId
+        let profile = profileId
             ? TableProfileStorageService
                 .getProfiles()?.[profileId]
             : null;
@@ -3755,17 +3786,45 @@ export class TableManagerApplication
         if (!profile)
             return;
 
-        const table =
+        let table =
             await TableProfileGenerationService
                 .getRootTable(profile);
 
-        if (!table) {
-            ui.notifications.warn(
-                game.i18n.localize(
-                    "COMPENDIUM_CURATOR.GeneratedTableMissing"
-                )
-            );
-            return;
+        if (await profileNeedsRegeneration(profile)) {
+            target.disabled = true;
+
+            try {
+                const generated =
+                    await generateProfileTables(profile);
+
+                profile = generated.profile;
+                table = generated.root;
+
+                ui.notifications.info(
+                    game.i18n.format(
+                        "COMPENDIUM_CURATOR.RollTableAutoUpdated",
+                        { name: table.name }
+                    )
+                );
+                this.render({ force: true });
+            }
+            catch (error) {
+                console.error(
+                    "Compendium Curator | Error actualizando la tabla antes de tirar.",
+                    error
+                );
+                ui.notifications.error(
+                    game.i18n.localize(
+                        "COMPENDIUM_CURATOR.RollTableGenerationFailed"
+                    )
+                );
+                return;
+            }
+            finally {
+                if (target.isConnected) {
+                    target.disabled = false;
+                }
+            }
         }
 
         table.sheet.render(true);
@@ -3778,7 +3837,7 @@ export class TableManagerApplication
         const profileId = target
             .closest("[data-profile-id]")
             ?.dataset?.profileId;
-        const profile = profileId
+        let profile = profileId
             ? TableProfileStorageService
                 .getProfiles()?.[profileId]
             : null;
@@ -3786,17 +3845,45 @@ export class TableManagerApplication
         if (!profile)
             return;
 
-        const table =
+        let table =
             await TableProfileGenerationService
                 .getRootTable(profile);
 
-        if (!table) {
-            ui.notifications.warn(
-                game.i18n.localize(
-                    "COMPENDIUM_CURATOR.GeneratedTableMissing"
-                )
-            );
-            return;
+        if (await profileNeedsRegeneration(profile)) {
+            target.disabled = true;
+
+            try {
+                const generated =
+                    await generateProfileTables(profile);
+
+                profile = generated.profile;
+                table = generated.root;
+
+                ui.notifications.info(
+                    game.i18n.format(
+                        "COMPENDIUM_CURATOR.RollTableAutoUpdated",
+                        { name: table.name }
+                    )
+                );
+                this.render({ force: true });
+            }
+            catch (error) {
+                console.error(
+                    "Compendium Curator | Error actualizando la tabla antes de tirar.",
+                    error
+                );
+                ui.notifications.error(
+                    game.i18n.localize(
+                        "COMPENDIUM_CURATOR.RollTableGenerationFailed"
+                    )
+                );
+                return;
+            }
+            finally {
+                if (target.isConnected) {
+                    target.disabled = false;
+                }
+            }
         }
 
         const field = document.createElement("div");
