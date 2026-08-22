@@ -419,12 +419,6 @@
                                                     data-cc-distribution-mode
                                                 >
                                                     <option
-                                                        value="uniform"
-                                                        {{#if inspector.isUniform}}selected{{/if}}
-                                                    >
-                                                        {{localize "COMPENDIUM_CURATOR.DistributionUniform"}}
-                                                    </option>
-                                                    <option
                                                         value="individual"
                                                         {{#if inspector.isIndividual}}selected{{/if}}
                                                     >
@@ -494,33 +488,29 @@
                                             </div>
 
                                             <p class="hint" style="margin: 0.55rem 0 0;">
-                                                {{#if inspector.isUniform}}
-                                                    {{localize "COMPENDIUM_CURATOR.DistributionUniformHint"}}
+                                                {{#if inspector.isGrouped}}
+                                                    {{localize "COMPENDIUM_CURATOR.DistributionGroupedHint"}}
                                                 {{else}}
-                                                    {{#if inspector.isIndividual}}
-                                                        {{localize "COMPENDIUM_CURATOR.DistributionIndividualHint"}}
-                                                    {{else}}
-                                                        {{localize "COMPENDIUM_CURATOR.DistributionGroupedHint"}}
-                                                    {{/if}}
+                                                    {{localize "COMPENDIUM_CURATOR.DistributionIndividualHint"}}
                                                 {{/if}}
                                             </p>
                                         </div>
 
-                                        <div class="cc-table-filter-detail-block">
-                                            <div class="cc-table-filter-detail-heading">
-                                                <strong>
-                                                    {{inspector.groupSectionLabel}}
-                                                </strong>
-                                            </div>
+                                        {{#if inspector.isGrouped}}
+                                            <div class="cc-table-filter-detail-block">
+                                                <div class="cc-table-filter-detail-heading">
+                                                    <strong>
+                                                        {{inspector.groupSectionLabel}}
+                                                    </strong>
+                                                </div>
 
-                                            {{#if inspector.hasObjects}}
-                                                <div class="cc-table-filter-detail-choices">
-                                                    {{#each inspector.groups}}
-                                                        <div
-                                                            class="cc-table-filter-detail-choice"
-                                                            style="align-items: center;"
-                                                        >
-                                                            {{#if isGrouped}}
+                                                {{#if inspector.hasObjects}}
+                                                    <div class="cc-table-filter-detail-choices">
+                                                        {{#each inspector.groups}}
+                                                            <div
+                                                                class="cc-table-filter-detail-choice"
+                                                                style="align-items: center;"
+                                                            >
                                                                 <input
                                                                     type="checkbox"
                                                                     data-cc-group-enabled
@@ -530,43 +520,39 @@
                                                                     {{#if enabled}}checked{{/if}}
                                                                     style="flex: 0 0 auto; margin: 0;"
                                                                 >
-                                                            {{/if}}
 
-                                                            <span>{{label}}</span>
+                                                                <span>{{label}}</span>
 
-                                                            <div
-                                                                style="
-                                                                    display: flex;
-                                                                    align-items: center;
-                                                                    justify-content: flex-end;
-                                                                    gap: 0.6rem;
-                                                                    flex: 0 0 auto;
-                                                                "
-                                                            >
-                                                                <span class="hint">
-                                                                    {{localize
-                                                                        "COMPENDIUM_CURATOR.GroupObjectCount"
-                                                                        count=count
-                                                                    }}
-                                                                </span>
+                                                                <div
+                                                                    style="
+                                                                        display: flex;
+                                                                        align-items: center;
+                                                                        justify-content: flex-end;
+                                                                        gap: 0.6rem;
+                                                                        flex: 0 0 auto;
+                                                                    "
+                                                                >
+                                                                    <span class="hint">
+                                                                        {{localize
+                                                                            "COMPENDIUM_CURATOR.GroupObjectCount"
+                                                                            count=count
+                                                                        }}
+                                                                    </span>
 
-                                                                {{#if isGrouped}}
                                                                     {{#unless enabled}}
                                                                         <span class="hint">
                                                                             {{localize "COMPENDIUM_CURATOR.GroupExcluded"}}
                                                                         </span>
                                                                     {{/unless}}
-                                                                {{/if}}
 
-                                                                <strong
-                                                                    data-cc-group-probability
-                                                                    data-group-key="{{key}}"
-                                                                    style="min-width: 58px; text-align: right;"
-                                                                >
-                                                                    {{probability}}
-                                                                </strong>
+                                                                    <strong
+                                                                        data-cc-group-probability
+                                                                        data-group-key="{{key}}"
+                                                                        style="min-width: 58px; text-align: right;"
+                                                                    >
+                                                                        {{probability}}
+                                                                    </strong>
 
-                                                                {{#if isGrouped}}
                                                                     <label
                                                                         class="hint"
                                                                         for="cc-group-weight-{{../id}}-{{key}}"
@@ -592,239 +578,343 @@
                                                                             text-align: right;
                                                                         "
                                                                     >
-                                                                {{/if}}
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    {{/each}}
-                                                </div>
-                                            {{/if}}
-                                        </div>
+                                                        {{/each}}
+                                                    </div>
+                                                {{/if}}
+                                            </div>
 
-                                        {{#if inspector.hasObjects}}
-                                            {{#each inspector.groups}}
-                                                <details
-                                                    style="
-                                                        background: rgb(0 0 0 / 12%);
-                                                        border-radius: 5px;
-                                                    "
-                                                >
-                                                    <summary
+                                            {{#if inspector.hasObjects}}
+                                                {{#each inspector.groups}}
+                                                    <details
                                                         style="
-                                                            display: flex;
-                                                            align-items: center;
-                                                            justify-content: space-between;
-                                                            gap: 1rem;
-                                                            padding: 0.5rem 0.65rem;
-                                                            cursor: pointer;
-                                                            list-style: none;
+                                                            background: rgb(0 0 0 / 12%);
+                                                            border-radius: 5px;
                                                         "
                                                     >
-                                                        <span>
-                                                            <i class="fas fa-chevron-down"></i>
-                                                            {{label}}
-                                                        </span>
-
-                                                        <div
+                                                        <summary
                                                             style="
                                                                 display: flex;
                                                                 align-items: center;
-                                                                gap: 0.65rem;
+                                                                justify-content: space-between;
+                                                                gap: 1rem;
+                                                                padding: 0.5rem 0.65rem;
+                                                                cursor: pointer;
+                                                                list-style: none;
                                                             "
                                                         >
-                                                            {{#if isGrouped}}
+                                                            <span>
+                                                                <i class="fas fa-chevron-down"></i>
+                                                                {{label}}
+                                                            </span>
+
+                                                            <div
+                                                                style="
+                                                                    display: flex;
+                                                                    align-items: center;
+                                                                    gap: 0.65rem;
+                                                                "
+                                                            >
                                                                 {{#unless enabled}}
                                                                     <span class="hint">
                                                                         {{localize "COMPENDIUM_CURATOR.GroupExcluded"}}
                                                                     </span>
                                                                 {{/unless}}
-                                                            {{/if}}
-                                                            <strong>{{count}}</strong>
-                                                            <span
-                                                                class="hint"
-                                                                data-cc-group-probability
-                                                                data-group-key="{{key}}"
-                                                                style="min-width: 58px; text-align: right;"
-                                                            >
-                                                                {{probability}}
-                                                            </span>
-                                                        </div>
-                                                    </summary>
+                                                                <strong>{{count}}</strong>
+                                                                <span
+                                                                    class="hint"
+                                                                    data-cc-group-probability
+                                                                    data-group-key="{{key}}"
+                                                                    style="min-width: 58px; text-align: right;"
+                                                                >
+                                                                    {{probability}}
+                                                                </span>
+                                                            </div>
+                                                        </summary>
 
-                                                    <div style="padding: 0 0.55rem 0.55rem;">
-                                                        <section class="inventory-element cc-dnd5e-document-list">
-                                                            <section class="items-list browser-results">
-                                                                <div class="items-section card">
-                                                                    <div class="items-header header">
-                                                                        <h3 class="item-name">
-                                                                            {{localize "DND5E.CompendiumBrowser.Column.Results"}}
-                                                                        </h3>
+                                                        <div style="padding: 0 0.55rem 0.55rem;">
+                                                            <section class="inventory-element cc-dnd5e-document-list">
+                                                                <section class="items-list browser-results">
+                                                                    <div class="items-section card">
+                                                                        <div class="items-header header">
+                                                                            <h3 class="item-name">
+                                                                                {{localize "DND5E.CompendiumBrowser.Column.Results"}}
+                                                                            </h3>
 
-                                                                        <div class="item-header item-source">
-                                                                            {{localize "DND5E.CompendiumBrowser.Column.Source"}}
+                                                                            <div class="item-header item-source">
+                                                                                {{localize "DND5E.CompendiumBrowser.Column.Source"}}
+                                                                            </div>
+
+                                                                            <div
+                                                                                class="item-header item-controls"
+                                                                                style="
+                                                                                    flex: 0 0 162px;
+                                                                                    min-width: 162px;
+                                                                                    display: flex;
+                                                                                    align-items: center;
+                                                                                    justify-content: flex-end;
+                                                                                    gap: 0.25rem;
+                                                                                "
+                                                                            >
+                                                                                <span style="flex: 0 0 54px;"></span>
+                                                                                <span style="flex: 0 0 58px; text-align: center;">%</span>
+                                                                                <span style="flex: 0 0 24px;"></span>
+                                                                            </div>
                                                                         </div>
 
-                                                                        <div
-                                                                            class="item-header item-controls"
+                                                                        <ol
+                                                                            class="item-list unlist"
                                                                             style="
-                                                                                flex: 0 0 162px;
-                                                                                min-width: 162px;
-                                                                                display: flex;
-                                                                                align-items: center;
-                                                                                justify-content: flex-end;
-                                                                                gap: 0.25rem;
+                                                                                max-height: 260px;
+                                                                                overflow-y: auto;
                                                                             "
                                                                         >
-                                                                            {{#if isIndividual}}
-                                                                                <span style="flex: 0 0 54px; text-align: center;">
-                                                                                    {{localize "COMPENDIUM_CURATOR.Weight"}}
-                                                                                </span>
-                                                                            {{else}}
-                                                                                <span style="flex: 0 0 54px;"></span>
-                                                                            {{/if}}
-                                                                            <span style="flex: 0 0 58px; text-align: center;">%</span>
-                                                                            <span style="flex: 0 0 24px;"></span>
-                                                                        </div>
-                                                                    </div>
+                                                                            {{#each entries}}
+                                                                                <li
+                                                                                    class="item cc-dnd5e-document-entry"
+                                                                                    data-uuid="{{uuid}}"
+                                                                                >
+                                                                                    <div class="item-row">
+                                                                                        <div
+                                                                                            class="item-name rollable"
+                                                                                            role="button"
+                                                                                            data-cc-open-document
+                                                                                        >
+                                                                                            {{#if img}}
+                                                                                                <img
+                                                                                                    class="item-image gold-icon"
+                                                                                                    loading="lazy"
+                                                                                                    src="{{img}}"
+                                                                                                    alt="{{name}}"
+                                                                                                    draggable="false"
+                                                                                                >
+                                                                                            {{/if}}
 
-                                                                    <ol
-                                                                        class="item-list unlist"
-                                                                        style="
-                                                                            max-height: 260px;
-                                                                            overflow-y: auto;
-                                                                        "
-                                                                    >
-                                                                        {{#each entries}}
-                                                                            <li
-                                                                                class="item cc-dnd5e-document-entry"
-                                                                                data-uuid="{{uuid}}"
-                                                                            >
-                                                                                <div class="item-row">
-                                                                                    <div
-                                                                                        class="item-name rollable"
-                                                                                        role="button"
-                                                                                        data-cc-open-document
-                                                                                    >
-                                                                                        {{#if img}}
-                                                                                            <img
-                                                                                                class="item-image gold-icon"
-                                                                                                loading="lazy"
-                                                                                                src="{{img}}"
-                                                                                                alt="{{name}}"
-                                                                                                draggable="false"
-                                                                                            >
-                                                                                        {{/if}}
+                                                                                            <div class="name name-stacked">
+                                                                                                <span class="title">{{name}}</span>
+                                                                                                {{#if subtitle}}
+                                                                                                    <span class="subtitle">
+                                                                                                        {{localize subtitle}}
+                                                                                                    </span>
+                                                                                                {{/if}}
+                                                                                            </div>
+                                                                                        </div>
 
-                                                                                        <div class="name name-stacked">
-                                                                                            <span class="title">{{name}}</span>
-                                                                                            {{#if subtitle}}
-                                                                                                <span class="subtitle">
-                                                                                                    {{localize subtitle}}
-                                                                                                </span>
+                                                                                        <div class="item-detail item-source {{#unless source}}empty{{/unless}}">
+                                                                                            {{#if source}}
+                                                                                                <span class="condensed">{{source}}</span>
                                                                                             {{/if}}
                                                                                         </div>
-                                                                                    </div>
 
-                                                                                    <div class="item-detail item-source {{#unless source}}empty{{/unless}}">
-                                                                                        {{#if source}}
-                                                                                            <span class="condensed">{{source}}</span>
-                                                                                        {{/if}}
-                                                                                    </div>
-
-                                                                                    <div
-                                                                                        class="item-detail item-controls"
-                                                                                        style="
-                                                                                            flex: 0 0 162px;
-                                                                                            min-width: 162px;
-                                                                                            display: flex;
-                                                                                            align-items: center;
-                                                                                            justify-content: flex-end;
-                                                                                            gap: 0.25rem;
-                                                                                        "
-                                                                                    >
-                                                                                        {{#if isIndividual}}
-                                                                                            <input
-                                                                                                type="number"
-                                                                                                min="0.000001"
-                                                                                                step="any"
-                                                                                                value="{{weight}}"
-                                                                                                data-cc-individual-weight
-                                                                                                data-uuid="{{uuid}}"
-                                                                                                data-has-override="{{hasOverride}}"
-                                                                                                aria-label="{{localize 'COMPENDIUM_CURATOR.IndividualWeight'}}: {{name}}"
-                                                                                                title="{{localize 'COMPENDIUM_CURATOR.IndividualWeight'}}"
-                                                                                                style="
-                                                                                                    flex: 0 0 54px;
-                                                                                                    width: 54px;
-                                                                                                    height: 26px;
-                                                                                                    text-align: right;
-                                                                                                "
-                                                                                            >
-                                                                                        {{else}}
-                                                                                            <span style="flex: 0 0 54px;"></span>
-                                                                                        {{/if}}
-
-                                                                                        <span
-                                                                                            class="hint"
-                                                                                            data-cc-object-probability
-                                                                                            data-uuid="{{uuid}}"
+                                                                                        <div
+                                                                                            class="item-detail item-controls"
                                                                                             style="
-                                                                                                flex: 0 0 58px;
-                                                                                                min-width: 58px;
-                                                                                                text-align: right;
-                                                                                                white-space: nowrap;
+                                                                                                flex: 0 0 162px;
+                                                                                                min-width: 162px;
+                                                                                                display: flex;
+                                                                                                align-items: center;
+                                                                                                justify-content: flex-end;
+                                                                                                gap: 0.25rem;
                                                                                             "
                                                                                         >
-                                                                                            {{probability}}
-                                                                                        </span>
+                                                                                            <span style="flex: 0 0 54px;"></span>
 
-                                                                                        {{#if isIndividual}}
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                class="unbutton"
-                                                                                                data-cc-reset-individual-weight
+                                                                                            <span
+                                                                                                class="hint"
+                                                                                                data-cc-object-probability
                                                                                                 data-uuid="{{uuid}}"
-                                                                                                aria-label="{{localize 'COMPENDIUM_CURATOR.ResetIndividualWeight'}}: {{name}}"
-                                                                                                title="{{localize 'COMPENDIUM_CURATOR.ResetIndividualWeight'}}"
-                                                                                                {{#unless hasOverride}}disabled{{/unless}}
                                                                                                 style="
-                                                                                                    flex: 0 0 24px;
-                                                                                                    width: 24px;
-                                                                                                    height: 24px;
+                                                                                                    flex: 0 0 58px;
+                                                                                                    min-width: 58px;
+                                                                                                    text-align: right;
+                                                                                                    white-space: nowrap;
                                                                                                 "
                                                                                             >
-                                                                                                <i class="fas fa-rotate-left"></i>
-                                                                                            </button>
-                                                                                        {{else}}
+                                                                                                {{probability}}
+                                                                                            </span>
+
                                                                                             <span style="flex: 0 0 24px;"></span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </li>
+                                                                            {{/each}}
+                                                                        </ol>
+                                                                    </div>
+                                                                </section>
+                                                            </section>
+
+                                                            {{#if truncated}}
+                                                                <p
+                                                                    class="hint"
+                                                                    style="
+                                                                        margin: 0.4rem 0 0;
+                                                                        text-align: right;
+                                                                    "
+                                                                >
+                                                                    {{localize "COMPENDIUM_CURATOR.LivePreview"}}:
+                                                                    {{previewCount}} / {{count}}
+                                                                </p>
+                                                            {{/if}}
+                                                        </div>
+                                                    </details>
+                                                {{/each}}
+                                            {{else}}
+                                                <p class="hint">
+                                                    {{localize "COMPENDIUM_CURATOR.NoMatchingObjects"}}
+                                                </p>
+                                            {{/if}}
+                                        {{else}}
+                                            {{#if inspector.hasObjects}}
+                                                <section class="inventory-element cc-dnd5e-document-list">
+                                                    <section class="items-list browser-results">
+                                                        <div class="items-section card">
+                                                            <div class="items-header header">
+                                                                <h3 class="item-name">
+                                                                    {{localize "DND5E.CompendiumBrowser.Column.Results"}}
+                                                                </h3>
+
+                                                                <div class="item-header item-source">
+                                                                    {{localize "DND5E.CompendiumBrowser.Column.Source"}}
+                                                                </div>
+
+                                                                <div
+                                                                    class="item-header item-controls"
+                                                                    style="
+                                                                        flex: 0 0 162px;
+                                                                        min-width: 162px;
+                                                                        display: flex;
+                                                                        align-items: center;
+                                                                        justify-content: flex-end;
+                                                                        gap: 0.25rem;
+                                                                    "
+                                                                >
+                                                                    <span style="flex: 0 0 54px; text-align: center;">
+                                                                        {{localize "COMPENDIUM_CURATOR.Weight"}}
+                                                                    </span>
+                                                                    <span style="flex: 0 0 58px; text-align: center;">%</span>
+                                                                    <span style="flex: 0 0 24px;"></span>
+                                                                </div>
+                                                            </div>
+
+                                                            <ol
+                                                                class="item-list unlist"
+                                                                style="
+                                                                    max-height: 420px;
+                                                                    overflow-y: auto;
+                                                                "
+                                                            >
+                                                                {{#each inspector.groups}}
+                                                                    {{#each entries}}
+                                                                        <li
+                                                                            class="item cc-dnd5e-document-entry"
+                                                                            data-uuid="{{uuid}}"
+                                                                        >
+                                                                            <div class="item-row">
+                                                                                <div
+                                                                                    class="item-name rollable"
+                                                                                    role="button"
+                                                                                    data-cc-open-document
+                                                                                >
+                                                                                    {{#if img}}
+                                                                                        <img
+                                                                                            class="item-image gold-icon"
+                                                                                            loading="lazy"
+                                                                                            src="{{img}}"
+                                                                                            alt="{{name}}"
+                                                                                            draggable="false"
+                                                                                        >
+                                                                                    {{/if}}
+
+                                                                                    <div class="name name-stacked">
+                                                                                        <span class="title">{{name}}</span>
+                                                                                        {{#if subtitle}}
+                                                                                            <span class="subtitle">
+                                                                                                {{localize subtitle}}
+                                                                                            </span>
                                                                                         {{/if}}
                                                                                     </div>
                                                                                 </div>
-                                                                            </li>
-                                                                        {{/each}}
-                                                                    </ol>
-                                                                </div>
-                                                            </section>
-                                                        </section>
 
-                                                        {{#if truncated}}
-                                                            <p
-                                                                class="hint"
-                                                                style="
-                                                                    margin: 0.4rem 0 0;
-                                                                    text-align: right;
-                                                                "
-                                                            >
-                                                                {{localize "COMPENDIUM_CURATOR.LivePreview"}}:
-                                                                {{previewCount}} / {{count}}
-                                                            </p>
-                                                        {{/if}}
-                                                    </div>
-                                                </details>
-                                            {{/each}}
-                                        {{else}}
-                                            <p class="hint">
-                                                {{localize "COMPENDIUM_CURATOR.NoMatchingObjects"}}
-                                            </p>
+                                                                                <div class="item-detail item-source {{#unless source}}empty{{/unless}}">
+                                                                                    {{#if source}}
+                                                                                        <span class="condensed">{{source}}</span>
+                                                                                    {{/if}}
+                                                                                </div>
+
+                                                                                <div
+                                                                                    class="item-detail item-controls"
+                                                                                    style="
+                                                                                        flex: 0 0 162px;
+                                                                                        min-width: 162px;
+                                                                                        display: flex;
+                                                                                        align-items: center;
+                                                                                        justify-content: flex-end;
+                                                                                        gap: 0.25rem;
+                                                                                    "
+                                                                                >
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        min="0.000001"
+                                                                                        step="any"
+                                                                                        value="{{weight}}"
+                                                                                        data-cc-individual-weight
+                                                                                        data-uuid="{{uuid}}"
+                                                                                        data-has-override="{{hasOverride}}"
+                                                                                        aria-label="{{localize 'COMPENDIUM_CURATOR.IndividualWeight'}}: {{name}}"
+                                                                                        title="{{localize 'COMPENDIUM_CURATOR.IndividualWeight'}}"
+                                                                                        style="
+                                                                                            flex: 0 0 54px;
+                                                                                            width: 54px;
+                                                                                            height: 26px;
+                                                                                            text-align: right;
+                                                                                        "
+                                                                                    >
+
+                                                                                    <span
+                                                                                        class="hint"
+                                                                                        data-cc-object-probability
+                                                                                        data-uuid="{{uuid}}"
+                                                                                        style="
+                                                                                            flex: 0 0 58px;
+                                                                                            min-width: 58px;
+                                                                                            text-align: right;
+                                                                                            white-space: nowrap;
+                                                                                        "
+                                                                                    >
+                                                                                        {{probability}}
+                                                                                    </span>
+
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        class="unbutton"
+                                                                                        data-cc-reset-individual-weight
+                                                                                        data-uuid="{{uuid}}"
+                                                                                        aria-label="{{localize 'COMPENDIUM_CURATOR.ResetIndividualWeight'}}: {{name}}"
+                                                                                        title="{{localize 'COMPENDIUM_CURATOR.ResetIndividualWeight'}}"
+                                                                                        {{#unless hasOverride}}disabled{{/unless}}
+                                                                                        style="
+                                                                                            flex: 0 0 24px;
+                                                                                            width: 24px;
+                                                                                            height: 24px;
+                                                                                        "
+                                                                                    >
+                                                                                        <i class="fas fa-rotate-left"></i>
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </li>
+                                                                    {{/each}}
+                                                                {{/each}}
+                                                            </ol>
+                                                        </div>
+                                                    </section>
+                                                </section>
+                                            {{else}}
+                                                <p class="hint">
+                                                    {{localize "COMPENDIUM_CURATOR.NoMatchingObjects"}}
+                                                </p>
+                                            {{/if}}
                                         {{/if}}
                                     </div>
                                 </details>

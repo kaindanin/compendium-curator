@@ -12,6 +12,61 @@ const DISTRIBUTION_INDEX_FIELDS = {
 let distributionIndexPromise = null;
 let distributionIndexesReady = false;
 
+/*
+ * Curator mantiene su propia copia de los índices que necesita
+ * para distribuir contenido. El Compendium Browser de D&D5e
+ * puede reconstruir pack.index con distintos campos al cambiar
+ * de pestaña o filtro, así que esa colección compartida no es
+ * una fuente estable para rareza, fuente o CR.
+ */
+const distributionIndexCache = new Map();
+
+
+function cloneIndex(index) {
+
+    const cached = new Map();
+
+    for (const [id, entry] of index ?? []) {
+        cached.set(
+            id,
+            foundry.utils.deepClone(entry)
+        );
+    }
+
+    return cached;
+
+}
+
+
+function mergeDistributionIndexIntoPack(
+    pack,
+    cachedIndex
+) {
+
+    if (!pack?.index || !cachedIndex)
+        return;
+
+    for (const [id, cachedEntry] of cachedIndex) {
+
+        const current =
+            pack.index.get(id) ?? {};
+
+        pack.index.set(
+            id,
+            foundry.utils.mergeObject(
+                foundry.utils.deepClone(current),
+                foundry.utils.deepClone(cachedEntry),
+                {
+                    inplace: false,
+                    overwrite: true
+                }
+            )
+        );
+
+    }
+
+}
+
 
 export async function ensureDnd5eDistributionIndexes(
     { force = false } = {}
@@ -39,12 +94,47 @@ export async function ensureDnd5eDistributionIndexes(
         if (!fields)
             continue;
 
+        /*
+         * Persistimos estos campos entre futuras reconstrucciones
+         * del índice que pueda hacer Foundry o D&D5e.
+         */
+        for (const field of fields)
+            pack.indexFields?.add(field);
+
         requests.push(
             pack.getIndex({ fields })
-                .then(() => ({
-                    ok: true,
-                    pack
-                }))
+                .then(index => {
+
+                    const cachedIndex =
+                        cloneIndex(index);
+
+                    distributionIndexCache.set(
+                        pack.collection,
+                        {
+                            documentName:
+                                pack.documentName,
+                            index:
+                                cachedIndex
+                        }
+                    );
+
+                    /*
+                     * También fusionamos nuestra copia en pack.index
+                     * para mantener compatibilidad con código existente.
+                     * La fuente de verdad de Curator sigue siendo la caché
+                     * privada anterior.
+                     */
+                    mergeDistributionIndexIntoPack(
+                        pack,
+                        cachedIndex
+                    );
+
+                    return {
+                        ok: true,
+                        pack
+                    };
+
+                })
                 .catch(error => ({
                     ok: false,
                     pack,
@@ -73,7 +163,7 @@ export async function ensureDnd5eDistributionIndexes(
 
                 if (failed.length) {
                     console.warn(
-                        "Compendium Curator | No se pudieron cargar algunos campos de distribución en los índices.",
+                        "Compendium Curator | No se pudieron cargar algunos campos de distribución desde sus compendios.",
                         failed.map(result => ({
                             pack:
                                 result.pack?.collection,
@@ -89,15 +179,60 @@ export async function ensureDnd5eDistributionIndexes(
             .finally(() => {
 
                 /*
-                 * Si algún compendio falló, permitimos que
-                 * el siguiente intento vuelva a solicitarlo.
+                 * Una carga terminada nunca debe bloquear un refresh
+                 * posterior solicitado por el Gestor. La caché privada
+                 * permanece disponible hasta que se reemplace.
                  */
-                if (!distributionIndexesReady)
-                    distributionIndexPromise = null;
+                distributionIndexPromise = null;
 
             });
 
     return distributionIndexPromise;
+
+}
+
+
+export function getDnd5eDistributionIndexEntry(
+    uuid
+) {
+
+    const value =
+        String(uuid ?? "").trim();
+
+    if (!value)
+        return null;
+
+    const parts = value.split(".");
+
+    if (
+        parts[0] === "Compendium" &&
+        parts.length >= 4
+    ) {
+
+        const collection =
+            `${parts[1]}.${parts[2]}`;
+
+        const documentId =
+            parts.at(-1);
+
+        const cached =
+            distributionIndexCache
+                .get(collection)
+                ?.index
+                ?.get(documentId);
+
+        if (cached)
+            return cached;
+
+    }
+
+    if (
+        typeof fromUuidSync === "function"
+    ) {
+        return fromUuidSync(value) ?? null;
+    }
+
+    return null;
 
 }
 
@@ -231,11 +366,9 @@ export async function prepareDnd5eDocumentEntries(
 /*
  * Variante ligera para vistas previas en vivo.
  *
- * Usa el índice que el Compendium Browser ya ha
- * cargado en memoria, evitando fromUuid() para
- * cientos o miles de resultados. Devuelve la
- * misma estructura visual que
- * prepareDnd5eDocumentEntries().
+ * Usa primero la caché de índices propia de Curator,
+ * evitando depender del estado actual del Compendium Browser
+ * y evitando fromUuid() para cientos o miles de resultados.
  */
 export function prepareDnd5eIndexedEntries(
     uuids
@@ -272,6 +405,29 @@ export function prepareDnd5eIndexedEntries(
                     const documentId =
                         parts.at(-1);
 
+                    const cachedPack =
+                        distributionIndexCache
+                            .get(collection);
+
+                    const cachedEntry =
+                        cachedPack
+                            ?.index
+                            ?.get(documentId);
+
+                    if (cachedEntry) {
+
+                        return buildDocumentEntry(
+                            uuid,
+                            cachedEntry,
+                            cachedPack.documentName
+                        );
+
+                    }
+
+                    /*
+                     * Compatibilidad para tipos de documento que
+                     * Curator todavía no indexa específicamente.
+                     */
                     const pack =
                         game.packs
                             ?.get(collection);
