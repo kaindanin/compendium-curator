@@ -1,13 +1,19 @@
 import {
+    TableManagerApplication
+} from "../applications/table-manager-application.js";
+import {
+    TableManagerContentApplication
+} from "../applications/table-manager-content-application.js";
+import {
     TableProfileStorageService
 } from "./table-profile-storage-service.js";
 import {
     getActiveTableChildren,
     registerTableProfileRelations
 } from "./table-profile-relations-service.js";
-import {
-    TableManagerContentApplication
-} from "../applications/table-manager-content-application.js";
+
+const MANAGE_CONTENT_ACTION =
+    "manageContent";
 
 function text(es, en) {
     return game.i18n.lang.startsWith("es")
@@ -188,10 +194,41 @@ async function openContentManager(
     });
 }
 
+function onManageContent(event, target) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const profileId = String(
+        target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId ??
+        ""
+    ).trim();
+
+    if (!profileId)
+        return;
+
+    void openContentManager(
+        this,
+        profileId
+    );
+}
+
+function registerManageContentAction() {
+    const actions =
+        TableManagerApplication
+            .DEFAULT_OPTIONS
+            ?.actions;
+
+    if (!actions)
+        return;
+
+    actions[MANAGE_CONTENT_ACTION] =
+        onManageContent;
+}
+
 function configureManageContentButton(
-    application,
-    profileRow,
-    profile
+    profileRow
 ) {
     const menu = profileRow.querySelector(
         ".cc-table-manager-profile-menu"
@@ -230,7 +267,8 @@ function configureManageContentButton(
         );
     }
 
-    button.removeAttribute("data-action");
+    button.dataset.action =
+        MANAGE_CONTENT_ACTION;
     button.dataset.ccManageContent = "";
     button.type = "button";
 
@@ -253,19 +291,6 @@ function configureManageContentButton(
         )
     );
     button.title = label;
-
-    button.addEventListener(
-        "click",
-        event => {
-            event.preventDefault();
-            event.stopPropagation();
-
-            void openContentManager(
-                application,
-                profile.id
-            );
-        }
-    );
 }
 
 function augmentUnifiedTableRelations(
@@ -308,9 +333,7 @@ function augmentUnifiedTableRelations(
         )?.remove();
 
         configureManageContentButton(
-            application,
-            profileRow,
-            profile
+            profileRow
         );
 
         updateProfileSummary(
@@ -371,6 +394,7 @@ function augmentUnifiedTableRelations(
 
 export function registerTableManagerRecursiveNesting() {
     registerTableProfileRelations();
+    registerManageContentAction();
 
     Hooks.on(
         "renderTableManagerApplication",
