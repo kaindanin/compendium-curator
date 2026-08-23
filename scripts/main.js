@@ -12,6 +12,9 @@ import {
 import {
     registerTableManagerConfigurationControls
 } from "./services/table-manager-configuration-service.js";
+import {
+    registerTableManagerRecursiveNesting
+} from "./services/table-manager-recursive-nesting-service.js";
 
 Hooks.once("init", () => {
 
@@ -22,6 +25,7 @@ Hooks.once("init", () => {
     registerItemPilesIntegration();
     registerTableManagerSynchronization();
     registerTableManagerConfigurationControls();
+    registerTableManagerRecursiveNesting();
 
     debug("Settings registradas");
 

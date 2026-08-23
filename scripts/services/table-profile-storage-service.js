@@ -1231,6 +1231,104 @@ export class TableProfileStorageService {
         return storedGroup;
     }
 
+    static #nestedProfileReaches(
+        sourceProfileId,
+        targetProfileId,
+        profiles,
+        visited = new Set()
+    ) {
+        const sourceId =
+            String(sourceProfileId ?? "").trim();
+        const targetId =
+            String(targetProfileId ?? "").trim();
+
+        if (
+            !sourceId ||
+            !targetId ||
+            visited.has(sourceId)
+        ) {
+            return false;
+        }
+
+        visited.add(sourceId);
+
+        const profile = profiles?.[sourceId];
+
+        if (profile?.type !== "nested")
+            return false;
+
+        for (
+            const sourceChild
+            of Array.isArray(profile.children)
+                ? profile.children
+                : []
+        ) {
+            const childId = String(
+                typeof sourceChild === "string"
+                    ? sourceChild
+                    : sourceChild?.profileId ??
+                        sourceChild?.id ??
+                        ""
+            ).trim();
+
+            if (!childId)
+                continue;
+
+            if (childId === targetId)
+                return true;
+
+            if (
+                this.#nestedProfileReaches(
+                    childId,
+                    targetId,
+                    profiles,
+                    visited
+                )
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    static #isSupportedNestedChild(
+        profileId,
+        childProfileId,
+        profiles
+    ) {
+        const parentId =
+            String(profileId ?? "").trim();
+        const childId =
+            String(childProfileId ?? "").trim();
+        const childProfile =
+            profiles?.[childId];
+
+        if (
+            !parentId ||
+            !childId ||
+            parentId === childId ||
+            !["content", "nested"].includes(
+                childProfile?.type
+            )
+        ) {
+            return false;
+        }
+
+        if (
+            childProfile.type === "nested" &&
+            this.#nestedProfileReaches(
+                childId,
+                parentId,
+                profiles
+            )
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
     static #normalizeNestedChildren(
         profileId,
         sourceChildren,
@@ -1252,14 +1350,15 @@ export class TableProfileStorageService {
                         sourceChild?.id ??
                         ""
             ).trim();
-            const childProfile =
-                profiles?.[childProfileId];
 
             if (
                 !childProfileId ||
-                childProfileId === profileId ||
                 used.has(childProfileId) ||
-                childProfile?.type !== "content"
+                !this.#isSupportedNestedChild(
+                    profileId,
+                    childProfileId,
+                    profiles
+                )
             ) {
                 continue;
             }
@@ -1329,7 +1428,8 @@ export class TableProfileStorageService {
         ) {
             if (
                 !sourceProfile ||
-                typeof sourceProfile !== "object"
+                typeof sourceProfile !== "object" ||
+                Number(sourceProfile.version) !== 2
             ) {
                 continue;
             }
@@ -1339,6 +1439,7 @@ export class TableProfileStorageService {
                     sourceProfile
                 );
 
+            profile.version = 2;
             profile.id = profileId;
 
             let filterGroupIds = [];
@@ -2857,8 +2958,11 @@ export class TableProfileStorageService {
             profile.version !== 2 ||
             profile.type !== "nested" ||
             !childProfile ||
-            childProfile.type !== "content" ||
-            profileId === childId
+            !this.#isSupportedNestedChild(
+                profileId,
+                childId,
+                storage.profiles
+            )
         ) {
             throw new Error(
                 "INVALID_NESTED_TABLE_CHILD"
@@ -3004,7 +3108,12 @@ export class TableProfileStorageService {
             !profile ||
             profile.version !== 2 ||
             profile.type !== "nested" ||
-            childProfile?.type !== "content"
+            !childProfile ||
+            !this.#isSupportedNestedChild(
+                profileId,
+                childId,
+                storage.profiles
+            )
         ) {
             throw new Error(
                 "INVALID_NESTED_TABLE_CHILD"
@@ -3180,6 +3289,29 @@ export class TableProfileStorageService {
         );
     }
 
+    static canUseNestedChild(
+        profileId,
+        childProfileId
+    ) {
+        const storage = this.getStorage();
+        const profile =
+            storage.profiles?.[profileId];
+
+        if (
+            !profile ||
+            profile.version !== 2 ||
+            profile.type !== "nested"
+        ) {
+            return false;
+        }
+
+        return this.#isSupportedNestedChild(
+            profileId,
+            childProfileId,
+            storage.profiles
+        );
+    }
+
     static exportProfileBundle(profileId) {
         const storage = this.getStorage();
         const rootProfile =
@@ -3347,12 +3479,13 @@ export class TableProfileStorageService {
 
             if (profile.type === "nested") {
                 for (const child of profile.children ?? []) {
-                    const childProfile =
-                        sourceProfiles[
-                            child?.profileId
-                        ];
-
-                    if (childProfile?.type !== "content") {
+                    if (
+                        !this.#isSupportedNestedChild(
+                            sourceId,
+                            child?.profileId,
+                            sourceProfiles
+                        )
+                    ) {
                         throw new Error(
                             "INVALID_TABLE_PROFILE_BUNDLE"
                         );
