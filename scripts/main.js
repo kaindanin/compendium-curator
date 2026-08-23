@@ -15,6 +15,9 @@ import {
 import {
     registerTableManagerRecursiveNesting
 } from "./services/table-manager-recursive-nesting-service.js";
+import {
+    registerTableManagerUnifiedTabs
+} from "./services/table-manager-unified-tabs-service.js";
 
 Hooks.once("init", () => {
 
@@ -26,6 +29,7 @@ Hooks.once("init", () => {
     registerTableManagerSynchronization();
     registerTableManagerConfigurationControls();
     registerTableManagerRecursiveNesting();
+    registerTableManagerUnifiedTabs();
 
     debug("Settings registradas");
 
