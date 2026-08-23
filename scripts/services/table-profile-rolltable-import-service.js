@@ -34,6 +34,15 @@ function getResultWeight(result) {
     );
 }
 
+function getTableTotalWeight(table) {
+    return Array.from(table?.results ?? [])
+        .reduce(
+            (sum, result) =>
+                sum + getResultWeight(result),
+            0
+        );
+}
+
 function getTextUuid(result) {
     const text = String(
         result?.description ??
@@ -127,6 +136,16 @@ function getUniqueProfileName(name) {
     }
 
     return candidate;
+}
+
+function getDirectResultsProfileName(table) {
+    const suffix = game.i18n.lang.startsWith("es")
+        ? "Resultados directos"
+        : "Direct results";
+
+    return getUniqueProfileName(
+        `${table.name} — ${suffix}`
+    );
 }
 
 function buildContentProfile(name, entries) {
@@ -228,6 +247,13 @@ async function collectLeafEntries(
     const nextAncestors = new Set(ancestors);
     nextAncestors.add(table.uuid);
 
+    const totalWeight = getTableTotalWeight(table);
+
+    if (!(totalWeight > 0)) {
+        statistics.unsupported++;
+        return { entries, statistics };
+    }
+
     for (const result of table.results ?? []) {
         const document =
             await resolveResultDocument(result);
@@ -238,11 +264,12 @@ async function collectLeafEntries(
         }
 
         const weight =
-            getResultWeight(result) *
             normalizePositiveWeight(
                 multiplier,
                 1
-            );
+            ) *
+            getResultWeight(result) /
+            totalWeight;
 
         if (
             SUPPORTED_DOCUMENT_NAMES.has(
@@ -292,19 +319,23 @@ async function collectLeafEntries(
     return { entries, statistics };
 }
 
-async function getImmediateChildTables(table) {
+async function getImmediateTableStructure(table) {
     const children = new Map();
-    let hasDirectDocuments = false;
+    const directEntries = new Map();
     let unsupported = 0;
+    let unavailable = 0;
 
     for (const result of table.results ?? []) {
         const document =
             await resolveResultDocument(result);
 
         if (!document) {
-            unsupported++;
+            unavailable++;
             continue;
         }
+
+        const resultWeight =
+            getResultWeight(result);
 
         if (document.documentName === "RollTable") {
             const previous = children.get(
@@ -317,7 +348,7 @@ async function getImmediateChildTables(table) {
                     table: document,
                     weight:
                         (previous?.weight ?? 0) +
-                        getResultWeight(result)
+                        resultWeight
                 }
             );
             continue;
@@ -328,17 +359,48 @@ async function getImmediateChildTables(table) {
                 document.documentName
             )
         ) {
-            hasDirectDocuments = true;
+            const previous = directEntries.get(
+                document.uuid
+            );
+
+            directEntries.set(
+                document.uuid,
+                {
+                    uuid: document.uuid,
+                    name:
+                        document.name ??
+                        result.name ??
+                        document.uuid,
+                    img:
+                        document.img ??
+                        result.img ??
+                        null,
+                    weight:
+                        (previous?.weight ?? 0) +
+                        resultWeight
+                }
+            );
+            continue;
         }
-        else {
-            unsupported++;
-        }
+
+        unsupported++;
     }
 
     return {
         children: Array.from(children.values()),
-        hasDirectDocuments,
-        unsupported
+        directEntries:
+            Array.from(directEntries.values()),
+        directWeight:
+            Array.from(directEntries.values())
+                .reduce(
+                    (sum, entry) =>
+                        sum + entry.weight,
+                    0
+                ),
+        hasDirectDocuments:
+            directEntries.size > 0,
+        unsupported,
+        unavailable
     };
 }
 
@@ -385,7 +447,7 @@ export class TableProfileRollTableImportService {
 
         for (const table of candidates) {
             const immediate =
-                await getImmediateChildTables(
+                await getImmediateTableStructure(
                     table
                 );
 
@@ -485,19 +547,41 @@ export class TableProfileRollTableImportService {
 
         try {
             const immediate =
-                await getImmediateChildTables(
+                await getImmediateTableStructure(
                     table
                 );
 
-            if (
-                immediate.children.length > 0 &&
-                !immediate.hasDirectDocuments
-            ) {
+            if (immediate.children.length > 0) {
                 const childProfiles = [];
                 let unsupported =
                     immediate.unsupported;
-                let unavailable = 0;
+                let unavailable =
+                    immediate.unavailable;
                 let imported = 0;
+
+                if (immediate.directEntries.length) {
+                    const directProfile =
+                        await TableProfileStorageService
+                            .create(
+                                buildContentProfile(
+                                    getDirectResultsProfileName(
+                                        table
+                                    ),
+                                    immediate.directEntries
+                                )
+                            );
+
+                    createdProfiles.push(
+                        directProfile
+                    );
+                    childProfiles.push({
+                        profile: directProfile,
+                        weight:
+                            immediate.directWeight
+                    });
+                    imported +=
+                        immediate.directEntries.length;
+                }
 
                 for (
                     const child
@@ -564,7 +648,10 @@ export class TableProfileRollTableImportService {
                 createdProfiles.push(rootProfile);
 
                 return {
-                    kind: "nested",
+                    kind:
+                        immediate.hasDirectDocuments
+                            ? "mixed"
+                            : "nested",
                     rootProfile,
                     createdProfiles,
                     imported,
