@@ -497,7 +497,11 @@ export class TableProfileStorageService {
 
         for (
             const [index, sourceRange]
-            of source.entries()
+            of (
+                Array.isArray(source)
+                    ? source
+                    : []
+            ).entries()
         ) {
             if (
                 !sourceRange ||
@@ -1151,10 +1155,6 @@ export class TableProfileStorageService {
 
         profile.draw = {
             count,
-            unique:
-                typeof source.unique === "boolean"
-                    ? source.unique
-                    : isShopGrouping,
             priceAdjustment,
             quantityMin,
             quantityMax
@@ -2669,20 +2669,15 @@ export class TableProfileStorageService {
         }
 
         const previousGeneratedPreferences = {
-            unique:
-                profile.draw?.unique === true,
             quantityMin:
                 profile.draw?.quantityMin,
             quantityMax:
                 profile.draw?.quantityMax
         };
-        const nextUnique =
-            preferences?.unique === true;
 
         profile.draw = {
             count:
                 preferences?.count,
-            unique: nextUnique,
             priceAdjustment:
                 preferences?.priceAdjustment,
             quantityMin:
@@ -2697,8 +2692,6 @@ export class TableProfileStorageService {
             normalizedStorage
                 .profiles?.[profileId];
         const generatedPreferencesChanged =
-            previousGeneratedPreferences.unique !==
-                normalizedProfile?.draw?.unique ||
             previousGeneratedPreferences.quantityMin !==
                 normalizedProfile?.draw?.quantityMin ||
             previousGeneratedPreferences.quantityMax !==

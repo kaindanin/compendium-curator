@@ -167,8 +167,7 @@ async function reconcileTable({
     img,
     entries,
     storedUuid,
-    target,
-    replacement = true
+    target
 }) {
     let table =
         await TableGenerationTargetService
@@ -196,7 +195,7 @@ async function reconcileTable({
             { profile: profile.name }
         ),
         formula: prepared.formula,
-        replacement,
+        replacement: true,
         displayRoll: true,
         flags: {
             [MODULE_ID]: {
@@ -292,55 +291,6 @@ function buildDirectEntries(
                     : 1
         }))
     );
-}
-
-function buildUniqueGroupedEntries(
-    profile,
-    inspector
-) {
-    return inspector.groups
-        .filter(group =>
-            group.enabled &&
-            group.count > 0
-        )
-        .flatMap(group => {
-            const entries =
-                group.allEntries ??
-                group.entries ??
-                [];
-            const weighted =
-                entries.map(entry => ({
-                    entry,
-                    weight:
-                        getInternalItemWeight(
-                            profile,
-                            group.key,
-                            entry.uuid
-                        )
-                }));
-            const internalTotal =
-                weighted.reduce(
-                    (sum, candidate) =>
-                        sum + candidate.weight,
-                    0
-                );
-
-            if (internalTotal <= 0)
-                return [];
-
-            return weighted.map(candidate => ({
-                documentUuid:
-                    candidate.entry.uuid,
-                name: candidate.entry.name,
-                img: candidate.entry.img,
-                resultKey:
-                    candidate.entry.uuid,
-                weight:
-                    group.weight *
-                    candidate.weight /
-                    internalTotal
-            }));
-        });
 }
 
 function buildGroupedNodes(
@@ -470,27 +420,7 @@ export class TableProfileGenerationService {
                     const nodes = {};
                     let rootEntries;
 
-                    const flattenUniqueGroups =
-                        inspector.isGrouped &&
-                        profile.draw?.unique === true;
-
-                    if (
-                        flattenUniqueGroups &&
-                        !inspector.groups.some(
-                            group =>
-                                group.enabled &&
-                                group.count > 0
-                        )
-                    ) {
-                        throw new Error(
-                            "TABLE_PROFILE_NO_ACTIVE_GROUPS"
-                        );
-                    }
-
-                    if (
-                        inspector.isGrouped &&
-                        !flattenUniqueGroups
-                    ) {
+                    if (inspector.isGrouped) {
                         const groupNodes =
                             buildGroupedNodes(
                                 profile,
@@ -522,10 +452,7 @@ export class TableProfileGenerationService {
                                             profile,
                                             node.nodeId
                                         ),
-                                    target,
-                                    replacement:
-                                        profile.draw?.unique !==
-                                        true
+                                    target
                                 });
 
                             nodes[node.nodeId] = {
@@ -548,13 +475,6 @@ export class TableProfileGenerationService {
                                 weight:
                                     node.weight
                             }));
-                    }
-                    else if (flattenUniqueGroups) {
-                        rootEntries =
-                            buildUniqueGroupedEntries(
-                                profile,
-                                inspector
-                            );
                     }
                     else {
                         rootEntries =
@@ -582,10 +502,7 @@ export class TableProfileGenerationService {
                                     profile,
                                     ROOT_NODE_ID
                                 ),
-                            target,
-                            replacement:
-                                profile.draw?.unique !==
-                                true
+                            target
                         });
 
                     nodes[ROOT_NODE_ID] = {
@@ -716,8 +633,7 @@ export class TableProfileGenerationService {
                                     profile,
                                     ROOT_NODE_ID
                                 ),
-                            target,
-                            replacement: true
+                            target
                         });
                     const nodes = {
                         [ROOT_NODE_ID]: {

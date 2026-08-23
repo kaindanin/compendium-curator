@@ -2084,7 +2084,6 @@ async function drawProfileTable(
     table,
     {
         count,
-        unique,
         priceAdjustment,
         quantityMin,
         quantityMax
@@ -2093,7 +2092,6 @@ async function drawProfileTable(
     const draw =
         await TableProfileDrawService
             .drawItems(table, count, {
-                unique,
                 displayChat: true,
                 priceMultiplier:
                     priceAdjustment / 100,
@@ -2108,20 +2106,6 @@ async function drawProfileTable(
             )
         );
         return null;
-    }
-
-    if (unique && draw.truncated) {
-        ui.notifications.warn(
-            game.i18n.format(
-                "COMPENDIUM_CURATOR.UniqueDrawLimited",
-                {
-                    requested:
-                        draw.requestedCount,
-                    available:
-                        draw.availableCount
-                }
-            )
-        );
     }
 
     return draw;
@@ -4889,50 +4873,6 @@ export class TableManagerApplication
 
         field.append(label, input);
 
-        const uniqueField =
-            document.createElement("div");
-        uniqueField.className = "form-group";
-
-        const uniqueLabel =
-            document.createElement("label");
-        uniqueLabel.textContent =
-            game.i18n.localize(
-                "COMPENDIUM_CURATOR.DrawUniqueResults"
-            );
-
-        const uniqueFields =
-            document.createElement("div");
-        uniqueFields.className = "form-fields";
-
-        const uniqueInput =
-            document.createElement("input");
-        uniqueInput.type = "checkbox";
-        uniqueInput.name = "uniqueResults";
-        uniqueInput.checked =
-            profile?.draw?.unique === true;
-
-        if (uniqueInput.checked) {
-            uniqueInput.setAttribute(
-                "checked",
-                ""
-            );
-        }
-
-        uniqueFields.append(uniqueInput);
-        uniqueField.append(
-            uniqueLabel,
-            uniqueFields
-        );
-
-        const uniqueHint =
-            document.createElement("p");
-        uniqueHint.className = "hint";
-        uniqueHint.textContent =
-            game.i18n.localize(
-                "COMPENDIUM_CURATOR.DrawUniqueResultsHint"
-            );
-        uniqueField.append(uniqueHint);
-
         const quantityField =
             document.createElement("div");
         quantityField.className = "form-group";
@@ -5088,7 +5028,6 @@ export class TableManagerApplication
         const form = document.createElement("div");
         form.append(
             field,
-            uniqueField,
             quantityField,
             priceField,
             rememberField
@@ -5126,12 +5065,6 @@ export class TableManagerApplication
                 ) || 1
             )
         );
-        const uniqueResults =
-            result.uniqueResults === true ||
-            result.uniqueResults === "true" ||
-            result.uniqueResults === "on" ||
-            result.uniqueResults === 1 ||
-            result.uniqueResults === "1";
         const quantityMin = Math.min(
             100,
             Math.max(
@@ -5174,7 +5107,6 @@ export class TableManagerApplication
                     profile.id,
                     {
                         count,
-                        unique: uniqueResults,
                         priceAdjustment,
                         quantityMin,
                         quantityMax
@@ -5186,7 +5118,6 @@ export class TableManagerApplication
             table,
             {
                 count,
-                unique: uniqueResults,
                 priceAdjustment,
                 quantityMin,
                 quantityMax
@@ -5228,8 +5159,6 @@ export class TableManagerApplication
                 {
                     count:
                         preferences.count ?? 1,
-                    unique:
-                        preferences.unique === true,
                     priceAdjustment:
                         preferences.priceAdjustment ??
                             100,

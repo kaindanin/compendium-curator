@@ -443,7 +443,6 @@ export class TableProfileEditorApplication
                 children: [],
                 draw: {
                     count: 1,
-                    unique: false,
                     priceAdjustment: 100,
                     quantityMin: 1,
                     quantityMax: 1
@@ -504,7 +503,6 @@ export class TableProfileEditorApplication
                 draw: {
                     count:
                         isShopPreset ? 10 : 1,
-                    unique: isShopPreset,
                     priceAdjustment: 100,
                     quantityMin: 1,
                     quantityMax:

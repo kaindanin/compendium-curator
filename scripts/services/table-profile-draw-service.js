@@ -102,48 +102,6 @@ async function collectLeafEntries(
     }
 }
 
-function sampleWithoutReplacement(entries, count) {
-    const pool = entries.map(entry => ({
-        ...entry
-    }));
-    const selected = [];
-
-    while (
-        selected.length < count &&
-        pool.length
-    ) {
-        const totalWeight = pool.reduce(
-            (sum, entry) =>
-                sum + Math.max(0, entry.weight),
-            0
-        );
-
-        if (!(totalWeight > 0))
-            break;
-
-        let roll = Math.random() * totalWeight;
-        let selectedIndex = pool.length - 1;
-
-        for (let index = 0; index < pool.length; index++) {
-            roll -= Math.max(
-                0,
-                pool[index].weight
-            );
-
-            if (roll <= 0) {
-                selectedIndex = index;
-                break;
-            }
-        }
-
-        selected.push(
-            pool.splice(selectedIndex, 1)[0]
-        );
-    }
-
-    return selected;
-}
-
 function sampleWithReplacement(entries, count) {
     const totalWeight = entries.reduce(
         (sum, entry) =>
@@ -489,7 +447,6 @@ async function createDrawMessage(
     {
         requestedCount,
         selectedCount,
-        unique,
         priceMultiplier,
         quantityMin,
         quantityMax
@@ -553,28 +510,20 @@ async function createDrawMessage(
         </li>
     `).join("");
     const content = await enrichChatContent(`
-        <section class="dnd5e chat-card cc-stock-table-draw cc-unique-table-draw">
+        <section class="dnd5e chat-card cc-stock-table-draw">
             <header class="card-header flexrow">
                 <img src="${escape(table.img)}" alt="" width="36" height="36">
                 <h3>${escape(table.name)}</h3>
             </header>
             <p>${escape(
-                unique
-                    ? game.i18n.format(
-                        "COMPENDIUM_CURATOR.UniqueDrawSummary",
-                        {
-                            count: selectedCount,
-                            requested: requestedCount
-                        }
-                    )
-                    : game.i18n.format(
-                        "COMPENDIUM_CURATOR.DrawStockSummary",
-                        {
-                            count: selectedCount,
-                            unique: entries.length,
-                            requested: requestedCount
-                        }
-                    )
+                game.i18n.format(
+                    "COMPENDIUM_CURATOR.DrawStockSummary",
+                    {
+                        count: selectedCount,
+                        unique: entries.length,
+                        requested: requestedCount
+                    }
+                )
             )}</p>
             ${priceMultiplier !== 1
                 ? `<p class="hint">${escape(
@@ -614,11 +563,9 @@ async function createDrawMessage(
         content,
         flags: {
             [MODULE_ID]: {
-                uniqueTableDraw: unique,
                 tableUuid: table.uuid,
                 requestedCount,
                 selectedCount,
-                unique,
                 priceMultiplier,
                 quantityMin,
                 quantityMax
@@ -629,7 +576,7 @@ async function createDrawMessage(
 
 export class TableProfileDrawService {
 
-    static async getUniquePool(table) {
+    static async getDrawPool(table) {
         if (table?.documentName !== "RollTable") {
             throw new Error(
                 "INVALID_ROLL_TABLE"
@@ -656,7 +603,6 @@ export class TableProfileDrawService {
         table,
         count,
         {
-            unique = false,
             displayChat = true,
             priceMultiplier = 1,
             quantityMin = 1,
@@ -704,16 +650,11 @@ export class TableProfileDrawService {
                 ) || normalizedQuantityMin
             )
         );
-        const pool = await this.getUniquePool(table);
-        const selected = unique
-            ? sampleWithoutReplacement(
-                pool,
-                Math.min(requestedCount, pool.length)
-            )
-            : sampleWithReplacement(
-                pool,
-                requestedCount
-            );
+        const pool = await this.getDrawPool(table);
+        const selected = sampleWithReplacement(
+            pool,
+            requestedCount
+        );
         const selectedStock =
             applyStockQuantities(
                 selected,
@@ -738,7 +679,6 @@ export class TableProfileDrawService {
                         requestedCount,
                         selectedCount:
                             selected.length,
-                        unique,
                         priceMultiplier:
                             normalizedPriceMultiplier,
                         quantityMin:
@@ -754,31 +694,14 @@ export class TableProfileDrawService {
             requestedCount,
             selectedCount: selected.length,
             availableCount: pool.length,
-            uniqueCount: hydrated.length,
+            distinctCount: hydrated.length,
             quantityMin:
                 normalizedQuantityMin,
             quantityMax:
                 normalizedQuantityMax,
             priceMultiplier:
                 normalizedPriceMultiplier,
-            truncated:
-                selected.length < requestedCount,
             message
         };
-    }
-
-    static async drawUnique(
-        table,
-        count,
-        options = {}
-    ) {
-        return this.drawItems(
-            table,
-            count,
-            {
-                ...options,
-                unique: true
-            }
-        );
     }
 }
