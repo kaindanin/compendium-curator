@@ -11,6 +11,10 @@ import {
     getActiveTableChildren,
     registerTableProfileRelations
 } from "./table-profile-relations-service.js";
+import {
+    profileHasPendingTableDependencies,
+    registerTableProfileRecursiveGeneration
+} from "./table-profile-recursive-generation-service.js";
 
 const MANAGE_CONTENT_ACTION =
     "manageContent";
@@ -19,44 +23,6 @@ function text(es, en) {
     return game.i18n.lang.startsWith("es")
         ? es
         : en;
-}
-
-function hasActiveChildren(profile, profiles) {
-    return getActiveTableChildren(
-        profile,
-        profiles
-    ).length > 0;
-}
-
-function unsupportedGeneration(
-    profile,
-    profiles
-) {
-    const activeChildren =
-        getActiveTableChildren(
-            profile,
-            profiles
-        );
-
-    if (!activeChildren.length)
-        return false;
-
-    if (profile?.type === "content")
-        return true;
-
-    return activeChildren.some(child => {
-        const childProfile =
-            profiles?.[child.profileId];
-
-        return (
-            !childProfile ||
-            childProfile.type !== "content" ||
-            hasActiveChildren(
-                childProfile,
-                profiles
-            )
-        );
-    });
 }
 
 function updateProfileSummary(
@@ -100,66 +66,48 @@ function updateProfileSummary(
         : `· ${relationSummary}`;
 }
 
-function disableUnsupportedGeneration(
+function updateRecursiveGenerationState(
     profileRow,
     profile,
     profiles
 ) {
+    const activeChildren =
+        getActiveTableChildren(
+            profile,
+            profiles
+        );
+
+    if (!activeChildren.length)
+        return;
+
+    const generateButton =
+        profileRow.querySelector(
+            '[data-action="generateProfile"]'
+        );
+
+    if (generateButton) {
+        generateButton.disabled = false;
+        generateButton.removeAttribute("title");
+    }
+
     if (
-        !unsupportedGeneration(
+        profile.generation?.rootUuid &&
+        profileHasPendingTableDependencies(
             profile,
             profiles
         )
     ) {
-        return false;
-    }
-
-    const reason = text(
-        "La generación con tablas relacionadas se activará en el siguiente paso de la migración.",
-        "Generation with linked tables will be enabled in the next migration step."
-    );
-
-    for (
-        const control
-        of profileRow.querySelectorAll(
-            [
-                '[data-action="generateProfile"]',
-                '[data-action="quickDrawGeneratedTable"]',
-                '[data-action="drawGeneratedTable"]',
-                '[data-action="openGeneratedTable"]'
-            ].join(",")
-        )
-    ) {
-        control.disabled = true;
-        control.title = reason;
-    }
-
-    for (
-        const dragHandle
-        of profileRow.querySelectorAll(
-            "[data-cc-rolltable-drag]"
-        )
-    ) {
-        dragHandle.draggable = false;
-        dragHandle.setAttribute(
-            "aria-disabled",
-            "true"
+        const status = profileRow.querySelector(
+            ".cc-table-manager-profile-status"
         );
-        dragHandle.title = reason;
+
+        if (status) {
+            status.textContent =
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.TableProfilePendingChanges"
+                );
+        }
     }
-
-    const status = profileRow.querySelector(
-        ".cc-table-manager-profile-status"
-    );
-
-    if (status) {
-        status.textContent = text(
-            "Pendiente · contiene otras tablas",
-            "Pending · contains other tables"
-        );
-    }
-
-    return true;
 }
 
 async function openContentManager(
@@ -299,7 +247,6 @@ function augmentUnifiedTableRelations(
 ) {
     const profiles =
         TableProfileStorageService.getProfiles();
-    let unsupportedVisible = false;
 
     for (
         const profile
@@ -318,9 +265,9 @@ function augmentUnifiedTableRelations(
             continue;
 
         /*
-         * La antigua UI de subtablas ya no forma
-         * parte del Gestor unificado. Las relaciones
-         * se administran desde "Gestionar contenido".
+         * La antigua UI separada ya no forma parte
+         * del Gestor unificado. Todo el contenido se
+         * administra desde "Gestionar contenido".
          */
         if (profile.type === "nested") {
             profileRow.querySelector(
@@ -342,19 +289,11 @@ function augmentUnifiedTableRelations(
             profiles
         );
 
-        const unsupported =
-            disableUnsupportedGeneration(
-                profileRow,
-                profile,
-                profiles
-            );
-
-        if (
-            unsupported &&
-            !profileRow.hidden
-        ) {
-            unsupportedVisible = true;
-        }
+        updateRecursiveGenerationState(
+            profileRow,
+            profile,
+            profiles
+        );
 
         const linkedNames =
             getActiveTableChildren(
@@ -375,25 +314,12 @@ function augmentUnifiedTableRelations(
         }
     }
 
-    if (unsupportedVisible) {
-        const batchButton = element.querySelector(
-            '[data-action="generateVisibleProfiles"]'
-        );
-
-        if (batchButton) {
-            batchButton.disabled = true;
-            batchButton.title = text(
-                "Hay tablas relacionadas cuya generación recursiva todavía no está activada.",
-                "Some linked tables still require recursive generation support."
-            );
-        }
-    }
-
     application._applyManagerSearch?.();
 }
 
 export function registerTableManagerRecursiveNesting() {
     registerTableProfileRelations();
+    registerTableProfileRecursiveGeneration();
     registerManageContentAction();
 
     Hooks.on(
