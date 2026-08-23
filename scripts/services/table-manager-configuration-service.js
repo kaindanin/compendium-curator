@@ -8,10 +8,15 @@ import {
 import {
     TableDefaultsService
 } from "./table-defaults-service.js";
+import {
+    TableProfileBundlePreflightService
+} from "./table-profile-bundle-preflight-service.js";
 
 const TABLE_MANAGER_CONFIGURATION_TYPE =
     "compendium-curator-table-manager-configuration";
 const TABLE_MANAGER_CONFIGURATION_VERSION = 1;
+const TABLE_PROFILE_BUNDLE_TYPE =
+    "compendium-curator-table-profile-bundle";
 
 function isPlainObject(value) {
     return Boolean(
@@ -46,11 +51,21 @@ function sanitizeTableProfiles(source) {
     }
 
     for (
-        const profile
-        of Object.values(tableProfiles.profiles)
+        const [profileId, profile]
+        of Object.entries(tableProfiles.profiles)
     ) {
-        if (!isPlainObject(profile))
+        /*
+         * Los perfiles v1 pertenecen a formatos antiguos que
+         * el Gestor actual ya no muestra ni utiliza. No deben
+         * viajar en copias nuevas ni volver a restaurarse.
+         */
+        if (
+            !isPlainObject(profile) ||
+            Number(profile.version) !== 2
+        ) {
+            delete tableProfiles.profiles[profileId];
             continue;
+        }
 
         /*
          * Las RollTables generadas pertenecen al mundo de
@@ -63,53 +78,73 @@ function sanitizeTableProfiles(source) {
     return tableProfiles;
 }
 
-function setButtonLabel(button, label, iconClass = null) {
-    if (!button)
-        return;
+async function pruneLegacyTableProfiles() {
+    if (!game.user?.can("SETTINGS_MODIFY"))
+        return false;
 
-    button.title = label;
-    button.setAttribute("aria-label", label);
-
-    if (!iconClass)
-        return;
-
-    const icon = document.createElement("i");
-    icon.className = iconClass;
-
-    button.replaceChildren(
-        icon,
-        document.createTextNode(` ${label}`)
+    const current = game.settings.get(
+        MODULE_ID,
+        TABLE_PROFILES_SETTING
     );
+
+    if (!isPlainObject(current?.profiles))
+        return false;
+
+    const storage =
+        foundry.utils.deepClone(current);
+    let removed = 0;
+
+    for (
+        const [profileId, profile]
+        of Object.entries(storage.profiles)
+    ) {
+        if (
+            isPlainObject(profile) &&
+            Number(profile.version) === 2
+        ) {
+            continue;
+        }
+
+        delete storage.profiles[profileId];
+        removed++;
+    }
+
+    if (!removed)
+        return false;
+
+    await game.settings.set(
+        MODULE_ID,
+        TABLE_PROFILES_SETTING,
+        storage
+    );
+
+    await TableProfileStorageService.migrateStorage();
+
+    console.info(
+        `Compendium Curator | Eliminados ${removed} perfiles legacy del Gestor.`
+    );
+
+    return true;
 }
 
-function clarifyExistingImportControls(element) {
-    setButtonLabel(
-        element.querySelector(
-            '[data-action="importProfileBundle"]'
-        ),
-        text(
-            "Importar perfil JSON",
-            "Import profile JSON"
-        ),
-        "fas fa-file-import"
-    );
-
+function clarifyRollTableControl(element) {
     const rollTableButton = element.querySelector(
         '[data-action="importRollTable"]'
     );
 
-    if (rollTableButton) {
-        const label = text(
-            "Crear perfil desde RollTable",
-            "Create profile from RollTable"
-        );
+    if (!rollTableButton)
+        return;
 
-        rollTableButton.title = label;
-        rollTableButton.setAttribute(
-            "aria-label",
-            label
-        );
-    }
+    const label = text(
+        "Crear perfil desde RollTable",
+        "Create profile from RollTable"
+    );
+
+    rollTableButton.title = label;
+    rollTableButton.setAttribute(
+        "aria-label",
+        label
+    );
 }
 
 function synchronizeVisibleProfileNames(
@@ -265,13 +300,6 @@ export class TableManagerConfigurationService {
                 imported.tableProfiles
             );
 
-            /*
-             * El resto del Gestor nunca trabaja directamente
-             * con el objeto crudo del setting. Pasamos la
-             * importación por la misma normalización que usa
-             * el almacenamiento habitual antes de volver a
-             * pintar la aplicación.
-             */
             await TableProfileStorageService
                 .migrateStorage();
 
@@ -352,7 +380,149 @@ export class TableManagerConfigurationService {
 
 }
 
-async function importConfigurationFromFile(
+async function restoreConfigurationBundle(
+    application,
+    bundle
+) {
+    const preview =
+        TableManagerConfigurationService
+            .validateImportBundle(bundle);
+    const escape = foundry.utils.escapeHTML;
+
+    const confirmed =
+        await foundry.applications.api
+            .DialogV2.confirm({
+                window: {
+                    title: text(
+                        "Restaurar configuración del Gestor",
+                        "Restore Manager configuration"
+                    )
+                },
+                content: `
+                    <p>${text(
+                        "La configuración actual del Gestor será sustituida por la copia del archivo.",
+                        "The current Manager configuration will be replaced by the file backup."
+                    )}</p>
+                    <p>
+                        <strong>${escape(text(
+                            "Perfiles",
+                            "Profiles"
+                        ))}:</strong>
+                        ${preview.profileCount}<br>
+                        <strong>${escape(text(
+                            "Grupos de filtros",
+                            "Filter groups"
+                        ))}:</strong>
+                        ${preview.filterGroupCount}
+                    </p>
+                    <p>${text(
+                        "Las referencias a RollTables generadas no se restaurarán.",
+                        "References to generated RollTables will not be restored."
+                    )}</p>
+                `
+            });
+
+    if (!confirmed)
+        return;
+
+    const imported =
+        await TableManagerConfigurationService
+            .importBundle(bundle);
+
+    await application.render(true);
+
+    synchronizeVisibleProfileNames(
+        application,
+        imported.tableProfiles
+    );
+
+    ui.notifications.info(
+        text(
+            "Configuración del Gestor restaurada.",
+            "Manager configuration restored."
+        )
+    );
+}
+
+async function importProfileBundle(
+    application,
+    bundle
+) {
+    const preflight =
+        TableProfileBundlePreflightService
+            .analyze(bundle);
+    const confirmed =
+        await TableProfileBundlePreflightService
+            .confirm(preflight);
+
+    if (!confirmed)
+        return;
+
+    const imported =
+        await TableProfileStorageService
+            .importProfileBundle(bundle);
+    const root = imported.rootProfile;
+
+    application._activeTab =
+        root?.type === "nested"
+            ? "nested"
+            : "content";
+    application._searchQuery = "";
+
+    await application.render(true);
+
+    ui.notifications.info(
+        game.i18n.format(
+            "COMPENDIUM_CURATOR.TableProfileBundleImported",
+            {
+                name: root?.name ?? "",
+                profiles:
+                    imported.importedProfileIds.length,
+                groups:
+                    imported.importedFilterGroupIds.length
+            }
+        )
+    );
+
+    if (
+        imported.availability
+            ?.unavailableCount > 0
+    ) {
+        const unavailableSources =
+            imported.availability
+                .missingPacks
+                .map(pack =>
+                    `${pack.collection} (${pack.count})`
+                );
+
+        if (
+            imported.availability
+                .missingDocumentCount > 0
+        ) {
+            unavailableSources.push(
+                `${game.i18n.localize(
+                    "COMPENDIUM_CURATOR.MissingDocuments"
+                )} (${imported.availability.missingDocumentCount})`
+            );
+        }
+
+        ui.notifications.warn(
+            game.i18n.format(
+                "COMPENDIUM_CURATOR.ImportedUnavailableObjects",
+                {
+                    count:
+                        imported.availability
+                            .unavailableCount,
+                    packs:
+                        unavailableSources.join(", ")
+                }
+            ),
+            { permanent: true }
+        );
+    }
+}
+
+async function importJsonFromFile(
     application,
     file
 ) {
@@ -360,68 +530,34 @@ async function importConfigurationFromFile(
         const bundle = JSON.parse(
             await file.text()
         );
-        const preview =
-            TableManagerConfigurationService
-                .validateImportBundle(bundle);
-        const escape = foundry.utils.escapeHTML;
 
-        const confirmed =
-            await foundry.applications.api
-                .DialogV2.confirm({
-                    window: {
-                        title: text(
-                            "Restaurar configuración del Gestor",
-                            "Restore Manager configuration"
-                        )
-                    },
-                    content: `
-                        <p>${text(
-                            "La configuración actual del Gestor será sustituida por la copia del archivo.",
-                            "The current Manager configuration will be replaced by the file backup."
-                        )}</p>
-                        <p>
-                            <strong>${escape(text(
-                                "Perfiles",
-                                "Profiles"
-                            ))}:</strong>
-                            ${preview.profileCount}<br>
-                            <strong>${escape(text(
-                                "Grupos de filtros",
-                                "Filter groups"
-                            ))}:</strong>
-                            ${preview.filterGroupCount}
-                        </p>
-                        <p>${text(
-                            "Las referencias a RollTables generadas no se restaurarán.",
-                            "References to generated RollTables will not be restored."
-                        )}</p>
-                    `
-                });
-
-        if (!confirmed)
+        if (
+            bundle?.type ===
+                TABLE_MANAGER_CONFIGURATION_TYPE
+        ) {
+            await restoreConfigurationBundle(
+                application,
+                bundle
+            );
             return;
+        }
 
-        const imported =
-            await TableManagerConfigurationService
-                .importBundle(bundle);
+        if (
+            bundle?.type ===
+                TABLE_PROFILE_BUNDLE_TYPE
+        ) {
+            await importProfileBundle(
+                application,
+                bundle
+            );
+            return;
+        }
 
-        await application.render(true);
-
-        synchronizeVisibleProfileNames(
-            application,
-            imported.tableProfiles
-        );
-
-        ui.notifications.info(
-            text(
-                "Configuración del Gestor restaurada.",
-                "Manager configuration restored."
-            )
-        );
+        throw new Error("UNSUPPORTED_JSON_BUNDLE");
     }
     catch (error) {
         console.error(
-            "Compendium Curator | Error restaurando la configuración del Gestor.",
+            "Compendium Curator | Error importando JSON del Gestor.",
             error
         );
 
@@ -433,137 +569,246 @@ async function importConfigurationFromFile(
                     "The file belongs to a different game system."
                 )
                 : text(
-                    "El archivo no contiene una configuración válida del Gestor.",
-                    "The file does not contain a valid Manager configuration."
+                    "El archivo no es una copia del Gestor ni un perfil exportado válido de Compendium Curator.",
+                    "The file is neither a valid Manager backup nor an exported Compendium Curator profile."
                 );
 
         ui.notifications.error(message);
     }
 }
 
-function createControlButton({
-    action,
-    icon,
+function createMenuButton(
+    iconClass,
     label,
     onClick
-}) {
+) {
     const button = document.createElement("button");
     button.type = "button";
-    button.dataset.ccManagerConfiguration = action;
-    button.title = label;
-    button.setAttribute("aria-label", label);
 
-    const iconElement =
-        document.createElement("i");
-    iconElement.className = icon;
+    const icon = document.createElement("i");
+    icon.className = iconClass;
 
-    button.append(iconElement);
     button.append(
-        document.createTextNode(` ${label}`)
+        icon,
+        document.createTextNode(label)
     );
-    button.addEventListener("click", onClick);
+    button.addEventListener(
+        "click",
+        onClick
+    );
 
     return button;
 }
 
+function installConfigurationMenu(
+    application,
+    element
+) {
+    const actions = element.querySelector(
+        ".cc-table-manager-header .cc-table-manager-actions"
+    );
+
+    if (!actions)
+        return;
+
+    if (
+        actions.querySelector(
+            "[data-cc-manager-configuration-menu]"
+        )
+    ) {
+        return;
+    }
+
+    const legacyImportButton =
+        actions.querySelector(
+            '[data-action="importProfileBundle"]'
+        );
+    const defaultsButton =
+        actions.querySelector(
+            '[data-action="configureDefaults"]'
+        );
+
+    legacyImportButton?.remove();
+
+    if (defaultsButton)
+        defaultsButton.hidden = true;
+
+    for (
+        const stale
+        of actions.querySelectorAll(
+            "[data-cc-manager-configuration]"
+        )
+    ) {
+        stale.remove();
+    }
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "cc-profile-menu-wrapper";
+    wrapper.dataset.ccManagerConfigurationMenu = "true";
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.title = text(
+        "Configuración del Gestor",
+        "Manager configuration"
+    );
+    toggle.setAttribute(
+        "aria-label",
+        toggle.title
+    );
+
+    const toggleIcon = document.createElement("i");
+    toggleIcon.className = "fas fa-gear";
+    toggle.append(
+        toggleIcon,
+        document.createTextNode(
+            ` ${text("Configuración", "Configuration")}`
+        )
+    );
+
+    const menu = document.createElement("div");
+    menu.className = "cc-profile-menu";
+    menu.hidden = true;
+    menu.style.left = "auto";
+    menu.style.right = "0";
+
+    const closeMenu = () => {
+        menu.hidden = true;
+    };
+
+    const exportButton = createMenuButton(
+        "fas fa-file-export",
+        text(
+            "Exportar configuración",
+            "Export configuration"
+        ),
+        event => {
+            event.preventDefault();
+            closeMenu();
+
+            TableManagerConfigurationService
+                .exportToFile();
+
+            ui.notifications.info(
+                text(
+                    "Configuración del Gestor exportada.",
+                    "Manager configuration exported."
+                )
+            );
+        }
+    );
+
+    const importButton = createMenuButton(
+        "fas fa-file-import",
+        text(
+            "Importar JSON…",
+            "Import JSON…"
+        ),
+        event => {
+            event.preventDefault();
+            closeMenu();
+
+            const input = document.createElement(
+                "input"
+            );
+            input.type = "file";
+            input.accept =
+                ".json,application/json";
+
+            input.addEventListener(
+                "change",
+                async () => {
+                    const file = input.files?.[0];
+
+                    if (!file)
+                        return;
+
+                    await importJsonFromFile(
+                        application,
+                        file
+                    );
+                },
+                { once: true }
+            );
+
+            input.click();
+        }
+    );
+
+    const separator = document.createElement("div");
+    separator.className = "cc-profile-menu-separator";
+
+    const defaultsMenuButton = createMenuButton(
+        "fas fa-sliders",
+        text(
+            "Valores predeterminados",
+            "Defaults"
+        ),
+        event => {
+            event.preventDefault();
+            closeMenu();
+            defaultsButton?.click();
+        }
+    );
+
+    menu.append(
+        exportButton,
+        importButton,
+        separator,
+        defaultsMenuButton
+    );
+
+    toggle.addEventListener(
+        "click",
+        event => {
+            event.preventDefault();
+            event.stopPropagation();
+            menu.hidden = !menu.hidden;
+        }
+    );
+
+    menu.addEventListener(
+        "click",
+        event => event.stopPropagation()
+    );
+
+    document.addEventListener(
+        "click",
+        event => {
+            if (
+                menu.hidden ||
+                wrapper.contains(event.target)
+            ) {
+                return;
+            }
+
+            closeMenu();
+        }
+    );
+
+    wrapper.append(toggle, menu);
+    actions.append(wrapper);
+}
+
 export function registerTableManagerConfigurationControls() {
+    Hooks.once(
+        "ready",
+        () => {
+            void pruneLegacyTableProfiles();
+        }
+    );
+
     Hooks.on(
         "renderTableManagerApplication",
         (application, element) => {
             if (!game.user.can("SETTINGS_MODIFY"))
                 return;
 
-            clarifyExistingImportControls(element);
-
-            const actions = element.querySelector(
-                ".cc-table-manager-header .cc-table-manager-actions"
+            clarifyRollTableControl(element);
+            installConfigurationMenu(
+                application,
+                element
             );
-
-            if (!actions)
-                return;
-
-            if (
-                !actions.querySelector(
-                    '[data-cc-manager-configuration="export"]'
-                )
-            ) {
-                actions.prepend(
-                    createControlButton({
-                        action: "export",
-                        icon: "fas fa-file-export",
-                        label: text(
-                            "Exportar configuración",
-                            "Export configuration"
-                        ),
-                        onClick: event => {
-                            event.preventDefault();
-
-                            TableManagerConfigurationService
-                                .exportToFile();
-
-                            ui.notifications.info(
-                                text(
-                                    "Configuración del Gestor exportada.",
-                                    "Manager configuration exported."
-                                )
-                            );
-                        }
-                    })
-                );
-            }
-
-            if (
-                !actions.querySelector(
-                    '[data-cc-manager-configuration="import"]'
-                )
-            ) {
-                const importButton =
-                    createControlButton({
-                        action: "import",
-                        icon: "fas fa-file-import",
-                        label: text(
-                            "Restaurar configuración",
-                            "Restore configuration"
-                        ),
-                        onClick: event => {
-                            event.preventDefault();
-
-                            const input =
-                                document.createElement(
-                                    "input"
-                                );
-                            input.type = "file";
-                            input.accept =
-                                ".json,application/json";
-
-                            input.addEventListener(
-                                "change",
-                                async () => {
-                                    const file =
-                                        input.files?.[0];
-
-                                    if (!file)
-                                        return;
-
-                                    await importConfigurationFromFile(
-                                        application,
-                                        file
-                                    );
-                                },
-                                { once: true }
-                            );
-
-                            input.click();
-                        }
-                    });
-
-                const exportButton =
-                    actions.querySelector(
-                        '[data-cc-manager-configuration="export"]'
-                    );
-
-                exportButton?.after(importButton);
-            }
         }
     );
 }
