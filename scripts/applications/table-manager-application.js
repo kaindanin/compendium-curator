@@ -16,6 +16,9 @@ import {
     TableProfileRollTableImportService
 } from "../services/table-profile-rolltable-import-service.js";
 import {
+    TableProfileBundlePreflightService
+} from "../services/table-profile-bundle-preflight-service.js";
+import {
     activateDnd5eDocumentEntries,
     getDnd5eDistributionIndexEntry,
     prepareDnd5eDocumentEntries,
@@ -3883,6 +3886,16 @@ export class TableManagerApplication
                     const bundle = JSON.parse(
                         await file.text()
                     );
+                    const preflight =
+                        TableProfileBundlePreflightService
+                            .analyze(bundle);
+                    const confirmed =
+                        await TableProfileBundlePreflightService
+                            .confirm(preflight);
+
+                    if (!confirmed)
+                        return;
+
                     const imported =
                         await TableProfileStorageService
                             .importProfileBundle(bundle);
