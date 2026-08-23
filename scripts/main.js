@@ -9,6 +9,9 @@ import {
 import {
     registerTableManagerSynchronization
 } from "./services/table-manager-sync-service.js";
+import {
+    registerTableManagerConfigurationControls
+} from "./services/table-manager-configuration-service.js";
 
 Hooks.once("init", () => {
 
@@ -18,6 +21,7 @@ Hooks.once("init", () => {
     registerCompendiumBrowserHooks();
     registerItemPilesIntegration();
     registerTableManagerSynchronization();
+    registerTableManagerConfigurationControls();
 
     debug("Settings registradas");
 
