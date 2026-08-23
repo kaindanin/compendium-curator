@@ -1,0 +1,186 @@
+<div class="cc-table-filter-group">
+
+    <div
+        class="cc-table-filter-group-content"
+        style="overflow-y: auto;"
+    >
+        {{#if exists}}
+
+            <header>
+                <h2 style="margin: 0;">
+                    {{profileName}}
+                </h2>
+
+                <p class="hint cc-table-filter-group-intro">
+                    {{intro}}
+                </p>
+
+                <p
+                    class="hint"
+                    data-cc-content-selected-summary
+                    style="margin-top: 0;"
+                >
+                    {{selectedSummary}}
+                </p>
+            </header>
+
+            {{#if supportsFilterGroups}}
+                <section
+                    class="cc-table-profile-editor-section"
+                    style="margin-top: 0.75rem;"
+                >
+                    <h3 style="margin: 0 0 0.5rem;">
+                        <i class="fas fa-filter"></i>
+                        {{filterGroupsLabel}}
+                    </h3>
+
+                    {{#if hasGroups}}
+                        <div class="cc-table-manager-profiles">
+                            {{#each groups}}
+                                <label
+                                    class="cc-table-manager-filter-group"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        name="filterGroupIds"
+                                        value="{{id}}"
+                                        style="border: 0; box-shadow: none; outline: none;"
+                                        {{#if checked}}checked{{/if}}
+                                    >
+
+                                    <span>{{name}}</span>
+
+                                    <small>
+                                        <i class="fas fa-boxes-stacked"></i>
+                                        {{matchCount}}
+
+                                        &nbsp;·&nbsp;
+
+                                        <i class="fas fa-link"></i>
+                                        {{useCount}}
+                                    </small>
+                                </label>
+                            {{/each}}
+                        </div>
+                    {{else}}
+                        <p class="hint">
+                            {{localize
+                                "COMPENDIUM_CURATOR.NoFilterGroups"
+                            }}
+                        </p>
+                    {{/if}}
+
+                    <button
+                        type="button"
+                        data-action="createCurrentFilters"
+                        style="margin-top: 0.5rem;"
+                    >
+                        <i class="fas fa-plus"></i>
+                        {{addCurrentFiltersLabel}}
+                    </button>
+                </section>
+            {{/if}}
+
+            <section
+                class="cc-table-profile-editor-section"
+                style="margin-top: 1rem;"
+            >
+                <h3 style="margin: 0 0 0.5rem;">
+                    <i class="fas fa-table-list"></i>
+                    {{otherTablesLabel}}
+                </h3>
+
+                {{#if hasTables}}
+                    <div class="cc-table-manager-profiles">
+                        {{#each tables}}
+                            <div
+                                class="cc-table-manager-filter-group"
+                                data-cc-table-content-row
+                                style="
+                                    display: grid;
+                                    grid-template-columns:
+                                        auto minmax(0, 1fr) auto 72px;
+                                    align-items: center;
+                                    gap: 0.5rem;
+                                "
+                            >
+                                <input
+                                    type="checkbox"
+                                    name="tableProfileIds"
+                                    value="{{id}}"
+                                    style="border: 0; box-shadow: none; outline: none;"
+                                    {{#if checked}}checked{{/if}}
+                                >
+
+                                <span>
+                                    <i class="fas fa-table-list"></i>
+                                    {{name}}
+                                </span>
+
+                                <label
+                                    class="hint"
+                                    for="cc-content-table-weight-{{id}}"
+                                    style="white-space: nowrap;"
+                                >
+                                    {{../weightLabel}}
+                                </label>
+
+                                <input
+                                    id="cc-content-table-weight-{{id}}"
+                                    type="number"
+                                    name="tableProfileWeight"
+                                    min="0.000001"
+                                    step="any"
+                                    value="{{weight}}"
+                                    {{#unless checked}}disabled{{/unless}}
+                                    style="
+                                        width: 72px;
+                                        height: 28px;
+                                        text-align: right;
+                                    "
+                                >
+                            </div>
+                        {{/each}}
+                    </div>
+                {{else}}
+                    <p class="hint">
+                        {{noOtherTablesLabel}}
+                    </p>
+                {{/if}}
+            </section>
+
+        {{else}}
+
+            <p class="hint">
+                {{localize
+                    "COMPENDIUM_CURATOR.ProfileNameInvalid"
+                }}
+            </p>
+
+        {{/if}}
+    </div>
+
+    <footer class="cc-table-filter-group-footer">
+        <button
+            type="button"
+            data-action="cancel"
+        >
+            <i class="fas fa-xmark"></i>
+            {{localize
+                "COMPENDIUM_CURATOR.TableDefaultsCancel"
+            }}
+        </button>
+
+        <button
+            type="button"
+            data-action="save"
+            {{#unless exists}}disabled{{/unless}}
+        >
+            <i class="fas fa-check"></i>
+            {{localize
+                "COMPENDIUM_CURATOR.Save"
+            }}
+        </button>
+    </footer>
+
+</div>
