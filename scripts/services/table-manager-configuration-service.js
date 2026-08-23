@@ -6,6 +6,9 @@ import {
 import {
     TableProfileStorageService
 } from "./table-profile-storage-service.js";
+import {
+    TableDefaultsService
+} from "./table-defaults-service.js";
 
 const TABLE_MANAGER_CONFIGURATION_TYPE =
     "compendium-curator-table-manager-configuration";
@@ -71,10 +74,7 @@ export class TableManagerConfigurationService {
 
         const tableDefaults =
             foundry.utils.deepClone(
-                game.settings.get(
-                    MODULE_ID,
-                    TABLE_DEFAULTS_SETTING
-                ) ?? {}
+                TableDefaultsService.get()
             );
 
         return {
@@ -154,23 +154,15 @@ export class TableManagerConfigurationService {
 
         const previousDefaults =
             foundry.utils.deepClone(
-                game.settings.get(
-                    MODULE_ID,
-                    TABLE_DEFAULTS_SETTING
-                ) ?? {}
+                TableDefaultsService.get()
             );
         const previousProfiles =
             foundry.utils.deepClone(
-                game.settings.get(
-                    MODULE_ID,
-                    TABLE_PROFILES_SETTING
-                ) ?? {}
+                TableProfileStorageService.getStorage()
             );
 
         try {
-            await game.settings.set(
-                MODULE_ID,
-                TABLE_DEFAULTS_SETTING,
+            await TableDefaultsService.set(
                 imported.tableDefaults
             );
 
@@ -179,19 +171,66 @@ export class TableManagerConfigurationService {
                 TABLE_PROFILES_SETTING,
                 imported.tableProfiles
             );
+
+            /*
+             * El resto del Gestor nunca trabaja directamente
+             * con el objeto crudo del setting. Pasamos la
+             * importación por la misma normalización que usa
+             * el almacenamiento habitual antes de volver a
+             * pintar la aplicación.
+             */
+            await TableProfileStorageService
+                .migrateStorage();
+
+            const storedProfiles =
+                TableProfileStorageService.getStorage();
+
+            for (
+                const [profileId, importedProfile]
+                of Object.entries(
+                    imported.tableProfiles.profiles ?? {}
+                )
+            ) {
+                const storedProfile =
+                    storedProfiles.profiles?.[
+                        profileId
+                    ];
+
+                if (
+                    !storedProfile ||
+                    String(
+                        storedProfile.name ?? ""
+                    ) !== String(
+                        importedProfile?.name ?? ""
+                    )
+                ) {
+                    throw new Error(
+                        "TABLE_MANAGER_CONFIGURATION_NOT_APPLIED"
+                    );
+                }
+            }
+
+            return {
+                ...imported,
+                tableDefaults:
+                    TableDefaultsService.get(),
+                tableProfiles: storedProfiles
+            };
         }
         catch (error) {
             try {
-                await game.settings.set(
-                    MODULE_ID,
-                    TABLE_DEFAULTS_SETTING,
+                await TableDefaultsService.set(
                     previousDefaults
                 );
+
                 await game.settings.set(
                     MODULE_ID,
                     TABLE_PROFILES_SETTING,
                     previousProfiles
                 );
+
+                await TableProfileStorageService
+                    .migrateStorage();
             }
             catch (rollbackError) {
                 console.error(
@@ -202,8 +241,6 @@ export class TableManagerConfigurationService {
 
             throw error;
         }
-
-        return imported;
     }
 
     static exportToFile() {
