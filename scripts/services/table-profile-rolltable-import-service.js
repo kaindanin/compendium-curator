@@ -101,21 +101,13 @@ async function resolveResultDocument(result) {
     }
 }
 
-function isShopName(name) {
-    return /\b(tienda|shop|store|market|mercado)\b/i.test(
-        String(name ?? "")
-    );
-}
-
-function buildDrawPreferences(name) {
-    const shop = isShopName(name);
-
+function buildDrawPreferences(table) {
     return {
-        count: shop ? 10 : 1,
-        unique: shop,
+        count: 1,
+        unique: table?.replacement === false,
         priceAdjustment: 100,
         quantityMin: 1,
-        quantityMax: shop ? 3 : 1
+        quantityMax: 1
     };
 }
 
@@ -138,7 +130,7 @@ function getUniqueProfileName(name) {
     return candidate;
 }
 
-function buildContentProfile(name, entries) {
+function buildContentProfile(table, name, entries) {
     const weights = Object.fromEntries(
         entries.map(entry => [
             entry.uuid,
@@ -158,10 +150,9 @@ function buildContentProfile(name, entries) {
         manualIncludes:
             entries.map(entry => entry.uuid),
         manualExcludes: [],
-        draw: buildDrawPreferences(name),
+        draw: buildDrawPreferences(table),
         itemRules: {
-            excludeZeroPrice: false,
-            includeHidden: true
+            excludeZeroPrice: false
         },
         distribution: {
             version: 2,
@@ -189,7 +180,7 @@ function buildContentProfile(name, entries) {
     };
 }
 
-function buildNestedProfile(name, children) {
+function buildNestedProfile(table, name, children) {
     return {
         version: 2,
         type: "nested",
@@ -203,7 +194,7 @@ function buildNestedProfile(name, children) {
                 1
             )
         })),
-        draw: buildDrawPreferences(name),
+        draw: buildDrawPreferences(table),
         itemRules: {
             excludeZeroPrice: false
         },
@@ -539,6 +530,7 @@ export class TableProfileRollTableImportService {
                         await TableProfileStorageService
                             .create(
                                 buildContentProfile(
+                                    child.table,
                                     name,
                                     entries
                                 )
@@ -566,6 +558,7 @@ export class TableProfileRollTableImportService {
                     await TableProfileStorageService
                         .create(
                             buildNestedProfile(
+                                table,
                                 rootName,
                                 childProfiles
                             )
@@ -602,6 +595,7 @@ export class TableProfileRollTableImportService {
                 await TableProfileStorageService
                     .create(
                         buildContentProfile(
+                            table,
                             name,
                             entries
                         )
