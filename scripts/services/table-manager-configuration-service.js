@@ -106,6 +106,183 @@ function validateVisualStructure(tableProfiles) {
     }
 }
 
+function childProfileId(child) {
+    return String(
+        typeof child === "string"
+            ? child
+            : child?.profileId ?? child?.id ?? ""
+    ).trim();
+}
+
+function validatePortableUuidList(value) {
+    if (!Array.isArray(value))
+        return false;
+
+    const normalized = value.map(uuid =>
+        String(uuid ?? "").trim()
+    );
+
+    return normalized.every(Boolean) &&
+        new Set(normalized).size ===
+            normalized.length;
+}
+
+function validateProfileStructure(tableProfiles) {
+    const profiles = tableProfiles.profiles ?? {};
+    const filterGroups =
+        tableProfiles.filterGroups ?? {};
+
+    for (
+        const [filterGroupId, filterGroup]
+        of Object.entries(filterGroups)
+    ) {
+        if (
+            !filterGroupId ||
+            !isPlainObject(filterGroup) ||
+            !String(filterGroup.name ?? "").trim() ||
+            !validatePortableUuidList(
+                filterGroup.matches ?? []
+            ) ||
+            !validatePortableUuidList(
+                filterGroup.manualIncludes ?? []
+            ) ||
+            (
+                filterGroup.id !== undefined &&
+                String(filterGroup.id) !== filterGroupId
+            )
+        ) {
+            throw new Error(
+                "INVALID_TABLE_MANAGER_PROFILE_STRUCTURE"
+            );
+        }
+    }
+
+    for (
+        const [profileId, profile]
+        of Object.entries(profiles)
+    ) {
+        if (
+            !profileId ||
+            !isPlainObject(profile) ||
+            Number(profile.version) !== 2 ||
+            !["content", "nested"].includes(
+                profile.type
+            ) ||
+            !String(profile.name ?? "").trim() ||
+            !Array.isArray(profile.filterGroupIds ?? []) ||
+            !Array.isArray(profile.children ?? []) ||
+            (
+                profile.id !== undefined &&
+                String(profile.id) !== profileId
+            ) ||
+            !validatePortableUuidList(
+                profile.manualExcludes ?? []
+            )
+        ) {
+            throw new Error(
+                "INVALID_TABLE_MANAGER_PROFILE_STRUCTURE"
+            );
+        }
+
+        const filterGroupIds = (
+            profile.filterGroupIds ?? []
+        ).map(id => String(id ?? "").trim());
+
+        if (
+            filterGroupIds.some(id =>
+                !id || !filterGroups[id]
+            ) ||
+            new Set(filterGroupIds).size !==
+                filterGroupIds.length
+        ) {
+            throw new Error(
+                "INVALID_TABLE_MANAGER_PROFILE_STRUCTURE"
+            );
+        }
+
+        const seenChildren = new Set();
+
+        for (const child of profile.children ?? []) {
+            const childId = childProfileId(child);
+            const weight =
+                typeof child === "string"
+                    ? 1
+                    : Number(child?.weight ?? 1);
+
+            if (
+                !childId ||
+                childId === profileId ||
+                seenChildren.has(childId) ||
+                profiles[childId]?.version !== 2 ||
+                !Number.isFinite(weight) ||
+                weight <= 0 ||
+                (
+                    typeof child !== "string" &&
+                    child?.enabled !== undefined &&
+                    typeof child.enabled !== "boolean"
+                )
+            ) {
+                throw new Error(
+                    "INVALID_TABLE_MANAGER_PROFILE_STRUCTURE"
+                );
+            }
+
+            seenChildren.add(childId);
+        }
+    }
+
+    const visiting = new Set();
+    const visited = new Set();
+
+    const visit = profileId => {
+        if (visited.has(profileId))
+            return;
+
+        if (visiting.has(profileId)) {
+            throw new Error(
+                "INVALID_TABLE_MANAGER_PROFILE_STRUCTURE"
+            );
+        }
+
+        visiting.add(profileId);
+
+        for (
+            const child
+            of profiles[profileId]?.children ?? []
+        ) {
+            visit(childProfileId(child));
+        }
+
+        visiting.delete(profileId);
+        visited.add(profileId);
+    };
+
+    for (const profileId of Object.keys(profiles))
+        visit(profileId);
+}
+
+function normalizedRelation(profile) {
+    return (profile?.children ?? [])
+        .map(child => ({
+            profileId: childProfileId(child),
+            enabled:
+                typeof child === "string" ||
+                child?.enabled !== false,
+            weight:
+                typeof child === "string"
+                    ? 1
+                    : Number(child?.weight ?? 1)
+        }))
+        .sort((a, b) =>
+            a.profileId.localeCompare(b.profileId)
+        );
+}
+
+function sameJsonValue(left, right) {
+    return JSON.stringify(left) ===
+        JSON.stringify(right);
+}
+
 function text(es, en) {
     return game.i18n.lang.startsWith("es")
         ? es
@@ -342,6 +519,7 @@ export class TableManagerConfigurationService {
                 bundle.data.tableProfiles
             );
         validateVisualStructure(tableProfiles);
+        validateProfileStructure(tableProfiles);
         const tableDefaults =
             foundry.utils.deepClone(
                 bundle.data.tableDefaults
@@ -394,6 +572,25 @@ export class TableManagerConfigurationService {
 
             const storedProfiles =
                 TableProfileStorageService.getStorage();
+
+            if (
+                Object.keys(
+                    storedProfiles.profiles ?? {}
+                ).length !==
+                    Object.keys(
+                        imported.tableProfiles.profiles ?? {}
+                    ).length ||
+                Object.keys(
+                    storedProfiles.filterGroups ?? {}
+                ).length !==
+                    Object.keys(
+                        imported.tableProfiles.filterGroups ?? {}
+                    ).length
+            ) {
+                throw new Error(
+                    "TABLE_MANAGER_CONFIGURATION_NOT_APPLIED"
+                );
+            }
 
             if (
                 Object.keys(
@@ -458,7 +655,55 @@ export class TableManagerConfigurationService {
                             String(
                                 importedProfile?.folderId ?? ""
                             ).trim() || null
+                        ) ||
+                    !sameJsonValue(
+                        [...(
+                            storedProfile.filterGroupIds ?? []
+                        )].sort(),
+                        [...(
+                            importedProfile.filterGroupIds ?? []
+                        )]
+                            .map(id => String(id))
+                            .sort()
+                    ) ||
+                    !sameJsonValue(
+                        normalizedRelation(
+                            storedProfile
+                        ),
+                        normalizedRelation(
+                            importedProfile
                         )
+                    )
+                ) {
+                    throw new Error(
+                        "TABLE_MANAGER_CONFIGURATION_NOT_APPLIED"
+                    );
+                }
+            }
+
+            for (
+                const [filterGroupId, importedGroup]
+                of Object.entries(
+                    imported.tableProfiles.filterGroups ?? {}
+                )
+            ) {
+                const storedGroup =
+                    storedProfiles.filterGroups?.[
+                        filterGroupId
+                    ];
+
+                if (
+                    !storedGroup ||
+                    String(storedGroup.name ?? "") !==
+                        String(importedGroup.name ?? "") ||
+                    !sameJsonValue(
+                        storedGroup.matches ?? [],
+                        importedGroup.matches ?? []
+                    ) ||
+                    !sameJsonValue(
+                        storedGroup.manualIncludes ?? [],
+                        importedGroup.manualIncludes ?? []
+                    )
                 ) {
                     throw new Error(
                         "TABLE_MANAGER_CONFIGURATION_NOT_APPLIED"
