@@ -176,7 +176,7 @@ Future changes to the browser's internal structure may require an update to the 
 
 ## Version
 
-**0.3.0**
+**0.4.0**
 
 ## Author
 

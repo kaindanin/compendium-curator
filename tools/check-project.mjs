@@ -37,6 +37,15 @@ const projectFiles = filesBelow(root);
 const javascriptFiles = projectFiles.filter(path =>
     [".js", ".mjs"].includes(extname(path))
 );
+const moduleManifest = JSON.parse(
+    readFileSync(resolve(root, "module.json"), "utf8")
+);
+const packageManifest = JSON.parse(
+    readFileSync(resolve(root, "package.json"), "utf8")
+);
+const packageLock = JSON.parse(
+    readFileSync(resolve(root, "package-lock.json"), "utf8")
+);
 
 for (const path of javascriptFiles) {
     const result = spawnSync(
@@ -146,6 +155,28 @@ const missingTranslations = languages.flatMap(({
     .filter(key => entries?.[key] === undefined)
     .map(key => `${language}: ${key}`)
 );
+const expectedDownload =
+    `https://github.com/kaindanin/compendium-curator/releases/download/v${moduleManifest.version}/compendium-curator.zip`;
+const versionFailures = [
+    ["package.json", packageManifest.version],
+    ["package-lock.json", packageLock.version],
+    [
+        "package-lock.json root package",
+        packageLock.packages?.[""]?.version
+    ]
+]
+    .filter(([, version]) =>
+        version !== moduleManifest.version
+    )
+    .map(([file, version]) =>
+        `${file} has version ${version}; expected ${moduleManifest.version}`
+    );
+
+if (moduleManifest.download !== expectedDownload) {
+    versionFailures.push(
+        `module.json download must be ${expectedDownload}`
+    );
+}
 
 const failures = [
     ...missingImports.map(path =>
@@ -156,6 +187,9 @@ const failures = [
     ),
     ...forbiddenManagerPatches.map(value =>
         `Forbidden Table Manager patch: ${value}`
+    ),
+    ...versionFailures.map(value =>
+        `Version mismatch: ${value}`
     ),
     ...missingTranslations.map(value =>
         `Missing translation: ${value}`
