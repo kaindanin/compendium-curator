@@ -1920,6 +1920,26 @@ function buildContentInspector(profile) {
     };
 }
 
+function profileHasPotentialObjects(profile) {
+    const excluded = new Set(
+        profile?.manualExcludes ?? []
+    );
+    const hidden = new Set(
+        StorageService.getHiddenUuids()
+    );
+
+    return (profile?.filterGroups ?? []).some(group =>
+        [
+            ...(group?.matches ?? []),
+            ...(group?.manualIncludes ?? [])
+        ].some(uuid =>
+            uuid &&
+            !excluded.has(uuid) &&
+            !hidden.has(uuid)
+        )
+    );
+}
+
 async function generateProfileTables(profile) {
     if (profile.type === "content") {
         const inspector =
@@ -2228,6 +2248,49 @@ export class TableManagerApplication
                     { sensitivity: "base" }
                 )
             );
+        const storedProfilesById = new Map(
+            storedProfiles.map(profile => [
+                profile.id,
+                profile
+            ])
+        );
+        const inspectorProfileIds = new Set(
+            this._openContentInspectors
+        );
+        const pendingInspectorIds = [
+            ...inspectorProfileIds
+        ];
+
+        while (pendingInspectorIds.length) {
+            const profileId =
+                pendingInspectorIds.pop();
+            const profile =
+                storedProfilesById.get(profileId);
+
+            for (const child of profile?.children ?? []) {
+                if (child?.enabled === false)
+                    continue;
+
+                const childId = String(
+                    typeof child === "string"
+                        ? child
+                        : child?.profileId ??
+                            child?.id ??
+                            ""
+                ).trim();
+
+                if (
+                    !childId ||
+                    inspectorProfileIds.has(childId) ||
+                    !storedProfilesById.has(childId)
+                ) {
+                    continue;
+                }
+
+                inspectorProfileIds.add(childId);
+                pendingInspectorIds.push(childId);
+            }
+        }
 
         const profiles = storedProfiles
             .map(profile => {
@@ -2358,7 +2421,9 @@ export class TableManagerApplication
                     `COMPENDIUM_CURATOR.${statusKey}`
                 );
 
-                const inspector = isContent
+                const inspector =
+                    isContent &&
+                    inspectorProfileIds.has(profile.id)
                     ? buildContentInspector(profile)
                     : null;
                 const nestedInspector = isNested
@@ -2386,7 +2451,13 @@ export class TableManagerApplication
                     nestedInspector,
                     canGenerate:
                         isContent
-                            ? inspector?.hasObjects === true
+                            ? inspector?.hasObjects === true ||
+                                (
+                                    !inspector &&
+                                    profileHasPotentialObjects(
+                                        profile
+                                    )
+                                )
                             : childCount > 0,
                     hasGenerated:
                         Boolean(

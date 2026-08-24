@@ -3108,6 +3108,54 @@ function enhanceDirectEditor(
         TableProfileStorageService.getFilterGroups();
     const previews =
         application._ccRecursivePreviewData;
+    const renderProfileIds = new Set();
+
+    for (
+        const row
+        of element.querySelectorAll(
+            "details[data-cc-content-inspector][data-profile-id]"
+        )
+    ) {
+        if (row.open) {
+            renderProfileIds.add(
+                String(row.dataset.profileId ?? "")
+            );
+        }
+    }
+
+    /*
+     * La vista de una tabla enlazada se crea clonando la estructura
+     * de su tabla original. Conservamos únicamente esas dependencias
+     * transitivas, en lugar de montar todos los perfiles del Gestor.
+     */
+    const pending = [...renderProfileIds];
+
+    while (pending.length) {
+        const profileId = pending.pop();
+        const profile = profiles[profileId];
+
+        for (const child of profile?.children ?? []) {
+            if (child?.enabled === false)
+                continue;
+
+            const childId = String(
+                typeof child === "string"
+                    ? child
+                    : child?.profileId ?? child?.id ?? ""
+            ).trim();
+
+            if (
+                !childId ||
+                renderProfileIds.has(childId) ||
+                !profiles[childId]
+            ) {
+                continue;
+            }
+
+            renderProfileIds.add(childId);
+            pending.push(childId);
+        }
+    }
 
     for (
         const profile
@@ -3117,7 +3165,8 @@ function enhanceDirectEditor(
             profile?.version !== 2 ||
             profile.type !== "content" ||
             profile?.contentLayout?.mode !==
-                DIRECT_MODE
+                DIRECT_MODE ||
+            !renderProfileIds.has(profile.id)
         ) {
             continue;
         }
@@ -3235,6 +3284,54 @@ function enhanceDirectEditor(
             profile,
             row,
             editor
+        );
+    }
+
+    for (
+        const row
+        of element.querySelectorAll(
+            "details[data-cc-content-inspector][data-profile-id]"
+        )
+    ) {
+        row.addEventListener(
+            "toggle",
+            () => {
+                if (!row.open) {
+                    for (
+                        const closedRow
+                        of element.querySelectorAll(
+                            "details[data-cc-content-inspector][data-profile-id]:not([open])"
+                        )
+                    ) {
+                        closedRow.querySelector(
+                            ":scope > .cc-table-manager-content-inspector"
+                        )?.remove();
+                    }
+                    return;
+                }
+
+                if (
+                    row.querySelector(
+                        "[data-cc-direct-content-editor]"
+                    )
+                ) {
+                    return;
+                }
+
+                queueMicrotask(() => {
+                    if (
+                        row.isConnected &&
+                        row.open &&
+                        !row.querySelector(
+                            "[data-cc-direct-content-editor]"
+                        )
+                    ) {
+                        void application.render({
+                            force: true
+                        });
+                    }
+                });
+            }
         );
     }
 }

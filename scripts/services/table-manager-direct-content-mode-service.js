@@ -749,6 +749,18 @@ function enhanceManager(application, element) {
         );
         if (!row) continue;
 
+        /*
+         * El editor directo puede contener miles de objetos. No
+         * construimos su vista provisional mientras la tabla esté
+         * cerrada; el editor definitivo se montará al abrirla.
+         */
+        if (
+            row.matches("details[data-cc-content-inspector]") &&
+            !row.open
+        ) {
+            continue;
+        }
+
         row.querySelector("[data-cc-recursive-content-preview]")?.remove();
         const direct = profile?.contentLayout?.mode === DIRECT_MODE;
         const preview = previews instanceof Map ? previews.get(profile.id) : null;
