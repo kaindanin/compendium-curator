@@ -21,6 +21,9 @@ import {
 import {
     registerTableManagerRecursivePreview
 } from "./services/table-manager-recursive-preview-service.js";
+import {
+    registerTableManagerDirectContentMode
+} from "./services/table-manager-direct-content-mode-service.js";
 
 Hooks.once("init", () => {
 
@@ -34,6 +37,7 @@ Hooks.once("init", () => {
     registerTableManagerRecursiveNesting();
     registerTableManagerUnifiedTabs();
     registerTableManagerRecursivePreview();
+    registerTableManagerDirectContentMode();
 
     debug("Settings registradas");
 
