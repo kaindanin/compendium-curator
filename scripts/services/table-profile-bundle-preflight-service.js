@@ -179,13 +179,6 @@ function collectReferencedUuids(
         if (profile?.type !== "content")
             continue;
 
-        for (const uuid of profile.manualIncludes ?? []) {
-            const value = String(uuid ?? "").trim();
-
-            if (value)
-                referenced.add(value);
-        }
-
         for (
             const filterGroupId
             of profile.filterGroupIds ?? []
@@ -194,6 +187,17 @@ function collectReferencedUuids(
                 filterGroups?.[filterGroupId];
 
             for (const uuid of filterGroup?.matches ?? []) {
+                const value =
+                    String(uuid ?? "").trim();
+
+                if (value)
+                    referenced.add(value);
+            }
+
+            for (
+                const uuid
+                of filterGroup?.manualIncludes ?? []
+            ) {
                 const value =
                     String(uuid ?? "").trim();
 

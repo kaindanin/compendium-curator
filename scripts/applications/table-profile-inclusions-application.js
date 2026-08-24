@@ -16,7 +16,7 @@ const {
     HandlebarsApplicationMixin
 } = foundry.applications.api;
 
-export class TableProfileInclusionsApplication
+export class TableFilterGroupInclusionsApplication
     extends HandlebarsApplicationMixin(
         ApplicationV2
     ) {
@@ -24,7 +24,7 @@ export class TableProfileInclusionsApplication
     constructor(
         browserApp,
         managerApp,
-        profileId,
+        filterGroupId,
         options = {}
     ) {
 
@@ -36,8 +36,8 @@ export class TableProfileInclusionsApplication
         this.managerApp =
             managerApp;
 
-        this.profileId =
-            profileId;
+        this.filterGroupId =
+            filterGroupId;
 
         this._candidateUuids =
             new Set();
@@ -48,7 +48,7 @@ export class TableProfileInclusionsApplication
     static DEFAULT_OPTIONS = {
 
         id:
-            "compendium-curator-table-profile-inclusions",
+            "compendium-curator-table-filter-group-inclusions",
 
         classes: [
             "dnd5e2",
@@ -90,12 +90,13 @@ export class TableProfileInclusionsApplication
                 options
             );
 
-        const profile =
+        const filterGroup =
             TableProfileStorageService
-                .getProfiles()
-                ?.[this.profileId];
+                .getFilterGroup(
+                    this.filterGroupId
+                );
 
-        if (!profile) {
+        if (!filterGroup) {
 
             context.profileName = "";
             context.candidates = [];
@@ -107,7 +108,7 @@ export class TableProfileInclusionsApplication
 
         const included =
             new Set(
-                profile.manualIncludes ??
+                filterGroup.manualIncludes ??
                 []
             );
 
@@ -193,7 +194,7 @@ export class TableProfileInclusionsApplication
             );
 
         context.profileName =
-            profile.name;
+            filterGroup.name;
 
         const preparedCandidates =
             await prepareDnd5eDocumentEntries(
@@ -242,12 +243,13 @@ export class TableProfileInclusionsApplication
 
     static async #onSave() {
 
-        const profile =
+        const filterGroup =
             TableProfileStorageService
-                .getProfiles()
-                ?.[this.profileId];
+                .getFilterGroup(
+                    this.filterGroupId
+                );
 
-        if (!profile)
+        if (!filterGroup)
             return;
 
         /*
@@ -258,7 +260,7 @@ export class TableProfileInclusionsApplication
         const inclusions =
             new Set(
                 (
-                    profile.manualIncludes ??
+                    filterGroup.manualIncludes ??
                     []
                 ).filter(
                     uuid =>
@@ -289,8 +291,8 @@ export class TableProfileInclusionsApplication
         }
 
         await TableProfileStorageService
-            .setManualIncludes(
-                this.profileId,
+            .setFilterGroupManualIncludes(
+                this.filterGroupId,
                 inclusions
             );
 
@@ -300,31 +302,18 @@ export class TableProfileInclusionsApplication
             )
         );
 
-        if (this.managerApp?.rendered) {
-
-            this.managerApp.render({
-                force: true
-            });
-
-        }
-
-        const preview =
-            this.managerApp
-                ?._profilePreview;
-
-        if (
-            preview?.rendered &&
-            preview.profileId ===
-                this.profileId
-        ) {
-
-            preview.render({
-                force: true
-            });
-
-        }
-
         await this.close();
+
+        this.managerApp
+            ?._refreshApplicationsForFilterGroup?.(
+                this.filterGroupId
+            );
+
+        if (this.managerApp?.rendered) {
+            await this.managerApp.render({
+                force: true
+            });
+        }
 
     }
 

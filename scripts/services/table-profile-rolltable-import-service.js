@@ -165,8 +165,6 @@ function buildContentProfile(name, entries) {
         name,
         revision: 1,
         filterGroupIds: [],
-        manualIncludes:
-            entries.map(entry => entry.uuid),
         manualExcludes: [],
         draw: buildDrawPreferences(),
         itemRules: {
@@ -196,6 +194,33 @@ function buildContentProfile(name, entries) {
             generatedRevision: 0
         }
     };
+}
+
+function buildImportedFilterGroup(
+    profileName,
+    entries
+) {
+    const suffix = game.i18n.lang.startsWith("es")
+        ? "Objetos importados"
+        : "Imported objects";
+
+    return {
+        name: `${profileName} — ${suffix}`,
+        browser: {},
+        matches: [],
+        manualIncludes:
+            entries.map(entry => entry.uuid)
+    };
+}
+
+async function createImportedContentProfile(
+    name,
+    entries
+) {
+    return TableProfileStorageService.create(
+        buildContentProfile(name, entries),
+        buildImportedFilterGroup(name, entries)
+    );
 }
 
 function buildNestedProfile(name, children) {
@@ -561,15 +586,12 @@ export class TableProfileRollTableImportService {
 
                 if (immediate.directEntries.length) {
                     const directProfile =
-                        await TableProfileStorageService
-                            .create(
-                                buildContentProfile(
-                                    getDirectResultsProfileName(
-                                        table
-                                    ),
-                                    immediate.directEntries
-                                )
-                            );
+                        await createImportedContentProfile(
+                            getDirectResultsProfileName(
+                                table
+                            ),
+                            immediate.directEntries
+                        );
 
                     createdProfiles.push(
                         directProfile
@@ -610,13 +632,10 @@ export class TableProfileRollTableImportService {
                             child.table.name
                         );
                     const profile =
-                        await TableProfileStorageService
-                            .create(
-                                buildContentProfile(
-                                    name,
-                                    entries
-                                )
-                            );
+                        await createImportedContentProfile(
+                            name,
+                            entries
+                        );
 
                     createdProfiles.push(profile);
                     childProfiles.push({
@@ -676,13 +695,10 @@ export class TableProfileRollTableImportService {
                 table.name
             );
             const rootProfile =
-                await TableProfileStorageService
-                    .create(
-                        buildContentProfile(
-                            name,
-                            entries
-                        )
-                    );
+                await createImportedContentProfile(
+                    name,
+                    entries
+                );
 
             createdProfiles.push(rootProfile);
 

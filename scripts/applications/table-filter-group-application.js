@@ -760,9 +760,10 @@ export class TableFilterGroupApplication
                         checked:
                             selectedIds.has(group.id),
                         matchCount:
-                            Array.isArray(group.matches)
-                                ? group.matches.length
-                                : 0,
+                            new Set([
+                                ...(group.matches ?? []),
+                                ...(group.manualIncludes ?? [])
+                            ]).size,
                         useCount
                     };
 
@@ -913,7 +914,6 @@ export class TableFilterGroupApplication
 
         const applications = [
             this.managerApp?._profilePreview,
-            this.managerApp?._profileInclusions,
             this.managerApp?._profileExclusions
         ];
 
@@ -932,6 +932,20 @@ export class TableFilterGroupApplication
                 });
             }
 
+        }
+
+        const inclusions =
+            this.managerApp
+                ?._filterGroupInclusions;
+
+        if (
+            inclusions?.rendered &&
+            inclusions.filterGroupId ===
+                this.editFilterGroupId
+        ) {
+            inclusions.render({
+                force: true
+            });
         }
 
     }

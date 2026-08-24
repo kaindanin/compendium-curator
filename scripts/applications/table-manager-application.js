@@ -4,7 +4,7 @@ import { TableProfileStorageService } from "../services/table-profile-storage-se
 import { TableFilterGroupApplication } from "./table-filter-group-application.js";
 import { TableProfilePreviewApplication } from "./table-profile-preview-application.js";
 import { TableProfileExclusionsApplication } from "./table-profile-exclusions-application.js";
-import { TableProfileInclusionsApplication } from "./table-profile-inclusions-application.js";
+import { TableFilterGroupInclusionsApplication } from "./table-profile-inclusions-application.js";
 import { TableGroupingRangeApplication } from "./table-grouping-range-application.js";
 import { TableManualGroupingApplication } from "./table-manual-grouping-application.js";
 import { TableProfileService } from "../services/table-profile-service.js";
@@ -1577,7 +1577,10 @@ function buildContentInspector(profile) {
     ) {
         for (
             const uuid
-            of group?.matches ?? []
+            of [
+                ...(group?.matches ?? []),
+                ...(group?.manualIncludes ?? [])
+            ]
         ) {
             if (
                 uuid &&
@@ -1585,18 +1588,6 @@ function buildContentInspector(profile) {
             ) {
                 finalUuids.add(uuid);
             }
-        }
-    }
-
-    for (
-        const uuid
-        of profile?.manualIncludes ?? []
-    ) {
-        if (
-            uuid &&
-            !hiddenUuids.has(uuid)
-        ) {
-            finalUuids.add(uuid);
         }
     }
 
@@ -2129,7 +2120,7 @@ export class TableManagerApplication
         this._filterCriteriaEditor = null;
         this._profilePreview = null;
         this._profileExclusions = null;
-        this._profileInclusions = null;
+        this._filterGroupInclusions = null;
         this._filterGroupDetails = null;
         this._groupingRangeEditor = null;
         this._manualGroupingEditor = null;
@@ -2159,34 +2150,6 @@ export class TableManagerApplication
         return generateProfileTables(profile);
     }
 
-    async openManualInclusions(profileId) {
-        if (!profileId)
-            return;
-
-        if (this._profileInclusions?.rendered) {
-            if (
-                this._profileInclusions.profileId ===
-                    profileId
-            ) {
-                this._profileInclusions.bringToFront();
-                return;
-            }
-
-            await this._profileInclusions.close();
-        }
-
-        this._profileInclusions =
-            new TableProfileInclusionsApplication(
-                this.browserApp,
-                this,
-                profileId
-            );
-
-        this._profileInclusions.render({
-            force: true
-        });
-    }
-
     static DEFAULT_OPTIONS = {
         id: "compendium-curator-table-manager",
         classes: [
@@ -2207,7 +2170,8 @@ export class TableManagerApplication
             editManualGroups: this.#onEditManualGroups,
             addCurrentFilters: this.#onAddCurrentFilters,
             previewProfile: this.#onPreviewProfile,
-            manualInclusions: this.#onManualInclusions,
+            filterGroupInclusions:
+                this.#onFilterGroupInclusions,
             manualExclusions: this.#onManualExclusions,
             generateProfile: this.#onGenerateProfile,
             openGeneratedTable: this.#onOpenGeneratedTable,
@@ -2489,9 +2453,18 @@ export class TableManagerApplication
                         )
                     );
 
-                const matchCount = Array.isArray(filterGroup.matches)
-                    ? filterGroup.matches.length
-                    : 0;
+                const filteredUuids = new Set(
+                    filterGroup.matches ?? []
+                );
+                const manualIncludeCount = new Set(
+                    (filterGroup.manualIncludes ?? [])
+                        .filter(uuid =>
+                            !filteredUuids.has(uuid)
+                        )
+                ).size;
+                const matchCount =
+                    filteredUuids.size +
+                    manualIncludeCount;
                 const useCount = usedBy.length;
 
                 return {
@@ -2501,8 +2474,14 @@ export class TableManagerApplication
                     useCount,
                     usedBy,
                     matchesLabel: game.i18n.format(
-                        "COMPENDIUM_CURATOR.CurrentFilterMatches",
-                        { count: matchCount }
+                        manualIncludeCount
+                            ? "COMPENDIUM_CURATOR.FilterGroupObjectsWithManual"
+                            : "COMPENDIUM_CURATOR.CurrentFilterMatches",
+                        {
+                            count: matchCount,
+                            manual:
+                                manualIncludeCount
+                        }
                     ),
                     usageLabel: `${useCount} ${game.i18n.localize(
                         "COMPENDIUM_CURATOR.TableProfiles"
@@ -3749,17 +3728,20 @@ export class TableManagerApplication
         }
 
         if (
-            this._profileInclusions?.rendered &&
-            affectedProfiles.has(this._profileInclusions.profileId)
-        ) {
-            this._profileInclusions.render({ force: true });
-        }
-
-        if (
             this._filterGroupDetails?.rendered &&
             this._filterGroupDetails.filterGroupId === filterGroupId
         ) {
             this._filterGroupDetails.render({ force: true });
+        }
+
+        if (
+            this._filterGroupInclusions?.rendered &&
+            this._filterGroupInclusions.filterGroupId ===
+                filterGroupId
+        ) {
+            this._filterGroupInclusions.render({
+                force: true
+            });
         }
     }
 
@@ -3773,7 +3755,7 @@ export class TableManagerApplication
             "_filterCriteriaEditor",
             "_profilePreview",
             "_profileExclusions",
-            "_profileInclusions",
+            "_filterGroupInclusions",
             "_filterGroupDetails",
             "_groupingRangeEditor",
             "_manualGroupingEditor"
@@ -4605,18 +4587,43 @@ export class TableManagerApplication
         this._profilePreview.render({ force: true });
     }
 
-    static async #onManualInclusions(event, target) {
+    static async #onFilterGroupInclusions(
+        event,
+        target
+    ) {
         event.preventDefault();
         event.stopPropagation();
 
-        const profileId = target
-            .closest("[data-profile-id]")
-            ?.dataset?.profileId;
+        const filterGroupId = target
+            .closest("[data-filter-group-id]")
+            ?.dataset?.filterGroupId;
 
-        if (!profileId)
+        if (!filterGroupId)
             return;
 
-        await this.openManualInclusions(profileId);
+        if (this._filterGroupInclusions?.rendered) {
+            if (
+                this._filterGroupInclusions
+                    .filterGroupId === filterGroupId
+            ) {
+                this._filterGroupInclusions
+                    .bringToFront();
+                return;
+            }
+
+            await this._filterGroupInclusions.close();
+        }
+
+        this._filterGroupInclusions =
+            new TableFilterGroupInclusionsApplication(
+                this.browserApp,
+                this,
+                filterGroupId
+            );
+
+        this._filterGroupInclusions.render({
+            force: true
+        });
     }
 
     static async #onManualExclusions(event, target) {
@@ -5305,7 +5312,6 @@ export class TableManagerApplication
 
         const applications = [
             this._profilePreview,
-            this._profileInclusions,
             this._profileExclusions
         ];
 
@@ -5462,7 +5468,6 @@ export class TableManagerApplication
             "_filterGroupEditor",
             "_filterCriteriaEditor",
             "_profilePreview",
-            "_profileInclusions",
             "_profileExclusions",
             "_filterGroupDetails",
             "_groupingRangeEditor",
@@ -5774,6 +5779,15 @@ export class TableManagerApplication
         ) {
             await this._filterGroupDetails.close();
             this._filterGroupDetails = null;
+        }
+
+        if (
+            this._filterGroupInclusions?.rendered &&
+            this._filterGroupInclusions.filterGroupId ===
+                filterGroupId
+        ) {
+            await this._filterGroupInclusions.close();
+            this._filterGroupInclusions = null;
         }
 
         if (

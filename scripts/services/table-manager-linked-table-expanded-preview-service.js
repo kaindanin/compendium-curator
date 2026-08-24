@@ -104,8 +104,7 @@ function makeReadOnly(root) {
     for (const button of root.querySelectorAll([
         "[data-cc-direct-reset-item-weight]",
         "[data-cc-direct-save-ranges]",
-        "[data-cc-open-original-table]",
-        "[data-cc-manual-inclusions]"
+        "[data-cc-open-original-table]"
     ].join(","))) {
         button.remove();
     }

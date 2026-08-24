@@ -62,11 +62,6 @@ function getImportedObjectAvailability(
         if (profile?.type !== "content")
             continue;
 
-        for (const uuid of profile.manualIncludes ?? []) {
-            if (uuid)
-                referenced.add(uuid);
-        }
-
         for (
             const filterGroupId
             of profile.filterGroupIds ?? []
@@ -75,6 +70,14 @@ function getImportedObjectAvailability(
                 storage.filterGroups?.[filterGroupId];
 
             for (const uuid of filterGroup?.matches ?? []) {
+                if (uuid)
+                    referenced.add(uuid);
+            }
+
+            for (
+                const uuid
+                of filterGroup?.manualIncludes ?? []
+            ) {
                 if (uuid)
                     referenced.add(uuid);
             }
@@ -1221,6 +1224,10 @@ export class TableProfileStorageService {
                 this.#normalizeMatches(
                     filterGroup.matches
                 ),
+            manualIncludes:
+                this.#normalizeMatches(
+                    filterGroup.manualIncludes
+                ),
             refreshedAt:
                 Date.now()
         };
@@ -1408,6 +1415,14 @@ export class TableProfileStorageService {
             storage.filterGroups[groupId] = {
                 ...sourceGroup,
                 id: groupId,
+                matches:
+                    this.#normalizeMatches(
+                        sourceGroup?.matches
+                    ),
+                manualIncludes:
+                    this.#normalizeMatches(
+                        sourceGroup?.manualIncludes
+                    ),
                 revision:
                     Number(
                         sourceGroup?.revision ?? 1
@@ -1501,6 +1516,14 @@ export class TableProfileStorageService {
                             sourceGroup
                         ),
                         id: groupId,
+                        matches:
+                            this.#normalizeMatches(
+                                sourceGroup.matches
+                            ),
+                        manualIncludes:
+                            this.#normalizeMatches(
+                                sourceGroup.manualIncludes
+                            ),
                         revision:
                             Number(
                                 sourceGroup.revision ?? 1
@@ -1516,6 +1539,19 @@ export class TableProfileStorageService {
             ];
 
             delete profile.filterGroups;
+            delete profile.manualIncludes;
+
+            if (
+                profile.contentLayout?.sources &&
+                typeof profile.contentLayout.sources ===
+                    "object" &&
+                !Array.isArray(
+                    profile.contentLayout.sources
+                )
+            ) {
+                delete profile.contentLayout
+                    .sources.manual;
+            }
 
             this.#normalizeProfileDistribution(
                 profile
@@ -1916,8 +1952,8 @@ export class TableProfileStorageService {
         return profile;
     }
 
-    static async setManualIncludes(
-        profileId,
+    static async setFilterGroupManualIncludes(
+        filterGroupId,
         uuids
     ) {
         const storage =
@@ -1925,15 +1961,12 @@ export class TableProfileStorageService {
                 this.getStorage()
             );
 
-        const profile =
-            storage.profiles?.[profileId];
+        const filterGroup =
+            storage.filterGroups?.[filterGroupId];
 
-        if (
-            !profile ||
-            profile.version !== 2
-        ) {
+        if (!filterGroup) {
             throw new Error(
-                "TABLE_PROFILE_NOT_FOUND"
+                "TABLE_FILTER_GROUP_NOT_FOUND"
             );
         }
 
@@ -1942,7 +1975,7 @@ export class TableProfileStorageService {
 
         const previous =
             this.#normalizeMatches(
-                profile.manualIncludes
+                filterGroup.manualIncludes
             );
 
         const changed =
@@ -1953,11 +1986,27 @@ export class TableProfileStorageService {
             );
 
         if (!changed)
-            return profile;
+            return filterGroup;
 
-        profile.manualIncludes = normalized;
-        profile.revision =
-            Number(profile.revision ?? 1) + 1;
+        filterGroup.manualIncludes = normalized;
+        filterGroup.revision =
+            Number(filterGroup.revision ?? 1) + 1;
+
+        for (
+            const profile
+            of Object.values(storage.profiles ?? {})
+        ) {
+            if (
+                !Array.from(
+                    profile.filterGroupIds ?? []
+                ).includes(filterGroupId)
+            ) {
+                continue;
+            }
+
+            profile.revision =
+                Number(profile.revision ?? 1) + 1;
+        }
 
         await game.settings.set(
             MODULE_ID,
@@ -1965,7 +2014,9 @@ export class TableProfileStorageService {
             storage
         );
 
-        return profile;
+        return foundry.utils.deepClone(
+            filterGroup
+        );
     }
 
     static async setDistributionMode(

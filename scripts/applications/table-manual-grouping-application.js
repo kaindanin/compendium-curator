@@ -17,16 +17,16 @@ function getProfileFinalUuids(profile) {
     const finalUuids = new Set();
 
     for (const group of profile?.filterGroups ?? []) {
-        for (const uuid of group?.matches ?? []) {
+        for (
+            const uuid
+            of [
+                ...(group?.matches ?? []),
+                ...(group?.manualIncludes ?? [])
+            ]
+        ) {
             if (uuid && !hiddenUuids.has(uuid)) {
                 finalUuids.add(uuid);
             }
-        }
-    }
-
-    for (const uuid of profile?.manualIncludes ?? []) {
-        if (uuid && !hiddenUuids.has(uuid)) {
-            finalUuids.add(uuid);
         }
     }
 

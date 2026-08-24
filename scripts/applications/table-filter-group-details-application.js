@@ -169,19 +169,30 @@ export class TableFilterGroupDetailsApplication
                 .length > 0;
 
         const matchUuids =
-            Array.isArray(
-                filterGroup.matches
-            )
-                ? filterGroup.matches
-                : [];
+            [
+                ...new Set([
+                    ...(filterGroup.matches ?? []),
+                    ...(filterGroup.manualIncludes ?? [])
+                ])
+            ];
+        const manualIncludes = new Set(
+            filterGroup.manualIncludes ?? []
+        );
 
-        context.matches =
+        context.matches = (
             await prepareDnd5eDocumentEntries(
                 matchUuids
-            );
+            )
+        ).map(entry => ({
+            ...entry,
+            manuallyIncluded:
+                manualIncludes.has(entry.uuid)
+        }));
 
         context.matchCount =
             matchUuids.length;
+        context.manualIncludedCount =
+            manualIncludes.size;
 
         context.hasMatches =
             context.matches.length >

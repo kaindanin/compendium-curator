@@ -174,6 +174,14 @@
                     {{matchCount}}
                 </strong>
 
+                {{#if manualIncludedCount}}
+                    <span class="hint">
+                        <i class="fas fa-plus-circle"></i>
+                        {{manualIncludedCount}}
+                        {{localize "COMPENDIUM_CURATOR.ManuallyIncludedObjects"}}
+                    </span>
+                {{/if}}
+
             </div>
 
 
@@ -262,6 +270,13 @@
                                                     {{/if}}
 
                                                 </div>
+
+                                                {{#if manuallyIncluded}}
+                                                    <i
+                                                        class="fas fa-plus-circle"
+                                                        data-tooltip="COMPENDIUM_CURATOR.ManuallyIncludedObjects"
+                                                    ></i>
+                                                {{/if}}
 
                                             </div>
 

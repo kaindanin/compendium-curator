@@ -498,7 +498,6 @@ export class TableProfileEditorApplication
                 name,
                 revision: 1,
                 filterGroupIds: [],
-                manualIncludes: [],
                 manualExcludes: [],
                 draw: {
                     count:

@@ -164,11 +164,10 @@ export class TableManagerContentApplication
                             group.id
                         ),
                     matchCount:
-                        Array.isArray(
-                            group.matches
-                        )
-                            ? group.matches.length
-                            : 0,
+                        new Set([
+                            ...(group.matches ?? []),
+                            ...(group.manualIncludes ?? [])
+                        ]).size,
                     useCount:
                         allProfiles.filter(
                             candidate =>

@@ -112,7 +112,7 @@ export class TableProfileExclusionsApplication
                     profile,
                     {
                         applyManualIncludes:
-                            false,
+                            true,
 
                         applyManualExcludes:
                             false

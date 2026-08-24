@@ -351,23 +351,14 @@ function ownSources(profile, filterGroups) {
         .filter(entry => entry.available !== false &&
             !hidden.has(entry.uuid) && !excluded.has(entry.uuid) &&
             (!excludeZeroPrice || entry.documentName !== "Item" || entry.hasPositivePrice));
-    const manual = dedupe(
-        eligible(profile.manualIncludes ?? [])
-            .map(entry => ({
-                ...entry,
-                origins: [text("Añadidos manualmente", "Manual additions")]
-            }))
-    );
-    const manuallyIncluded = new Set(
-        manual.map(entry => entry.uuid)
-    );
-
     for (const id of ids) {
         const filterGroup = filterGroups?.[id];
         if (!filterGroup) continue;
         const entries = dedupe(
-            eligible(filterGroup.matches ?? [])
-                .filter(entry => !manuallyIncluded.has(entry.uuid))
+            eligible([
+                ...(filterGroup.matches ?? []),
+                ...(filterGroup.manualIncludes ?? [])
+            ])
                 .map(entry => ({
                     ...entry,
                     origins: [filterGroup.name]
@@ -387,20 +378,6 @@ function ownSources(profile, filterGroups) {
         });
     }
 
-    if (manual.length) {
-        const key = "manual";
-        const criterion = sourceCriterion(profile, key);
-        sources.push({
-            key,
-            icon: "fas fa-plus-circle",
-            kind: text("Manual", "Manual"),
-            name: text("Añadidos manualmente", "Manual additions"),
-            entries: manual,
-            groups: groupedEntries(manual, profile, criterion),
-            criterion,
-            weight: null
-        });
-    }
     return sources;
 }
 

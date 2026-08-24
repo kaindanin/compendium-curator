@@ -2030,6 +2030,7 @@ export class TableProfileService {
         const groups = [];
 
         let totalMatches = 0;
+        let manualIncludedCount = 0;
 
         for (const filterGroup of filterGroups) {
 
@@ -2105,6 +2106,36 @@ export class TableProfileService {
 
             }
 
+            if (applyManualIncludes) {
+                const hiddenUuids = new Set(
+                    StorageService.getHiddenUuids()
+                );
+
+                for (
+                    const uuid
+                    of filterGroup.manualIncludes ?? []
+                ) {
+                    if (groupCandidates.has(uuid))
+                        continue;
+
+                    const document =
+                        await fromUuid(uuid);
+
+                    if (
+                        !document?.uuid ||
+                        hiddenUuids.has(document.uuid)
+                    ) {
+                        continue;
+                    }
+
+                    groupCandidates.set(
+                        document.uuid,
+                        document
+                    );
+                    manualIncludedCount++;
+                }
+            }
+
             const uniqueGroupCandidates =
                 [
                     ...groupCandidates.values()
@@ -2168,50 +2199,6 @@ export class TableProfileService {
             ].filter(
                 count => count > 1
             ).length;
-
-        const manualIncludes =
-            new Set(
-                profile?.manualIncludes ?? []
-            );
-
-        let manualIncludedCount = 0;
-
-        if (applyManualIncludes) {
-
-            for (const uuid of manualIncludes) {
-
-                if (candidatesByUuid.has(uuid))
-                    continue;
-
-                const document =
-                    await fromUuid(uuid);
-
-                if (!document)
-                    continue;
-
-                if (
-                    StorageService.isHidden(
-                        uuid
-                    )
-                ) {
-                    continue;
-                }
-
-                candidatesByUuid.set(
-                    uuid,
-                    document
-                );
-
-                manualIncludedCount++;
-
-            }
-
-            candidates =
-                [
-                    ...candidatesByUuid.values()
-                ];
-
-        }
 
         const manualExcludes =
             new Set(

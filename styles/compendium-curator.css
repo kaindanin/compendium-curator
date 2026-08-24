@@ -1024,27 +1024,6 @@
     white-space: nowrap;
 }
 
-.cc-table-content-summary-actions {
-    margin-left: auto;
-}
-
-.cc-table-content-inclusions-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-
-    width: auto;
-    min-width: 0;
-    height: 26px;
-    min-height: 26px;
-
-    margin: 0;
-    padding: 0 0.55rem;
-
-    font-size: 0.85rem;
-    line-height: 1;
-}
-
 .cc-table-content-list {
     display: flex;
     flex-direction: column;

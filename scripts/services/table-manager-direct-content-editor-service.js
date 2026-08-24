@@ -1012,23 +1012,6 @@ function ownSources(
     filterGroups
 ) {
     const sources = [];
-    const manual = dedupe(
-        eligibleEntries(
-            profile,
-            profile.manualIncludes ?? []
-        ).map(entry => ({
-            ...entry,
-            origins: [
-                text(
-                    "Añadidos manualmente",
-                    "Manual additions"
-                )
-            ]
-        }))
-    );
-    const manuallyIncluded = new Set(
-        manual.map(entry => entry.uuid)
-    );
 
     for (
         const filterGroupId
@@ -1045,13 +1028,11 @@ function ownSources(
         const entries = dedupe(
             eligibleEntries(
                 profile,
-                filterGroup.matches ?? []
+                [
+                    ...(filterGroup.matches ?? []),
+                    ...(filterGroup.manualIncludes ?? [])
+                ]
             )
-                .filter(entry =>
-                    !manuallyIncluded.has(
-                        entry.uuid
-                    )
-                )
                 .map(entry => ({
                     ...entry,
                     origins: [filterGroup.name]
@@ -1078,44 +1059,6 @@ function ownSources(
             name: filterGroup.name,
             entries,
             groups,
-            criterion,
-            ranges: sourceRanges(
-                profile,
-                key,
-                criterion
-            ),
-            weight: positiveNumber(
-                sourceRecord(profile, key)
-                    ?.weight,
-                1
-            ),
-            effectiveShare: 0
-        });
-    }
-
-    if (manual.length) {
-        const key = "manual";
-        const criterion =
-            sourceCriterion(profile, key);
-
-        sources.push({
-            key,
-            sourceId: null,
-            type: "manual",
-            editable: true,
-            icon: "fas fa-plus-circle",
-            kind: text("Directos", "Direct"),
-            name: text(
-                "Objetos añadidos directamente",
-                "Directly added objects"
-            ),
-            entries: manual,
-            groups: buildEditableGroups(
-                manual,
-                profile,
-                key,
-                criterion
-            ),
             criterion,
             ranges: sourceRanges(
                 profile,
@@ -1282,13 +1225,6 @@ function buildReadOnlyDirectBranches(
     childPreview
 ) {
     const branches = [];
-    const manual = eligibleEntries(
-        child,
-        child?.manualIncludes ?? []
-    );
-    const manuallyIncluded = new Set(
-        manual.map(entry => entry.uuid)
-    );
 
     for (
         const filterGroupId
@@ -1305,11 +1241,10 @@ function buildReadOnlyDirectBranches(
         const entries = dedupe(
             eligibleEntries(
                 child,
-                filterGroup.matches ?? []
-            ).filter(entry =>
-                !manuallyIncluded.has(
-                    entry.uuid
-                )
+                [
+                    ...(filterGroup.matches ?? []),
+                    ...(filterGroup.manualIncludes ?? [])
+                ]
             )
         );
 
@@ -1326,27 +1261,6 @@ function buildReadOnlyDirectBranches(
                 1
             ),
             active: entries.length > 0,
-            share: 0
-        });
-    }
-
-    if (manual.length) {
-        const key = "manual";
-
-        branches.push({
-            key,
-            name: text(
-                "Objetos añadidos directamente",
-                "Directly added objects"
-            ),
-            kind: text("Directos", "Direct"),
-            count: manual.length,
-            weight: positiveNumber(
-                sourceRecord(child, key)
-                    ?.weight,
-                1
-            ),
-            active: true,
             share: 0
         });
     }
@@ -2508,26 +2422,12 @@ function renderEditor(
                             "COMPENDIUM_CURATOR.TableManagerTabContent"
                         ))}
                     </span>
-                    <span class="cc-table-content-summary-actions">
-                        <button
-                            type="button"
-                            class="cc-table-content-inclusions-button"
-                            data-cc-manual-inclusions
-                            data-tooltip="COMPENDIUM_CURATOR.ManualInclusions"
-                        >
-                            <i class="fas fa-plus-circle"></i>
-                            ${esc(game.i18n.localize(
-                                "COMPENDIUM_CURATOR.ManualInclusions"
-                            ))}
-                        </button>
-
-                        <strong class="cc-table-content-object-count">
-                            ${esc(game.i18n.format(
-                                "COMPENDIUM_CURATOR.GroupObjectCount",
-                                { count: totalCount }
-                            ))}
-                        </strong>
-                    </span>
+                    <strong class="cc-table-content-object-count">
+                        ${esc(game.i18n.format(
+                            "COMPENDIUM_CURATOR.GroupObjectCount",
+                            { count: totalCount }
+                        ))}
+                    </strong>
                 </summary>
 
                 <div class="cc-table-content-list">
@@ -2644,20 +2544,6 @@ function activateEditor(
     ) {
         stopSummaryToggle(control);
     }
-
-    const inclusionsButton = wrapper.querySelector(
-        "[data-cc-manual-inclusions]"
-    );
-
-    inclusionsButton?.addEventListener(
-        "click",
-        async event => {
-            event.preventDefault();
-            await application.openManualInclusions(
-                profile.id
-            );
-        }
-    );
 
     for (
         const input
