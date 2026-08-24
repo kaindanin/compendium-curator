@@ -189,6 +189,34 @@ function getFolderDescendantProfileCount(
     ).length;
 }
 
+function getFolderDescendantProfileIds(
+    folderId,
+    folders,
+    profiles
+) {
+    const descendantIds = new Set([folderId]);
+    let changed = true;
+
+    while (changed) {
+        changed = false;
+
+        for (const folder of Object.values(folders)) {
+            if (
+                folder?.parentId &&
+                descendantIds.has(folder.parentId) &&
+                !descendantIds.has(folder.id)
+            ) {
+                descendantIds.add(folder.id);
+                changed = true;
+            }
+        }
+    }
+
+    return Object.values(profiles)
+        .filter(profile => descendantIds.has(profile?.folderId))
+        .map(profile => profile.id);
+}
+
 function configureDropZone(
     application,
     element,
@@ -417,6 +445,13 @@ function createFolderElement(
             )
         }),
         createIconButton({
+            action: "generate",
+            icon: "fas fa-wand-magic-sparkles",
+            label: game.i18n.localize(
+                "COMPENDIUM_CURATOR.GenerateFolderTables"
+            )
+        }),
+        createIconButton({
             action: "rename",
             icon: "fas fa-pen",
             label: game.i18n.localize(
@@ -537,6 +572,29 @@ function createFolderElement(
 
                 await TableProfileStorageService
                     .createFolder(newName, folder.id);
+            }
+            else if (action === "generate") {
+                button.disabled = true;
+                const profileIds =
+                    getFolderDescendantProfileIds(
+                        folder.id,
+                        folders,
+                        profiles
+                    );
+                const result =
+                    await application.generateProfileBatch(
+                        profileIds,
+                        { onlyPending: true }
+                    );
+                const summary = game.i18n.format(
+                    "COMPENDIUM_CURATOR.VisibleTablesGenerationSummary",
+                    result
+                );
+
+                if (result.failed)
+                    ui.notifications.warn(summary);
+                else
+                    ui.notifications.info(summary);
             }
             else if (action === "rename") {
                 const newName = await requestFolderName({

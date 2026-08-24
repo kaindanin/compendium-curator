@@ -8,6 +8,7 @@
 - Added visual manager folders and first-generation folder mirroring for world and compendium destinations.
 - Added grouped item draws, stock quantities, price adjustments and Item Piles restocking workflows.
 - Added import and export for individual tables and complete portable manager backups.
+- Added bulk table selection, folder-level generation, and independent visual folders for filter groups.
 
 ### Improvements
 
@@ -17,6 +18,7 @@
 - Existing generated tables remain in their user-selected destination when updated.
 - Manual inclusions now belong to filter groups and object rules use an extensible checklist.
 - Improved duplicate handling, filter previews, table creation, searches and manager ergonomics.
+- Redesigned filter groups as compact expandable cards with inline filters, matching objects and table usage.
 
 ### Reliability
 

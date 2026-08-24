@@ -8,7 +8,6 @@ import { TableGroupingRangeApplication } from "./table-grouping-range-applicatio
 import { TableManualGroupingApplication } from "./table-manual-grouping-application.js";
 import { TableProfileService } from "../services/table-profile-service.js";
 import { StorageService } from "../services/storage-service.js";
-import { TableFilterGroupDetailsApplication } from "./table-filter-group-details-application.js";
 import { TableProfileGenerationService } from "../services/table-profile-generation-service.js";
 import { TableProfileDrawService } from "../services/table-profile-draw-service.js";
 import {
@@ -38,7 +37,6 @@ const TABLE_DIALOG_CLASSES = [
 ];
 
 const CONTENT_INSPECTOR_ENTRY_LIMIT = 150;
-
 const CONTENT_INSPECTOR_RARITY_ORDER = [
     "mundane",
     "common",
@@ -2120,7 +2118,6 @@ export class TableManagerApplication
         this._filterCriteriaEditor = null;
         this._profileExclusions = null;
         this._filterGroupInclusions = null;
-        this._filterGroupDetails = null;
         this._groupingRangeEditor = null;
         this._manualGroupingEditor = null;
         this._profileActionsPopover = null;
@@ -2132,6 +2129,12 @@ export class TableManagerApplication
         this._distributionSaveQueue =
             Promise.resolve();
         this._openContentInspectors =
+            new Set();
+        this._openFilterGroups =
+            new Set();
+        this._openFilterGroupSections =
+            new Set();
+        this._ccSelectedProfileIds =
             new Set();
     }
 
@@ -2153,6 +2156,99 @@ export class TableManagerApplication
                 return generateProfileTables(profile);
             }
         );
+    }
+
+    async generateProfileBatch(
+        profileIds,
+        { onlyPending = false } = {}
+    ) {
+        let generated = 0;
+        let skipped = 0;
+        let failed = 0;
+        const profiles = TableProfileStorageService.getProfiles();
+
+        for (const profileId of new Set(profileIds ?? [])) {
+            const profile = profiles?.[profileId];
+
+            if (!profile) {
+                skipped++;
+                continue;
+            }
+
+            try {
+                if (
+                    onlyPending &&
+                    !(await profileNeedsRegeneration(profile))
+                ) {
+                    skipped++;
+                    continue;
+                }
+
+                await this.generateStoredProfileTables(profileId);
+                generated++;
+            }
+            catch (error) {
+                if ([
+                    "TABLE_PROFILE_NO_ACTIVE_GROUPS",
+                    "TABLE_PROFILE_NO_ACTIVE_CHILDREN",
+                    "TABLE_PROFILE_NO_OBJECTS"
+                ].includes(error?.message)) {
+                    skipped++;
+                }
+                else {
+                    failed++;
+                    console.error(
+                        "Compendium Curator | Error generando un lote de perfiles.",
+                        { profileId, profileName: profile.name, error }
+                    );
+                }
+            }
+        }
+
+        return { generated, skipped, failed };
+    }
+
+    async deleteProfileBatch(profileIds) {
+        let deletedProfiles = 0;
+        let deletedTables = 0;
+        const profiles = TableProfileStorageService.getProfiles();
+        const selectedIds = new Set(profileIds ?? []);
+        const profileApplications = [
+            "_filterGroupEditor",
+            "_filterCriteriaEditor",
+            "_profileExclusions",
+            "_groupingRangeEditor",
+            "_manualGroupingEditor"
+        ];
+
+        this._closeProfileActionsPopover();
+
+        for (const property of profileApplications) {
+            const application = this[property];
+
+            if (!selectedIds.has(application?.profileId))
+                continue;
+
+            if (application.rendered)
+                await application.close();
+
+            this[property] = null;
+        }
+
+        for (const profileId of selectedIds) {
+            const profile = profiles?.[profileId];
+            if (!profile)
+                continue;
+
+            deletedTables += await TableProfileGenerationService
+                .deleteGeneratedTables(profile);
+            await TableProfileStorageService.removeProfile(profileId);
+            this._openContentInspectors.delete(profileId);
+            this._ccSelectedProfileIds.delete(profileId);
+            deletedProfiles++;
+        }
+
+        return { deletedProfiles, deletedTables };
     }
 
     static DEFAULT_OPTIONS = {
@@ -2189,7 +2285,6 @@ export class TableManagerApplication
             duplicateFilterGroup: this.#onDuplicateFilterGroup,
             deleteGlobalFilterGroup: this.#onDeleteGlobalFilterGroup,
             toggleProfileActions: this.#onToggleProfileActions,
-            filterGroupDetails: this.#onFilterGroupDetails,
             refreshFilterGroup: this.#onRefreshFilterGroup,
             editFilterGroup: this.#onEditFilterGroup,
             loadFilterGroup: this.#onLoadFilterGroup,
@@ -2446,6 +2541,10 @@ export class TableManagerApplication
                         Boolean(
                             profile.generation?.rootUuid
                         ),
+                    generationPending:
+                        generatedRevision === 0 ||
+                        generatedRevision !== revision ||
+                        hasPendingDependency,
                     generatedTableUuid:
                         profile.generation?.rootUuid ??
                         "",
@@ -2520,6 +2619,38 @@ export class TableManagerApplication
                     filteredUuids.size +
                     manualIncludeCount;
                 const useCount = usedBy.length;
+                const detailsOpen =
+                    this._openFilterGroups.has(
+                        filterGroup.id
+                    );
+                const matchUuids = [
+                    ...new Set([
+                        ...(filterGroup.matches ?? []),
+                        ...(filterGroup.manualIncludes ?? [])
+                    ])
+                ];
+                const manualIncludes = new Set(
+                    filterGroup.manualIncludes ?? []
+                );
+                const displayFilters = detailsOpen
+                    ? TableProfileService
+                        .getFilterDisplayGroups(
+                            this.browserApp,
+                            filterGroup.browser?.filters ?? {}
+                        )
+                    : [];
+                const matches = detailsOpen
+                    ? prepareDnd5eIndexedEntries(
+                        matchUuids
+                    )
+                        .map(entry => ({
+                            ...entry,
+                            manuallyIncluded:
+                                manualIncludes.has(
+                                    entry.uuid
+                                )
+                        }))
+                    : [];
 
                 return {
                     id: filterGroup.id,
@@ -2527,6 +2658,26 @@ export class TableManagerApplication
                     matchCount,
                     useCount,
                     usedBy,
+                    detailsOpen,
+                    filtersOpen:
+                        this._openFilterGroupSections.has(
+                            `${filterGroup.id}:filters`
+                        ),
+                    contentOpen:
+                        this._openFilterGroupSections.has(
+                            `${filterGroup.id}:content`
+                        ),
+                    usageOpen:
+                        this._openFilterGroupSections.has(
+                            `${filterGroup.id}:usage`
+                        ),
+                    displayFilters,
+                    hasFilters:
+                        displayFilters.length > 0,
+                    matches,
+                    hasMatches: matches.length > 0,
+                    manualIncludedCount:
+                        manualIncludes.size,
                     matchesLabel: game.i18n.format(
                         manualIncludeCount
                             ? "COMPENDIUM_CURATOR.FilterGroupObjectsWithManual"
@@ -3669,6 +3820,74 @@ export class TableManagerApplication
             entry.hidden = Boolean(query) && !haystack.includes(query);
         }
 
+        for (
+            const details
+            of this.element.querySelectorAll(
+                "details[data-filter-group-id]"
+            )
+        ) {
+            const filterGroupId =
+                details.dataset.filterGroupId;
+
+            if (!filterGroupId)
+                continue;
+
+            if (details.open)
+                this._openFilterGroups.add(filterGroupId);
+
+            details.addEventListener(
+                "toggle",
+                () => {
+                    if (details.open) {
+                        const wasLoaded =
+                            this._openFilterGroups.has(
+                                filterGroupId
+                            );
+                        this._openFilterGroups.add(
+                            filterGroupId
+                        );
+
+                        if (!wasLoaded) {
+                            this.render({ force: true });
+                        }
+                    }
+                    else {
+                        this._openFilterGroups.delete(
+                            filterGroupId
+                        );
+                    }
+                }
+            );
+        }
+
+        for (
+            const details
+            of this.element.querySelectorAll(
+                "details[data-filter-group-section]"
+            )
+        ) {
+            const filterGroupId = details.closest(
+                "[data-filter-group-id]"
+            )?.dataset?.filterGroupId;
+            const section =
+                details.dataset.filterGroupSection;
+
+            if (!filterGroupId || !section)
+                continue;
+
+            const key = `${filterGroupId}:${section}`;
+
+            if (details.open)
+                this._openFilterGroupSections.add(key);
+
+            details.addEventListener("toggle", () => {
+                if (details.open)
+                    this._openFilterGroupSections.add(key);
+                else
+                    this._openFilterGroupSections.delete(key);
+            });
+        }
+
         Hooks.callAll(
             "filterTableManagerApplication",
             this
@@ -3687,13 +3906,6 @@ export class TableManagerApplication
             affectedProfiles.has(this._profileExclusions.profileId)
         ) {
             this._profileExclusions.render({ force: true });
-        }
-
-        if (
-            this._filterGroupDetails?.rendered &&
-            this._filterGroupDetails.filterGroupId === filterGroupId
-        ) {
-            this._filterGroupDetails.render({ force: true });
         }
 
         if (
@@ -3717,7 +3929,6 @@ export class TableManagerApplication
             "_filterCriteriaEditor",
             "_profileExclusions",
             "_filterGroupInclusions",
-            "_filterGroupDetails",
             "_groupingRangeEditor",
             "_manualGroupingEditor"
         ];
@@ -4276,48 +4487,8 @@ export class TableManagerApplication
 
         target.disabled = true;
 
-        let generated = 0;
-        let skipped = 0;
-        let failed = 0;
-
-        for (const profileId of profileIds) {
-            const profile =
-                TableProfileStorageService
-                    .getProfiles()?.[profileId];
-
-            if (!profile) {
-                skipped++;
-                continue;
-            }
-
-            try {
-                await this
-                    .generateStoredProfileTables(
-                        profileId
-                    );
-                generated++;
-            }
-            catch (error) {
-                if ([
-                    "TABLE_PROFILE_NO_ACTIVE_GROUPS",
-                    "TABLE_PROFILE_NO_ACTIVE_CHILDREN",
-                    "TABLE_PROFILE_NO_OBJECTS"
-                ].includes(error?.message)) {
-                    skipped++;
-                }
-                else {
-                    failed++;
-                    console.error(
-                        "Compendium Curator | Error generando un perfil visible.",
-                        {
-                            profileId,
-                            profileName: profile.name,
-                            error
-                        }
-                    );
-                }
-            }
-        }
+        const { generated, skipped, failed } =
+            await this.generateProfileBatch(profileIds);
 
         const summary = game.i18n.format(
             "COMPENDIUM_CURATOR.VisibleTablesGenerationSummary",
@@ -4981,7 +5152,6 @@ export class TableManagerApplication
             "_filterGroupEditor",
             "_filterCriteriaEditor",
             "_profileExclusions",
-            "_filterGroupDetails",
             "_groupingRangeEditor",
             "_manualGroupingEditor"
         ];
@@ -5286,14 +5456,6 @@ export class TableManagerApplication
         );
 
         if (
-            this._filterGroupDetails?.rendered &&
-            this._filterGroupDetails.filterGroupId === filterGroupId
-        ) {
-            await this._filterGroupDetails.close();
-            this._filterGroupDetails = null;
-        }
-
-        if (
             this._filterGroupInclusions?.rendered &&
             this._filterGroupInclusions.filterGroupId ===
                 filterGroupId
@@ -5498,55 +5660,6 @@ export class TableManagerApplication
         this._profileActionsProfileId = null;
         this._profileActionsOutsideHandler = null;
         this._profileActionsViewportHandler = null;
-    }
-
-    static async #onFilterGroupDetails(event, target) {
-        event.preventDefault();
-        event.stopPropagation();
-
-        const profileId = target
-            .closest("[data-profile-id]")
-            ?.dataset?.profileId ?? null;
-
-        const filterGroupId = target
-            .closest("[data-filter-group-id]")
-            ?.dataset?.filterGroupId;
-
-        if (!filterGroupId)
-            return;
-
-        const filterGroup =
-            TableProfileStorageService.getFilterGroup(filterGroupId);
-
-        const profile = profileId
-            ? TableProfileStorageService.getProfiles()?.[profileId]
-            : null;
-
-        if (!filterGroup) {
-            ui.notifications.warn(
-                game.i18n.localize(
-                    "COMPENDIUM_CURATOR.FilterGroupNotFound"
-                )
-            );
-            return;
-        }
-
-        if (this._filterGroupDetails?.rendered) {
-            if (this._filterGroupDetails.filterGroupId === filterGroupId) {
-                this._filterGroupDetails.bringToFront();
-                return;
-            }
-
-            await this._filterGroupDetails.close();
-        }
-
-        this._filterGroupDetails = new TableFilterGroupDetailsApplication(
-            this.browserApp,
-            profile,
-            filterGroup
-        );
-
-        this._filterGroupDetails.render({ force: true });
     }
 
     static async #onRefreshFilterGroup(event, target) {
@@ -5919,11 +6032,5 @@ export class TableManagerApplication
             }
         }
 
-        if (
-            this._filterGroupDetails?.rendered &&
-            this._filterGroupDetails.filterGroupId === filterGroupId
-        ) {
-            this._filterGroupDetails.render({ force: true });
-        }
     }
 }

@@ -29,7 +29,7 @@ function validBundle() {
         data: {
             tableDefaults: {},
             tableProfiles: {
-                version: 5,
+                version: 6,
                 folders: {
                     shops: {
                         id: "shops",
@@ -37,10 +37,18 @@ function validBundle() {
                         parentId: null
                     }
                 },
+                filterGroupFolders: {
+                    creatures: {
+                        id: "creatures",
+                        name: "Criaturas",
+                        parentId: null
+                    }
+                },
                 filterGroups: {
                     magic: {
                         id: "magic",
                         name: "Magia",
+                        folderId: "creatures",
                         matches: [
                             "Compendium.test.items.Item.a"
                         ],
@@ -101,6 +109,7 @@ test("accepts a complete portable manager backup", () => {
     assert.equal(result.profileCount, 2);
     assert.equal(result.filterGroupCount, 1);
     assert.equal(result.folderCount, 1);
+    assert.equal(result.filterGroupFolderCount, 1);
     assert.deepEqual(
         result.tableProfiles.profiles.parent
             .generation,
@@ -151,5 +160,11 @@ test("rejects orphaned and cyclic folders", () => {
             parentId: "shops"
         };
         storage.folders.shops.parentId = "other";
+    });
+});
+
+test("rejects orphaned filter group folders", () => {
+    expectInvalid(storage => {
+        storage.filterGroups.magic.folderId = "missing";
     });
 });

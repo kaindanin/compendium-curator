@@ -35,75 +35,83 @@ function normalizeComparableName(value) {
 }
 
 function validateVisualStructure(tableProfiles) {
-    const folders = tableProfiles.folders ?? {};
-    const siblingNames = new Set();
+    const validateFolders = (folders, entries) => {
+        const siblingNames = new Set();
 
-    for (
-        const [folderId, folder]
-        of Object.entries(folders)
-    ) {
-        const name = String(
-            folder?.name ?? ""
-        ).trim();
-        const parentId = String(
-            folder?.parentId ?? ""
-        ).trim() || null;
-
-        if (
-            !folderId ||
-            !isPlainObject(folder) ||
-            !name ||
-            parentId === folderId ||
-            (parentId && !folders[parentId])
+        for (
+            const [folderId, folder]
+            of Object.entries(folders)
         ) {
-            throw new Error(
-                "INVALID_TABLE_MANAGER_VISUAL_STRUCTURE"
-            );
-        }
+            const name = String(
+                folder?.name ?? ""
+            ).trim();
+            const parentId = String(
+                folder?.parentId ?? ""
+            ).trim() || null;
 
-        const siblingKey = `${parentId ?? ""}\u0000${
-            normalizeComparableName(name)
-        }`;
-
-        if (siblingNames.has(siblingKey)) {
-            throw new Error(
-                "INVALID_TABLE_MANAGER_VISUAL_STRUCTURE"
-            );
-        }
-
-        siblingNames.add(siblingKey);
-
-        const visited = new Set([folderId]);
-        let ancestorId = parentId;
-
-        while (ancestorId) {
-            if (visited.has(ancestorId)) {
+            if (
+                !folderId ||
+                !isPlainObject(folder) ||
+                !name ||
+                parentId === folderId ||
+                (parentId && !folders[parentId])
+            ) {
                 throw new Error(
                     "INVALID_TABLE_MANAGER_VISUAL_STRUCTURE"
                 );
             }
 
-            visited.add(ancestorId);
-            ancestorId = String(
-                folders[ancestorId]
-                    ?.parentId ?? ""
-            ).trim() || null;
-        }
-    }
+            const siblingKey = `${parentId ?? ""}\u0000${
+                normalizeComparableName(name)
+            }`;
 
-    for (const profile of Object.values(
+            if (siblingNames.has(siblingKey)) {
+                throw new Error(
+                    "INVALID_TABLE_MANAGER_VISUAL_STRUCTURE"
+                );
+            }
+
+            siblingNames.add(siblingKey);
+
+            const visited = new Set([folderId]);
+            let ancestorId = parentId;
+
+            while (ancestorId) {
+                if (visited.has(ancestorId)) {
+                    throw new Error(
+                        "INVALID_TABLE_MANAGER_VISUAL_STRUCTURE"
+                    );
+                }
+
+                visited.add(ancestorId);
+                ancestorId = String(
+                    folders[ancestorId]
+                        ?.parentId ?? ""
+                ).trim() || null;
+            }
+        }
+
+        for (const entry of Object.values(entries)) {
+            const folderId = String(
+                entry?.folderId ?? ""
+            ).trim();
+
+            if (folderId && !folders[folderId]) {
+                throw new Error(
+                    "INVALID_TABLE_MANAGER_VISUAL_STRUCTURE"
+                );
+            }
+        }
+    };
+
+    validateFolders(
+        tableProfiles.folders ?? {},
         tableProfiles.profiles ?? {}
-    )) {
-        const folderId = String(
-            profile?.folderId ?? ""
-        ).trim();
-
-        if (folderId && !folders[folderId]) {
-            throw new Error(
-                "INVALID_TABLE_MANAGER_VISUAL_STRUCTURE"
-            );
-        }
-    }
+    );
+    validateFolders(
+        tableProfiles.filterGroupFolders ?? {},
+        tableProfiles.filterGroups ?? {}
+    );
 }
 
 function childProfileId(child) {
@@ -309,6 +317,10 @@ function sanitizeTableProfiles(source) {
 
     if (!isPlainObject(tableProfiles.folders)) {
         tableProfiles.folders = {};
+    }
+
+    if (!isPlainObject(tableProfiles.filterGroupFolders)) {
+        tableProfiles.filterGroupFolders = {};
     }
 
     for (
@@ -519,6 +531,10 @@ export class TableManagerConfigurationService {
             folderCount:
                 Object.keys(
                     tableProfiles.folders ?? {}
+                ).length,
+            filterGroupFolderCount:
+                Object.keys(
+                    tableProfiles.filterGroupFolders ?? {}
                 ).length
         };
     }
@@ -578,6 +594,19 @@ export class TableManagerConfigurationService {
                 ).length !==
                 Object.keys(
                     imported.tableProfiles.folders ?? {}
+                ).length
+            ) {
+                throw new Error(
+                    "TABLE_MANAGER_CONFIGURATION_NOT_APPLIED"
+                );
+            }
+
+            if (
+                Object.keys(
+                    storedProfiles.filterGroupFolders ?? {}
+                ).length !==
+                Object.keys(
+                    imported.tableProfiles.filterGroupFolders ?? {}
                 ).length
             ) {
                 throw new Error(
@@ -662,6 +691,29 @@ export class TableManagerConfigurationService {
             }
 
             for (
+                const [folderId, importedFolder]
+                of Object.entries(
+                    imported.tableProfiles.filterGroupFolders ?? {}
+                )
+            ) {
+                const storedFolder =
+                    storedProfiles.filterGroupFolders?.[folderId];
+
+                if (
+                    !storedFolder ||
+                    storedFolder.name !== String(
+                        importedFolder?.name ?? ""
+                    ).trim() ||
+                    (storedFolder.parentId ?? null) !==
+                        (String(importedFolder?.parentId ?? "").trim() || null)
+                ) {
+                    throw new Error(
+                        "TABLE_MANAGER_CONFIGURATION_NOT_APPLIED"
+                    );
+                }
+            }
+
+            for (
                 const [filterGroupId, importedGroup]
                 of Object.entries(
                     imported.tableProfiles.filterGroups ?? {}
@@ -676,6 +728,8 @@ export class TableManagerConfigurationService {
                     !storedGroup ||
                     String(storedGroup.name ?? "") !==
                         String(importedGroup.name ?? "") ||
+                    (storedGroup.folderId ?? null) !==
+                        (String(importedGroup.folderId ?? "").trim() || null) ||
                     !sameJsonValue(
                         storedGroup.matches ?? [],
                         importedGroup.matches ?? []
@@ -775,10 +829,15 @@ async function restoreConfigurationBundle(
                         ))}:</strong>
                         ${preview.filterGroupCount}<br>
                         <strong>${escape(text(
-                            "Carpetas",
-                            "Folders"
+                            "Carpetas de tablas",
+                            "Table folders"
                         ))}:</strong>
-                        ${preview.folderCount}
+                        ${preview.folderCount}<br>
+                        <strong>${escape(text(
+                            "Carpetas de grupos",
+                            "Filter group folders"
+                        ))}:</strong>
+                        ${preview.filterGroupFolderCount}
                     </p>
                     <p>${text(
                         "Las referencias a RollTables generadas no se restaurarán.",

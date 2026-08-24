@@ -350,6 +350,23 @@
     "TablesWithoutFolder": "Sin carpeta",
     "MoveTableToFolderHint": "Arrastrar para mover la tabla",
     "MoveFolderHint": "Arrastrar para mover la carpeta",
-    "DeleteFolderConfirm": "¿Eliminar la carpeta «{name}»? Sus tablas y subcarpetas pasarán al nivel superior; no se eliminará ninguna tabla."
+    "DeleteFolderConfirm": "¿Eliminar la carpeta «{name}»? Sus tablas y subcarpetas pasarán al nivel superior; no se eliminará ninguna tabla.",
+    "FilterGroupFolderCount": "{count} grupos",
+    "FilterGroupsWithoutFolder": "Grupos sin carpeta",
+    "MoveFilterGroupToFolderHint": "Arrastrar para mover el grupo",
+    "DeleteFilterGroupFolderConfirm": "¿Eliminar la carpeta «{name}»? Sus grupos y subcarpetas pasarán al nivel superior; no se eliminará ningún grupo.",
+    "SelectTable": "Seleccionar tabla",
+    "SelectedTableCount": "{count} seleccionadas",
+    "SelectVisibleTables": "Seleccionar visibles",
+    "SelectPendingTables": "Seleccionar pendientes",
+    "ClearSelection": "Limpiar selección",
+    "GenerateSelectedTables": "Generar o actualizar seleccionadas",
+    "MoveSelectedTables": "Mover seleccionadas",
+    "DeleteSelectedTables": "Eliminar seleccionadas",
+    "DeleteSelectedTablesConfirm": "¿Eliminar las {count} tablas seleccionadas? También se eliminarán sus RollTables gestionadas.",
+    "DeletedSelectedTablesSummary": "Se han eliminado {deletedProfiles} perfiles y {deletedTables} RollTables gestionadas.",
+    "BulkTableOperationFailed": "No se pudo completar la operación múltiple.",
+    "GenerateFolderTables": "Generar o actualizar tablas de esta carpeta",
+    "Move": "Mover"
   }
 }

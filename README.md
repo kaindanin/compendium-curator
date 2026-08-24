@@ -36,6 +36,8 @@ Forget about spending hours creating and organizing custom compendiums just to c
 * Display loading indicators during long operations.
 * Create content and composite tables directly from the Compendium Browser.
 * Visually organize tables into folders and reproduce that structure on first generation.
+* Select, generate, move, or delete several table profiles at once, including folder-level generation.
+* Browse filter groups as compact expandable cards and organize them in independent visual folders.
 * Configure groups, weights, object rules, exclusions, and linked tables from one view.
 * Export one table or create a complete Manager backup with folders and defaults.
 
@@ -112,6 +114,8 @@ Untranslated copies may still appear within these groups for comparison, but one
 Click **Manage tables** in the Compendium Browser to open the Manager. Creating a table only asks for a name; filter groups and linked tables can then be added from its actions menu.
 
 The **Content** block presents every group and linked table as an expandable branch. Groups expose their grouping, weights, and object rules. Linked tables reproduce the original structure as a read-only view, while only the relationship weight remains editable from the parent table.
+
+The **Groups** tab uses the same compact expandable layout, with saved filters, matching objects, and table usage inline. Its folders are independent and visual only; they never create or move generated RollTables.
 
 Manager folders are a visual organization. When a table is generated for the first time, that structure is reproduced in the default world or compendium destination. Later updates keep the document in its current location; if the user manually moves it elsewhere, the Manager does not force it back. Technical subtables are stored below the root **Subtables** folder and mirror the Manager organization.
 

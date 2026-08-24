@@ -35,6 +35,8 @@ Olvídate de invertir horas creando y organizando compendios personalizados solo
 * Mostrar indicadores de carga durante operaciones largas.
 * Crear tablas de contenido y tablas compuestas desde el propio Navegador de Compendios.
 * Organizar visualmente las tablas en carpetas y reproducir esa estructura en su primera generación.
+* Seleccionar, generar, mover o eliminar varios perfiles de tabla a la vez, incluida la generación por carpeta.
+* Consultar los grupos como tarjetas compactas desplegables y organizarlos en carpetas visuales independientes.
 * Configurar grupos, pesos, reglas de objetos, exclusiones y tablas enlazadas desde una única vista.
 * Exportar una tabla o realizar una copia completa del Gestor con sus carpetas y valores predeterminados.
 
@@ -111,6 +113,8 @@ Las copias sin traducir pueden aparecer dentro de estos grupos para facilitar la
 Pulsa **Gestionar tablas** en el Navegador de Compendios para abrir el Gestor. Una tabla nueva solo pide un nombre; después puedes añadirle grupos de filtros y tablas enlazadas desde su menú de acciones.
 
 El bloque **Contenido** reúne cada grupo y tabla enlazada como una rama desplegable. Los grupos permiten configurar su agrupación, pesos y reglas. Las tablas enlazadas muestran la estructura original en modo de solo lectura y únicamente permiten cambiar el peso de la relación desde la tabla padre.
+
+La pestaña **Grupos** usa el mismo diseño compacto y desplegable, con los filtros guardados, los objetos coincidentes y el uso en tablas dentro de cada tarjeta. Sus carpetas son independientes y únicamente visuales; nunca crean ni mueven RollTables generadas.
 
 Las carpetas del Gestor son una organización visual. La primera vez que se genera una tabla, esa estructura se replica en el mundo o compendio predeterminado. Las actualizaciones posteriores conservan el documento en su ubicación actual; si el usuario lo mueve manualmente a otro lugar, el Gestor no lo devuelve a la fuerza. Las subtablas técnicas se guardan bajo la carpeta raíz **Subtablas**, reflejando la organización del Gestor.
 

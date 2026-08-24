@@ -350,6 +350,23 @@
     "TablesWithoutFolder": "No folder",
     "MoveTableToFolderHint": "Drag to move the table",
     "MoveFolderHint": "Drag to move the folder",
-    "DeleteFolderConfirm": "Delete the “{name}” folder? Its tables and subfolders will move to the parent level; no table will be deleted."
+    "DeleteFolderConfirm": "Delete the “{name}” folder? Its tables and subfolders will move to the parent level; no table will be deleted.",
+    "FilterGroupFolderCount": "{count} groups",
+    "FilterGroupsWithoutFolder": "Groups without folder",
+    "MoveFilterGroupToFolderHint": "Drag to move the group",
+    "DeleteFilterGroupFolderConfirm": "Delete the “{name}” folder? Its groups and subfolders will move to the parent level; no group will be deleted.",
+    "SelectTable": "Select table",
+    "SelectedTableCount": "{count} selected",
+    "SelectVisibleTables": "Select visible",
+    "SelectPendingTables": "Select pending",
+    "ClearSelection": "Clear selection",
+    "GenerateSelectedTables": "Generate or update selected",
+    "MoveSelectedTables": "Move selected",
+    "DeleteSelectedTables": "Delete selected",
+    "DeleteSelectedTablesConfirm": "Delete the {count} selected tables? Their managed RollTables will also be deleted.",
+    "DeletedSelectedTablesSummary": "Deleted {deletedProfiles} profiles and {deletedTables} managed RollTables.",
+    "BulkTableOperationFailed": "The bulk operation could not be completed.",
+    "GenerateFolderTables": "Generate or update tables in this folder",
+    "Move": "Move"
   }
 }

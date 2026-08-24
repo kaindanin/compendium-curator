@@ -15,8 +15,9 @@ globalThis.game = {
     packs: new Map(),
     settings: {
         get: () => ({
-            version: 5,
+            version: 6,
             folders: {},
+            filterGroupFolders: {},
             profiles: {},
             filterGroups: {}
         })

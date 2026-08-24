@@ -36,6 +36,12 @@ import {
 import {
     registerTableManagerFolders
 } from "./services/table-manager-folder-service.js";
+import {
+    registerTableManagerFilterGroupFolders
+} from "./services/table-manager-filter-group-folder-service.js";
+import {
+    registerTableManagerBulkActions
+} from "./services/table-manager-bulk-actions-service.js";
 
 Hooks.once("init", () => {
 
@@ -54,6 +60,8 @@ Hooks.once("init", () => {
     registerTableManagerStructuralContent();
     registerTableManagerLinkedTableExpandedPreview();
     registerTableManagerFolders();
+    registerTableManagerFilterGroupFolders();
+    registerTableManagerBulkActions();
 
     debug("Settings registradas");
 
