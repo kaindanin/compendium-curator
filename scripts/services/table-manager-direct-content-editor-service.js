@@ -1705,7 +1705,7 @@ async function saveSourceConfiguration(
 
 function updateCount(inspector, count) {
     const summary = inspector.querySelector(
-        ":scope > summary .cc-table-manager-profile-object-count"
+        ".cc-table-content-object-count"
     );
 
     if (summary) {
@@ -2479,6 +2479,12 @@ function renderEditor(
     sources,
     tableViews
 ) {
+    const totalCount = dedupe(
+        sources.flatMap(source =>
+            source.entries
+        )
+    ).length;
+
     return `
         <div
             data-cc-direct-content-editor
@@ -2488,26 +2494,49 @@ function renderEditor(
                 gap:0.55rem;
             "
         >
-            ${sources.length
-                ? sources.map(source => {
-                    if (source.type === "table") {
-                        return renderTableSource(
-                            source,
-                            tableViews.get(
-                                source.sourceId
-                            )
-                        );
-                    }
+            <details
+                class="cc-table-filter-detail-block cc-table-content-section"
+                data-cc-content-section
+            >
+                <summary class="cc-table-section-summary">
+                    <span>
+                        <i class="fas fa-chevron-down"></i>
+                        <i class="fas fa-boxes-stacked"></i>
+                        ${esc(game.i18n.localize(
+                            "COMPENDIUM_CURATOR.TableManagerTabContent"
+                        ))}
+                    </span>
+                    <strong class="cc-table-content-object-count">
+                        ${esc(game.i18n.format(
+                            "COMPENDIUM_CURATOR.GroupObjectCount",
+                            { count: totalCount }
+                        ))}
+                    </strong>
+                </summary>
 
-                    return renderEditableSource(
-                        source
-                    );
-                }).join("")
-                : `<p class="hint">${esc(text(
-                    "Esta tabla todavía no tiene contenido directo.",
-                    "This table does not have direct content yet."
-                ))}</p>`
-            }
+                <div class="cc-table-content-list">
+                    ${sources.length
+                        ? sources.map(source => {
+                            if (source.type === "table") {
+                                return renderTableSource(
+                                    source,
+                                    tableViews.get(
+                                        source.sourceId
+                                    )
+                                );
+                            }
+
+                            return renderEditableSource(
+                                source
+                            );
+                        }).join("")
+                        : `<p class="hint">${esc(text(
+                            "Esta tabla todavía no tiene contenido directo.",
+                            "This table does not have direct content yet."
+                        ))}</p>`
+                    }
+                </div>
+            </details>
         </div>
     `;
 }

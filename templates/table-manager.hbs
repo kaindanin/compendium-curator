@@ -264,15 +264,6 @@
                                 {{/unless}}
                             </div>
 
-                            {{#if isContent}}
-                                <strong class="cc-table-manager-profile-object-count">
-                                    {{localize
-                                        "COMPENDIUM_CURATOR.GroupObjectCount"
-                                        count=inspector.finalCount
-                                    }}
-                                </strong>
-                            {{/if}}
-
                             <div class="cc-table-manager-profile-status">
                                 {{status}}
                             </div>
@@ -454,7 +445,7 @@
                                             class="cc-table-filter-detail-block cc-table-item-rules"
                                             data-cc-item-rules
                                         >
-                                            <summary class="cc-table-item-rules-summary">
+                                            <summary class="cc-table-section-summary">
                                                 <span>
                                                     <i class="fas fa-chevron-down"></i>
                                                     <i class="fas fa-tags"></i>

@@ -478,7 +478,7 @@ async function saveMode(profileId, mode) {
 
 function updateCount(inspector, count) {
     const summary = inspector.querySelector(
-        ":scope > summary .cc-table-manager-profile-object-count"
+        ".cc-table-content-object-count"
     );
     if (summary) {
         summary.textContent = game.i18n.format(

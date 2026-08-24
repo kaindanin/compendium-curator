@@ -132,7 +132,7 @@ function removeDuplicateGroups(root) {
     for (
         const source
         of root.querySelectorAll(
-            ":scope > [data-cc-direct-source]"
+            ":scope > [data-cc-content-section] > .cc-table-content-list > [data-cc-direct-source]"
         )
     ) {
         if (
@@ -224,7 +224,7 @@ function cloneProfileStructure(
     for (
         const tableSource
         of clone.querySelectorAll(
-            ":scope > [data-cc-direct-source]"
+            ":scope > [data-cc-content-section] > .cc-table-content-list > [data-cc-direct-source]"
         )
     ) {
         const weight = tableSource.querySelector(
@@ -299,7 +299,7 @@ function enhanceManager(element) {
     for (
         const tableSource
         of element.querySelectorAll(
-            "[data-cc-direct-content-editor] > [data-cc-direct-source]"
+            "[data-cc-direct-content-editor] > [data-cc-content-section] > .cc-table-content-list > [data-cc-direct-source]"
         )
     ) {
         const weight = tableSource.querySelector(
@@ -330,6 +330,10 @@ function enhanceManager(element) {
 }
 
 function disclosureSegment(details) {
+    if (details.dataset.ccContentSection !== undefined) {
+        return "content";
+    }
+
     if (details.dataset.ccItemRules !== undefined) {
         return "item-rules";
     }

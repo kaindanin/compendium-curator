@@ -202,7 +202,7 @@ function refineRow(row) {
     for (
         const source
         of editor.querySelectorAll(
-            ":scope > [data-cc-direct-source]"
+            ":scope > [data-cc-content-section] > .cc-table-content-list > [data-cc-direct-source]"
         )
     ) {
         if (

@@ -1303,7 +1303,7 @@ function updateInspectorCount(
 ) {
     const summaryCount =
         inspector.querySelector(
-            ":scope > summary .cc-table-manager-profile-object-count"
+            ".cc-table-content-object-count"
         );
 
     if (summaryCount) {

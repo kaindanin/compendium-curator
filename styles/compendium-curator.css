@@ -876,7 +876,6 @@
         minmax(0, 1fr)
         auto
         auto
-        auto
         auto;
     align-items: center;
     gap: 0.75rem;
@@ -898,12 +897,6 @@
     flex-direction: row;
     align-items: baseline;
     gap: 0.55rem;
-}
-
-.cc-table-manager-profile-object-count {
-    color: var(--color-text-subtle);
-    font-size: 0.9rem;
-    white-space: nowrap;
 }
 
 .cc-table-manager-app .fa-chevron-down {
@@ -999,27 +992,44 @@
     display: block;
 }
 
-.cc-table-item-rules-summary {
+.cc-table-section-summary {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 0.5rem;
 
     cursor: pointer;
     list-style: none;
 }
 
-.cc-table-item-rules-summary::-webkit-details-marker {
+.cc-table-section-summary::-webkit-details-marker {
     display: none;
 }
 
-.cc-table-item-rules-summary > span {
+.cc-table-section-summary > span {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
 }
 
-.cc-table-item-rules-summary .fa-tags {
+.cc-table-section-summary
+    > span
+    > i:not(.fa-chevron-down) {
     opacity: 0.75;
+}
+
+.cc-table-content-object-count {
+    color: var(--color-text-subtle);
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.cc-table-content-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+
+    padding-top: 0.55rem;
 }
 
 .cc-table-item-rules-list {
