@@ -30,6 +30,9 @@ import {
 import {
     registerTableManagerStructuralContent
 } from "./services/table-manager-structural-content-service.js";
+import {
+    registerTableManagerLinkedTableExpandedPreview
+} from "./services/table-manager-linked-table-expanded-preview-service.js";
 
 Hooks.once("init", () => {
 
@@ -46,6 +49,7 @@ Hooks.once("init", () => {
     registerTableManagerDirectContentMode();
     registerTableManagerDirectContentEditor();
     registerTableManagerStructuralContent();
+    registerTableManagerLinkedTableExpandedPreview();
 
     debug("Settings registradas");
 
