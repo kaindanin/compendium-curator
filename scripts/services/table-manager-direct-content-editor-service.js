@@ -2508,12 +2508,6 @@ function renderEditor(
                 gap:0.55rem;
             "
         >
-            <p class="hint" style="margin:0;">
-                ${esc(text(
-                    "Cada contenido directo es una rama con su propio peso. Los grupos se configuran aquí; las tablas enlazadas conservan su configuración original y solo exponen el peso de la referencia.",
-                    "Each direct content source is a weighted branch. Groups are configured here; linked tables keep their original configuration and only expose the reference weight."
-                ))}
-            </p>
             ${sources.length
                 ? sources.map(source => {
                     if (source.type === "table") {
