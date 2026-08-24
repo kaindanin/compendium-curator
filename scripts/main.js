@@ -18,6 +18,9 @@ import {
 import {
     registerTableManagerUnifiedTabs
 } from "./services/table-manager-unified-tabs-service.js";
+import {
+    registerTableManagerRecursivePreview
+} from "./services/table-manager-recursive-preview-service.js";
 
 Hooks.once("init", () => {
 
@@ -30,6 +33,7 @@ Hooks.once("init", () => {
     registerTableManagerConfigurationControls();
     registerTableManagerRecursiveNesting();
     registerTableManagerUnifiedTabs();
+    registerTableManagerRecursivePreview();
 
     debug("Settings registradas");
 
