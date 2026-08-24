@@ -324,8 +324,8 @@ function simplifyTableEditor(
     if (nameLabel) {
         nameLabel.textContent =
             text(
-                "Nombre de la tabla",
-                "Table name"
+                "Nombre",
+                "Name"
             );
     }
 }

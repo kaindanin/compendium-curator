@@ -3834,6 +3834,7 @@ export class TableManagerApplication
         this._profileEditor ??=
             new TableProfileEditorApplication(this.browserApp);
 
+        this._profileEditor.prepareForCreate();
         this._profileEditor.render({ force: true });
     }
 

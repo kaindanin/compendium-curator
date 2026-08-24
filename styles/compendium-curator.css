@@ -1635,6 +1635,25 @@
     flex: 0 0 270px;
 }
 
+.cc-table-profile-editor-general
+    .cc-table-profile-editor-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.cc-table-profile-editor-general
+    .cc-table-profile-editor-row > .form-fields {
+    min-width: 0;
+}
+
+.cc-table-profile-editor-general
+    .cc-table-profile-editor-row input {
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
 .cc-table-profile-editor-weight-row > .form-fields {
     flex: 0 0 80px;
 }
