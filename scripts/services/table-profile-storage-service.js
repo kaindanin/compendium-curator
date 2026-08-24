@@ -4047,6 +4047,7 @@ export class TableProfileStorageService {
             const newId = profileIdMap.get(sourceId);
 
             profile.id = newId;
+            profile.folderId = null;
             profile.name = getUniqueProfileName(
                 profile.name
             );

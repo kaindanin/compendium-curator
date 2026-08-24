@@ -26,6 +26,86 @@ function isPlainObject(value) {
     );
 }
 
+function normalizeComparableName(value) {
+    return String(value ?? "")
+        .trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLocaleLowerCase();
+}
+
+function validateVisualStructure(tableProfiles) {
+    const folders = tableProfiles.folders ?? {};
+    const siblingNames = new Set();
+
+    for (
+        const [folderId, folder]
+        of Object.entries(folders)
+    ) {
+        const name = String(
+            folder?.name ?? ""
+        ).trim();
+        const parentId = String(
+            folder?.parentId ?? ""
+        ).trim() || null;
+
+        if (
+            !folderId ||
+            !isPlainObject(folder) ||
+            !name ||
+            parentId === folderId ||
+            (parentId && !folders[parentId])
+        ) {
+            throw new Error(
+                "INVALID_TABLE_MANAGER_VISUAL_STRUCTURE"
+            );
+        }
+
+        const siblingKey = `${parentId ?? ""}\u0000${
+            normalizeComparableName(name)
+        }`;
+
+        if (siblingNames.has(siblingKey)) {
+            throw new Error(
+                "INVALID_TABLE_MANAGER_VISUAL_STRUCTURE"
+            );
+        }
+
+        siblingNames.add(siblingKey);
+
+        const visited = new Set([folderId]);
+        let ancestorId = parentId;
+
+        while (ancestorId) {
+            if (visited.has(ancestorId)) {
+                throw new Error(
+                    "INVALID_TABLE_MANAGER_VISUAL_STRUCTURE"
+                );
+            }
+
+            visited.add(ancestorId);
+            ancestorId = String(
+                folders[ancestorId]
+                    ?.parentId ?? ""
+            ).trim() || null;
+        }
+    }
+
+    for (const profile of Object.values(
+        tableProfiles.profiles ?? {}
+    )) {
+        const folderId = String(
+            profile?.folderId ?? ""
+        ).trim();
+
+        if (folderId && !folders[folderId]) {
+            throw new Error(
+                "INVALID_TABLE_MANAGER_VISUAL_STRUCTURE"
+            );
+        }
+    }
+}
+
 function text(es, en) {
     return game.i18n.lang.startsWith("es")
         ? es
@@ -261,6 +341,7 @@ export class TableManagerConfigurationService {
             sanitizeTableProfiles(
                 bundle.data.tableProfiles
             );
+        validateVisualStructure(tableProfiles);
         const tableDefaults =
             foundry.utils.deepClone(
                 bundle.data.tableDefaults
@@ -314,6 +395,46 @@ export class TableManagerConfigurationService {
             const storedProfiles =
                 TableProfileStorageService.getStorage();
 
+            if (
+                Object.keys(
+                    storedProfiles.folders ?? {}
+                ).length !==
+                Object.keys(
+                    imported.tableProfiles.folders ?? {}
+                ).length
+            ) {
+                throw new Error(
+                    "TABLE_MANAGER_CONFIGURATION_NOT_APPLIED"
+                );
+            }
+
+            for (
+                const [folderId, importedFolder]
+                of Object.entries(
+                    imported.tableProfiles.folders ?? {}
+                )
+            ) {
+                const storedFolder =
+                    storedProfiles.folders?.[folderId];
+
+                if (
+                    !storedFolder ||
+                    storedFolder.name !== String(
+                        importedFolder?.name ?? ""
+                    ).trim() ||
+                    (storedFolder.parentId ?? null) !==
+                        (
+                            String(
+                                importedFolder?.parentId ?? ""
+                            ).trim() || null
+                        )
+                ) {
+                    throw new Error(
+                        "TABLE_MANAGER_CONFIGURATION_NOT_APPLIED"
+                    );
+                }
+            }
+
             for (
                 const [profileId, importedProfile]
                 of Object.entries(
@@ -331,7 +452,13 @@ export class TableManagerConfigurationService {
                         storedProfile.name ?? ""
                     ) !== String(
                         importedProfile?.name ?? ""
-                    )
+                    ) ||
+                    (storedProfile.folderId ?? null) !==
+                        (
+                            String(
+                                importedProfile?.folderId ?? ""
+                            ).trim() || null
+                        )
                 ) {
                     throw new Error(
                         "TABLE_MANAGER_CONFIGURATION_NOT_APPLIED"

@@ -458,6 +458,7 @@ function exportProfileBundle(profileId) {
             nodes: {},
             generatedRevision: 0
         };
+        profile.folderId = null;
         delete profile.filterGroups;
         profiles[currentId] = profile;
 
