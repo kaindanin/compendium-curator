@@ -917,6 +917,62 @@
     transform: rotate(180deg);
 }
 
+.cc-table-manager-app
+    [data-cc-direct-content-editor]
+    input[type="number"],
+.cc-table-manager-app
+    [data-cc-direct-content-editor]
+    summary > strong,
+.cc-table-manager-app
+    [data-cc-direct-content-editor]
+    summary > label.hint,
+.cc-table-manager-app
+    [data-cc-direct-content-editor]
+    .cc-direct-weight-value,
+.cc-table-manager-app
+    [data-cc-direct-content-editor]
+    .item-controls > strong,
+.cc-table-manager-app
+    [data-cc-direct-content-editor]
+    .item-controls > .hint,
+.cc-table-manager-app
+    [data-cc-direct-content-editor]
+    .cc-direct-weight-header {
+    color: #fff;
+}
+
+.cc-table-manager-app
+    [data-cc-direct-content-editor]
+    .cc-direct-weight-header {
+    justify-content: center;
+    text-align: center;
+}
+
+.cc-table-manager-app
+    [data-cc-direct-content-editor]
+    .cc-direct-default-weight-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cc-table-manager-app
+    [data-cc-direct-content-editor]
+    .cc-direct-configuration-row {
+    grid-template-columns:
+        max-content
+        minmax(180px, 320px) !important;
+    justify-content: start;
+}
+
+.cc-table-manager-app
+    [data-cc-direct-content-editor]
+    .cc-direct-configuration-select {
+    width: fit-content;
+    min-width: 180px;
+    max-width: 320px;
+}
+
 .cc-table-manager-generate-button {
     align-self: center;
     width: auto;

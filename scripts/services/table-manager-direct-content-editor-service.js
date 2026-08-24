@@ -832,6 +832,14 @@ function editableGroupState(
             sourceKey,
             criterion
         )?.groups?.[key];
+    const nativeDefaultWeight = positiveNumber(
+        nativeGroupConfiguration(
+            profile,
+            criterion,
+            key
+        )?.distribution?.defaultWeight,
+        1
+    );
 
     return {
         enabled:
@@ -842,6 +850,12 @@ function editableGroupState(
             stored?.weight,
             fallback.weight
         ),
+        defaultWeight: positiveNumber(
+            stored?.defaultWeight,
+            nativeDefaultWeight
+        ),
+        hasDefaultWeight:
+            stored?.defaultWeight !== undefined,
         itemWeights:
             stored?.itemWeights &&
             typeof stored.itemWeights === "object" &&
@@ -956,12 +970,14 @@ function buildEditableGroups(
                     ];
                 const weight = positiveNumber(
                     storedWeight,
-                    nativeItemWeight(
-                        profile,
-                        criterion,
-                        key,
-                        entry.uuid
-                    )
+                    state.hasDefaultWeight
+                        ? state.defaultWeight
+                        : nativeItemWeight(
+                            profile,
+                            criterion,
+                            key,
+                            entry.uuid
+                        )
                 );
 
                 return {
@@ -985,6 +1001,7 @@ function buildEditableGroups(
             count: groupEntries.length,
             enabled: state.enabled,
             weight: state.weight,
+            defaultWeight: state.defaultWeight,
             effectiveShare: 0
         };
     });
@@ -1804,7 +1821,7 @@ function renderEditableEntry(
                         ${group.enabled ? "" : "disabled"}
                     >
                     <span
-                        class="hint"
+                        class="hint cc-direct-weight-value"
                         style="min-width:64px;text-align:right;"
                         title="${esc(text(
                             "Porcentaje efectivo respecto a la tabla padre",
@@ -1883,6 +1900,9 @@ function renderEditableGroup(source, group) {
 
     return `
         <details
+            data-cc-direct-group-details
+            data-source-key="${esc(source.key)}"
+            data-group-key="${esc(group.key)}"
             style="
                 background:rgb(0 0 0 / 12%);
                 border-radius:5px;
@@ -1956,10 +1976,34 @@ function renderEditableGroup(source, group) {
                                             ))}
                                         </div>
                                         <div
-                                            class="item-header item-controls"
-                                            style="flex:0 0 174px;min-width:174px;text-align:right;"
+                                            class="item-header cc-direct-default-weight-header"
+                                            style="flex:0 0 64px;min-width:64px;text-align:center;"
                                         >
-                                            ${esc(text("Peso / % raíz", "Weight / root %"))}
+                                            <input
+                                                type="number"
+                                                min="0.000001"
+                                                step="any"
+                                                value="${esc(group.defaultWeight)}"
+                                                data-cc-direct-default-item-weight
+                                                data-source-key="${esc(source.key)}"
+                                                data-group-key="${esc(group.key)}"
+                                                ${group.enabled ? "" : "disabled"}
+                                                aria-label="${esc(text(
+                                                    "Peso base de la lista",
+                                                    "List default weight"
+                                                ))}"
+                                                title="${esc(text(
+                                                    "Peso base para los objetos sin peso individual",
+                                                    "Default weight for objects without an individual weight"
+                                                ))}"
+                                                style="width:58px;height:26px;text-align:center;"
+                                            >
+                                        </div>
+                                        <div
+                                            class="item-header item-controls cc-direct-weight-header"
+                                            style="flex:0 0 174px;min-width:174px;text-align:center;"
+                                        >
+                                            ${esc(text("Peso interno / % raíz", "Internal weight / root %"))}
                                         </div>
                                     </div>
                                     <ol
@@ -2012,6 +2056,7 @@ function renderRangeEditor(source) {
     return `
         <details
             data-cc-direct-range-editor
+            data-source-key="${esc(source.key)}"
             style="
                 border:1px solid rgb(255 255 255 / 8%);
                 border-radius:5px;
@@ -2141,6 +2186,7 @@ function renderEditableSource(source) {
                 "
             >
                 <div
+                    class="cc-direct-configuration-row"
                     style="
                         display:grid;
                         grid-template-columns:minmax(140px,1fr) minmax(180px,1.3fr);
@@ -2153,6 +2199,7 @@ function renderEditableSource(source) {
                         ${esc(text("Agrupar por", "Group by"))}
                     </label>
                     <select
+                        class="cc-direct-configuration-select"
                         data-cc-direct-source-grouping
                         data-source-key="${esc(source.key)}"
                     >
@@ -2350,22 +2397,13 @@ function renderTableSource(source, tableView) {
                 "
             >
                 <div
-                    class="notification info"
+                    data-cc-linked-table-actions
                     style="
-                        margin:0.55rem 0 0;
-                        padding:0.55rem 0.65rem;
                         display:flex;
-                        align-items:center;
-                        gap:0.65rem;
+                        justify-content:flex-end;
+                        padding-top:0.45rem;
                     "
                 >
-                    <i class="fas fa-link"></i>
-                    <span style="flex:1 1 auto;">
-                        ${esc(text(
-                            "La distribución interna pertenece a la tabla original. Aquí solo se edita el peso de la referencia.",
-                            "The internal distribution belongs to the original table. Only the reference weight is edited here."
-                        ))}
-                    </span>
                     <button
                         type="button"
                         data-cc-open-original-table
@@ -2822,6 +2860,68 @@ function activateEditor(
                     ui.notifications.error(text(
                         "No se pudo actualizar el peso del grupo.",
                         "The group weight could not be updated."
+                    ));
+                    input.disabled = false;
+                }
+            }
+        );
+    }
+
+    for (
+        const input
+        of wrapper.querySelectorAll(
+            "[data-cc-direct-default-item-weight]"
+        )
+    ) {
+        input.addEventListener(
+            "change",
+            async () => {
+                input.disabled = true;
+                const sourceKey =
+                    input.dataset.sourceKey;
+                const source =
+                    sourceRecord(profile, sourceKey);
+                const criterion = String(
+                    source?.criterion ??
+                    sourceCriterion(
+                        profile,
+                        sourceKey
+                    )
+                );
+                const groupKeyValue =
+                    input.dataset.groupKey;
+                const value = positiveNumber(
+                    input.value,
+                    null
+                );
+
+                try {
+                    if (value === null)
+                        throw new Error("INVALID_DEFAULT_ITEM_WEIGHT");
+
+                    await saveSourceConfiguration(
+                        profile.id,
+                        sourceKey,
+                        criterion,
+                        configuration => {
+                            const group =
+                                configuration.groups[
+                                    groupKeyValue
+                                ] ??= {};
+
+                            group.defaultWeight = value;
+                        }
+                    );
+                    await rerender(application);
+                }
+                catch (error) {
+                    console.error(
+                        "Compendium Curator | Error actualizando el peso base de una lista.",
+                        error
+                    );
+                    ui.notifications.error(text(
+                        "No se pudo actualizar el peso base de la lista.",
+                        "The list default weight could not be updated."
                     ));
                     input.disabled = false;
                 }

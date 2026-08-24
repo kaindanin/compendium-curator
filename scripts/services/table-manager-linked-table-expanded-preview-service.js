@@ -109,6 +109,12 @@ function makeReadOnly(root) {
         button.remove();
     }
 
+    for (const actions of root.querySelectorAll(
+        "[data-cc-linked-table-actions]"
+    )) {
+        actions.remove();
+    }
+
     for (const editor of root.querySelectorAll(
         "[data-cc-direct-range-editor]"
     )) {
@@ -323,6 +329,102 @@ function enhanceManager(element) {
     }
 }
 
+function disclosureSegment(details) {
+    if (details.dataset.ccDirectSource !== undefined) {
+        return `source:${details.dataset.ccDirectSource}`;
+    }
+
+    if (details.dataset.ccDirectGroupDetails !== undefined) {
+        return [
+            "group",
+            details.dataset.sourceKey ?? "",
+            details.dataset.groupKey ?? ""
+        ].join(":");
+    }
+
+    if (details.dataset.ccDirectRangeEditor !== undefined) {
+        return `ranges:${details.dataset.sourceKey ?? ""}`;
+    }
+
+    const parent = details.parentElement;
+    const siblings = parent
+        ? [...parent.children].filter(element =>
+            element.tagName === "DETAILS"
+        )
+        : [];
+
+    return `details:${Math.max(0, siblings.indexOf(details))}`;
+}
+
+function disclosureKey(details) {
+    const row = details.closest(
+        ".cc-table-manager-profile[data-profile-id]"
+    );
+
+    if (!row || details === row)
+        return null;
+
+    const segments = [];
+    let current = details;
+
+    while (current && current !== row) {
+        if (current.tagName === "DETAILS") {
+            segments.push(
+                disclosureSegment(current)
+            );
+        }
+
+        current = current.parentElement?.closest(
+            "details"
+        );
+    }
+
+    return `${row.dataset.profileId}/${segments.reverse().join("/")}`;
+}
+
+function preserveManagerView(application, element) {
+    application._ccOpenManagerDetails ??= new Set();
+    const openDetails =
+        application._ccOpenManagerDetails;
+
+    for (const details of element.querySelectorAll("details")) {
+        const key = disclosureKey(details);
+
+        if (!key)
+            continue;
+
+        details.open = openDetails.has(key);
+        details.addEventListener(
+            "toggle",
+            () => {
+                if (details.open)
+                    openDetails.add(key);
+                else
+                    openDetails.delete(key);
+            }
+        );
+    }
+
+    const scroller = element.querySelector(
+        ".cc-table-manager-profiles"
+    );
+
+    if (!scroller)
+        return;
+
+    scroller.scrollTop = Number(
+        application._ccManagerScrollTop ?? 0
+    );
+    scroller.addEventListener(
+        "scroll",
+        () => {
+            application._ccManagerScrollTop =
+                scroller.scrollTop;
+        },
+        { passive: true }
+    );
+}
+
 export function registerTableManagerLinkedTableExpandedPreview() {
     Hooks.on(
         "renderTableManagerApplication",
@@ -331,6 +433,10 @@ export function registerTableManagerLinkedTableExpandedPreview() {
                 return;
 
             enhanceManager(element);
+            preserveManagerView(
+                application,
+                element
+            );
         }
     );
 }

@@ -256,10 +256,12 @@
                         {{/if}}
                             <div class="cc-table-manager-profile-info">
                                 <strong>{{name}}</strong>
-                                <span>
-                                    <i class="{{typeIcon}}"></i>
-                                    {{typeLabel}} · {{summary}}
-                                </span>
+                                {{#unless isContent}}
+                                    <span>
+                                        <i class="{{typeIcon}}"></i>
+                                        {{typeLabel}} · {{summary}}
+                                    </span>
+                                {{/unless}}
                             </div>
 
                             {{#if isContent}}

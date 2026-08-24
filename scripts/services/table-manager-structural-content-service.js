@@ -181,11 +181,11 @@ function refineTableSource(source) {
         );
     }
 
-    const info = source.querySelector(
-        ":scope > div > .notification.info"
+    const tableActions = source.querySelector(
+        ":scope > div > [data-cc-linked-table-actions]"
     );
     const legacyModeSummary =
-        info?.nextElementSibling;
+        tableActions?.nextElementSibling;
 
     legacyModeSummary?.remove();
 }
