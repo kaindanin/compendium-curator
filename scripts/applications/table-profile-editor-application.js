@@ -86,7 +86,7 @@ export class TableProfileEditorApplication
         },
         position: {
             width: 380,
-            height: 230
+            height: 170
         }
     };
 
