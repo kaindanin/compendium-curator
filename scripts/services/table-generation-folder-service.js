@@ -8,6 +8,10 @@ import {
 
 const FOLDER_FLAG = "generatedTableFolder";
 const LOCATION_FLAG = "generationLocation";
+const INTERNAL_PROFILE_FLAG =
+    "generatedTableFolderProfileId";
+const INTERNAL_KEY_FLAG =
+    "generatedTableFolderKey";
 
 function normalizeId(value) {
     const id = String(value ?? "").trim();
@@ -39,6 +43,35 @@ function getManagerFolderId(folder) {
         : null;
 }
 
+function normalizeInternalPath(path) {
+    if (!Array.isArray(path))
+        return [];
+
+    return path.map(segment => ({
+        key: normalizeId(segment?.key),
+        name: String(
+            segment?.name ?? ""
+        ).trim()
+    })).filter(segment =>
+        segment.key && segment.name
+    );
+}
+
+function getInternalFolder(folder) {
+    const flags = folder?.flags?.[MODULE_ID];
+    const profileId = normalizeId(
+        flags?.[INTERNAL_PROFILE_FLAG]
+    );
+    const key = normalizeId(
+        flags?.[INTERNAL_KEY_FLAG]
+    );
+
+    return flags?.[FOLDER_FLAG] === true &&
+        profileId && key
+        ? { profileId, key }
+        : null;
+}
+
 function getLocation(table) {
     const location =
         table?.flags?.[MODULE_ID]
@@ -54,11 +87,15 @@ function getLocation(table) {
         managerFolderId:
             normalizeId(location.managerFolderId),
         generatedFolderId:
-            normalizeId(location.generatedFolderId)
+            normalizeId(location.generatedFolderId),
+        internalPath:
+            normalizeInternalPath(
+                location.internalPath
+            )
     };
 }
 
-async function createFolder(
+async function createManagerFolder(
     target,
     managerFolder,
     parentId
@@ -82,9 +119,42 @@ async function createFolder(
     );
 }
 
-async function ensureFolderPath(profile, target) {
+async function createInternalFolder(
+    profile,
+    target,
+    segment,
+    parentId
+) {
+    return Folder.create(
+        {
+            name: segment.name,
+            type: "RollTable",
+            folder: parentId,
+            flags: {
+                [MODULE_ID]: {
+                    [FOLDER_FLAG]: true,
+                    [INTERNAL_PROFILE_FLAG]:
+                        profile.id,
+                    [INTERNAL_KEY_FLAG]:
+                        segment.key
+                }
+            }
+        },
+        target?.mode === "compendium"
+            ? { pack: target.pack.collection }
+            : {}
+    );
+}
+
+async function ensureFolderPath(
+    profile,
+    target,
+    internalPath = []
+) {
     const path = TableProfileStorageService
         .getProfileFolderPath(profile.id);
+    const normalizedInternalPath =
+        normalizeInternalPath(internalPath);
     let parentId = null;
 
     for (const managerFolder of path) {
@@ -95,7 +165,7 @@ async function ensureFolderPath(profile, target) {
         );
 
         if (!folder) {
-            folder = await createFolder(
+            folder = await createManagerFolder(
                 target,
                 managerFolder,
                 parentId
@@ -119,10 +189,49 @@ async function ensureFolderPath(profile, target) {
         parentId = folder.id;
     }
 
+    for (const segment of normalizedInternalPath) {
+        let folder = getFolders(target).find(
+            candidate => {
+                const internal =
+                    getInternalFolder(candidate);
+
+                return (
+                    internal?.profileId ===
+                        profile.id &&
+                    internal?.key === segment.key
+                );
+            }
+        );
+
+        if (!folder) {
+            folder = await createInternalFolder(
+                profile,
+                target,
+                segment,
+                parentId
+            );
+        }
+        else {
+            const update = {};
+
+            if (folder.name !== segment.name)
+                update.name = segment.name;
+
+            if (getFolderId(folder) !== parentId)
+                update.folder = parentId;
+
+            if (Object.keys(update).length)
+                await folder.update(update);
+        }
+
+        parentId = folder.id;
+    }
+
     return {
         managerFolderId:
             path.at(-1)?.id ?? null,
-        generatedFolderId: parentId
+        generatedFolderId: parentId,
+        internalPath: normalizedInternalPath
     };
 }
 
@@ -157,7 +266,8 @@ function locationData({
     automatic,
     targetKey,
     managerFolderId,
-    generatedFolderId
+    generatedFolderId,
+    internalPath = []
 }) {
     return {
         automatic,
@@ -165,8 +275,29 @@ function locationData({
         managerFolderId:
             normalizeId(managerFolderId),
         generatedFolderId:
-            normalizeId(generatedFolderId)
+            normalizeId(generatedFolderId),
+        internalPath:
+            normalizeInternalPath(internalPath)
     };
+}
+
+function internalPathEquals(left, right) {
+    const normalizedLeft =
+        normalizeInternalPath(left);
+    const normalizedRight =
+        normalizeInternalPath(right);
+
+    return (
+        normalizedLeft.length ===
+            normalizedRight.length &&
+        normalizedLeft.every(
+            (segment, index) =>
+                segment.key ===
+                    normalizedRight[index]?.key &&
+                segment.name ===
+                    normalizedRight[index]?.name
+        )
+    );
 }
 
 function locationEquals(left, right) {
@@ -176,7 +307,11 @@ function locationEquals(left, right) {
         left?.managerFolderId ===
             right?.managerFolderId &&
         left?.generatedFolderId ===
-            right?.generatedFolderId
+            right?.generatedFolderId &&
+        internalPathEquals(
+            left?.internalPath,
+            right?.internalPath
+        )
     );
 }
 
@@ -202,10 +337,15 @@ async function deleteStaleEmptyFolders(target) {
         for (const folder of folders) {
             const managerFolderId =
                 getManagerFolderId(folder);
+            const internalFolder =
+                getInternalFolder(folder);
 
             if (
-                !managerFolderId ||
-                validIds.has(managerFolderId)
+                !internalFolder &&
+                (
+                    !managerFolderId ||
+                    validIds.has(managerFolderId)
+                )
             ) {
                 continue;
             }
@@ -241,9 +381,16 @@ export class TableGenerationFolderService {
     static async resolvePlacement({
         profile,
         table,
-        target
+        target,
+        internalPath
     }) {
         const currentLocation = getLocation(table);
+        const desiredInternalPath =
+            internalPath === undefined
+                ? currentLocation?.internalPath ?? []
+                : normalizeInternalPath(
+                    internalPath
+                );
         const automatic = !table ||
             isAutomaticLocation(
                 table,
@@ -264,14 +411,17 @@ export class TableGenerationFolderService {
                     managerFolderId:
                         profile?.folderId,
                     generatedFolderId:
-                        actualFolderId
+                        actualFolderId,
+                    internalPath:
+                        desiredInternalPath
                 })
             };
         }
 
         const desired = await ensureFolderPath(
             profile,
-            target
+            target,
+            desiredInternalPath
         );
 
         return {
@@ -332,6 +482,10 @@ export class TableGenerationFolderService {
             await table.update(update);
 
         return Object.keys(update).length > 0;
+    }
+
+    static async cleanupTarget(target) {
+        return deleteStaleEmptyFolders(target);
     }
 
     static async syncProfile(profileId) {

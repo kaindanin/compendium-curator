@@ -170,7 +170,8 @@ async function reconcileTable({
     img,
     entries,
     storedUuid,
-    target
+    target,
+    internalPath = []
 }) {
     let table =
         await TableGenerationTargetService
@@ -214,7 +215,8 @@ async function reconcileTable({
             .resolvePlacement({
                 profile,
                 table,
-                target
+                target,
+                internalPath
             });
 
     TableGenerationFolderService
@@ -260,6 +262,17 @@ function getStoredNodeUuid(profile, nodeId) {
         return stored;
 
     return stored?.uuid ?? null;
+}
+
+function numberedName(index, name) {
+    return `${index + 1}. ${String(name ?? "").trim()}`;
+}
+
+function profileInternalPath(profile) {
+    return [{
+        key: "profile",
+        name: profile.name
+    }];
 }
 
 function getInternalItemWeight(
@@ -363,7 +376,8 @@ function buildGroupedNodes(
 async function finalizeGeneration(
     profile,
     root,
-    nodes
+    nodes,
+    target
 ) {
     const keepUuids = new Set(
         Object.values(nodes)
@@ -376,6 +390,9 @@ async function finalizeGeneration(
             profile,
             keepUuids
         );
+
+    await TableGenerationFolderService
+        .cleanupTarget(target);
 
     const updatedProfile =
         await TableProfileStorageService
@@ -404,8 +421,34 @@ export class TableProfileGenerationService {
         if (!profile?.id)
             return 0;
 
-        return TableGenerationTargetService
-            .deleteGeneratedTables(profile);
+        const tables =
+            await TableGenerationTargetService
+                .findManagedTables(profile.id);
+        const targets = new Map();
+
+        for (const table of tables) {
+            const target =
+                await TableGenerationTargetService
+                    .getTargetFromDocument(table);
+
+            if (target)
+                targets.set(target.key, target);
+        }
+
+        const deleted =
+            await TableGenerationTargetService
+                .deleteGeneratedTables(profile);
+
+        for (const target of targets.values()) {
+            await TableGenerationTargetService
+                .withWritableTarget(
+                    target,
+                    () => TableGenerationFolderService
+                        .cleanupTarget(target)
+                );
+        }
+
+        return deleted;
     }
 
     static async generate(profile, inspector) {
@@ -441,24 +484,32 @@ export class TableProfileGenerationService {
                                 profile,
                                 inspector
                             );
-
-                        if (
-                            !groupNodes.some(
+                        const activeGroupNodes =
+                            groupNodes.filter(
                                 node => node.enabled
-                            )
-                        ) {
+                            );
+
+                        if (!activeGroupNodes.length) {
                             throw new Error(
                                 "TABLE_PROFILE_NO_ACTIVE_GROUPS"
                             );
                         }
 
-                        for (const node of groupNodes) {
+                        for (
+                            const [index, node]
+                            of activeGroupNodes.entries()
+                        ) {
+                            const numberedLabel =
+                                numberedName(
+                                    index,
+                                    node.label
+                                );
                             const table =
                                 await reconcileTable({
                                     profile,
                                     nodeId:
                                         node.nodeId,
-                                    name: node.name,
+                                    name: numberedLabel,
                                     img: node.img,
                                     entries:
                                         node.entries,
@@ -467,23 +518,27 @@ export class TableProfileGenerationService {
                                             profile,
                                             node.nodeId
                                         ),
-                                    target
+                                    target,
+                                    internalPath:
+                                        profileInternalPath(
+                                            profile
+                                        )
                                 });
 
                             nodes[node.nodeId] = {
                                 uuid: table.uuid
                             };
                             node.table = table;
+                            node.numberedLabel =
+                                numberedLabel;
                         }
 
-                        rootEntries = groupNodes
-                            .filter(node =>
-                                node.enabled
-                            )
+                        rootEntries = activeGroupNodes
                             .map(node => ({
                                 documentUuid:
                                     node.table.uuid,
-                                name: node.label,
+                                name:
+                                    node.numberedLabel,
                                 img: node.table.img,
                                 resultKey:
                                     node.nodeId,
@@ -527,7 +582,8 @@ export class TableProfileGenerationService {
                     return finalizeGeneration(
                         profile,
                         root,
-                        nodes
+                        nodes,
+                        target
                     );
                 }
             );
@@ -594,21 +650,44 @@ export class TableProfileGenerationService {
                 async () => {
                     const nodes = {};
                     const rootEntries = [];
+                    const rootInternalPath =
+                        profileInternalPath(profile);
 
-                    for (const source of activeSources) {
+                    for (
+                        const [sourceIndex, source]
+                        of activeSources.entries()
+                    ) {
                         const sourceNodeId =
                             `source:${source.key}`;
+                        const sourceName = numberedName(
+                            sourceIndex,
+                            source.name
+                        );
+                        const sourceInternalPath = [
+                            ...rootInternalPath,
+                            {
+                                key: sourceNodeId,
+                                name: sourceName
+                            }
+                        ];
                         const sourceEntries = [];
 
-                        for (const group of source.groups) {
+                        for (
+                            const [groupIndex, group]
+                            of source.groups.entries()
+                        ) {
                             const groupNodeId =
                                 `${sourceNodeId}:group:${encodeURIComponent(group.key)}`;
+                            const groupName =
+                                numberedName(
+                                    groupIndex,
+                                    group.label
+                                );
                             const groupTable =
                                 await reconcileTable({
                                     profile,
                                     nodeId: groupNodeId,
-                                    name:
-                                        `${profile.name} — ${source.name} — ${group.label}`,
+                                    name: groupName,
                                     img:
                                         group.entries.find(
                                             entry => entry.img
@@ -637,7 +716,9 @@ export class TableProfileGenerationService {
                                             profile,
                                             groupNodeId
                                         ),
-                                    target
+                                    target,
+                                    internalPath:
+                                        sourceInternalPath
                                 });
 
                             nodes[groupNodeId] = {
@@ -646,7 +727,7 @@ export class TableProfileGenerationService {
                             sourceEntries.push({
                                 documentUuid:
                                     groupTable.uuid,
-                                name: group.label,
+                                name: groupName,
                                 img: groupTable.img,
                                 resultKey: groupNodeId,
                                 weight:
@@ -661,8 +742,7 @@ export class TableProfileGenerationService {
                             await reconcileTable({
                                 profile,
                                 nodeId: sourceNodeId,
-                                name:
-                                    `${profile.name} — ${source.name}`,
+                                name: sourceName,
                                 img:
                                     sourceEntries.find(
                                         entry => entry.img
@@ -674,7 +754,9 @@ export class TableProfileGenerationService {
                                         profile,
                                         sourceNodeId
                                     ),
-                                target
+                                target,
+                                internalPath:
+                                    rootInternalPath
                             });
 
                         nodes[sourceNodeId] = {
@@ -683,7 +765,7 @@ export class TableProfileGenerationService {
                         rootEntries.push({
                             documentUuid:
                                 sourceTable.uuid,
-                            name: source.name,
+                            name: sourceName,
                             img: sourceTable.img,
                             resultKey: source.key,
                             weight:
@@ -741,7 +823,8 @@ export class TableProfileGenerationService {
                     return finalizeGeneration(
                         profile,
                         root,
-                        nodes
+                        nodes,
+                        target
                     );
                 }
             );
@@ -873,7 +956,8 @@ export class TableProfileGenerationService {
                     return finalizeGeneration(
                         profile,
                         root,
-                        nodes
+                        nodes,
+                        target
                     );
                 }
             );
