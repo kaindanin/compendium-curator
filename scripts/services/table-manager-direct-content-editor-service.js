@@ -1012,7 +1012,23 @@ function ownSources(
     filterGroups
 ) {
     const sources = [];
-    const covered = new Set();
+    const manual = dedupe(
+        eligibleEntries(
+            profile,
+            profile.manualIncludes ?? []
+        ).map(entry => ({
+            ...entry,
+            origins: [
+                text(
+                    "Añadidos manualmente",
+                    "Manual additions"
+                )
+            ]
+        }))
+    );
+    const manuallyIncluded = new Set(
+        manual.map(entry => entry.uuid)
+    );
 
     for (
         const filterGroupId
@@ -1030,14 +1046,17 @@ function ownSources(
             eligibleEntries(
                 profile,
                 filterGroup.matches ?? []
-            ).map(entry => ({
-                ...entry,
-                origins: [filterGroup.name]
-            }))
+            )
+                .filter(entry =>
+                    !manuallyIncluded.has(
+                        entry.uuid
+                    )
+                )
+                .map(entry => ({
+                    ...entry,
+                    origins: [filterGroup.name]
+                }))
         );
-
-        for (const entry of entries)
-            covered.add(entry.uuid);
 
         const key = `filter:${filterGroupId}`;
         const criterion =
@@ -1073,23 +1092,6 @@ function ownSources(
             effectiveShare: 0
         });
     }
-
-    const manual = dedupe(
-        eligibleEntries(
-            profile,
-            profile.manualIncludes ?? []
-        ).filter(entry =>
-            !covered.has(entry.uuid)
-        ).map(entry => ({
-            ...entry,
-            origins: [
-                text(
-                    "Añadidos manualmente",
-                    "Manual additions"
-                )
-            ]
-        }))
-    );
 
     if (manual.length) {
         const key = "manual";
@@ -1280,7 +1282,13 @@ function buildReadOnlyDirectBranches(
     childPreview
 ) {
     const branches = [];
-    const covered = new Set();
+    const manual = eligibleEntries(
+        child,
+        child?.manualIncludes ?? []
+    );
+    const manuallyIncluded = new Set(
+        manual.map(entry => entry.uuid)
+    );
 
     for (
         const filterGroupId
@@ -1298,11 +1306,12 @@ function buildReadOnlyDirectBranches(
             eligibleEntries(
                 child,
                 filterGroup.matches ?? []
+            ).filter(entry =>
+                !manuallyIncluded.has(
+                    entry.uuid
+                )
             )
         );
-
-        for (const entry of entries)
-            covered.add(entry.uuid);
 
         const key = `filter:${filterGroupId}`;
 
@@ -1320,13 +1329,6 @@ function buildReadOnlyDirectBranches(
             share: 0
         });
     }
-
-    const manual = eligibleEntries(
-        child,
-        child?.manualIncludes ?? []
-    ).filter(entry =>
-        !covered.has(entry.uuid)
-    );
 
     if (manual.length) {
         const key = "manual";
@@ -2506,12 +2508,26 @@ function renderEditor(
                             "COMPENDIUM_CURATOR.TableManagerTabContent"
                         ))}
                     </span>
-                    <strong class="cc-table-content-object-count">
-                        ${esc(game.i18n.format(
-                            "COMPENDIUM_CURATOR.GroupObjectCount",
-                            { count: totalCount }
-                        ))}
-                    </strong>
+                    <span class="cc-table-content-summary-actions">
+                        <button
+                            type="button"
+                            class="cc-table-content-inclusions-button"
+                            data-cc-manual-inclusions
+                            data-tooltip="COMPENDIUM_CURATOR.ManualInclusions"
+                        >
+                            <i class="fas fa-plus-circle"></i>
+                            ${esc(game.i18n.localize(
+                                "COMPENDIUM_CURATOR.ManualInclusions"
+                            ))}
+                        </button>
+
+                        <strong class="cc-table-content-object-count">
+                            ${esc(game.i18n.format(
+                                "COMPENDIUM_CURATOR.GroupObjectCount",
+                                { count: totalCount }
+                            ))}
+                        </strong>
+                    </span>
                 </summary>
 
                 <div class="cc-table-content-list">
@@ -2628,6 +2644,20 @@ function activateEditor(
     ) {
         stopSummaryToggle(control);
     }
+
+    const inclusionsButton = wrapper.querySelector(
+        "[data-cc-manual-inclusions]"
+    );
+
+    inclusionsButton?.addEventListener(
+        "click",
+        async event => {
+            event.preventDefault();
+            await application.openManualInclusions(
+                profile.id
+            );
+        }
+    );
 
     for (
         const input

@@ -93,16 +93,9 @@
                 {{#if hasTables}}
                     <div class="cc-table-manager-profiles">
                         {{#each tables}}
-                            <div
+                            <label
                                 class="cc-table-manager-filter-group"
                                 data-cc-table-content-row
-                                style="
-                                    display: grid;
-                                    grid-template-columns:
-                                        auto minmax(0, 1fr) auto 72px;
-                                    align-items: center;
-                                    gap: 0.5rem;
-                                "
                             >
                                 <input
                                     type="checkbox"
@@ -116,30 +109,7 @@
                                     <i class="fas fa-table-list"></i>
                                     {{name}}
                                 </span>
-
-                                <label
-                                    class="hint"
-                                    for="cc-content-table-weight-{{id}}"
-                                    style="white-space: nowrap;"
-                                >
-                                    {{../weightLabel}}
-                                </label>
-
-                                <input
-                                    id="cc-content-table-weight-{{id}}"
-                                    type="number"
-                                    name="tableProfileWeight"
-                                    min="0.000001"
-                                    step="any"
-                                    value="{{weight}}"
-                                    {{#unless checked}}disabled{{/unless}}
-                                    style="
-                                        width: 72px;
-                                        height: 28px;
-                                        text-align: right;
-                                    "
-                                >
-                            </div>
+                            </label>
                         {{/each}}
                     </div>
                 {{else}}

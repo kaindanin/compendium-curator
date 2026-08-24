@@ -275,7 +275,10 @@ export class TableProfileInclusionsApplication
             )
         ) {
 
-            if (checkbox.checked) {
+            if (
+                checkbox.checked === true ||
+                checkbox.hasAttribute("checked")
+            ) {
 
                 inclusions.add(
                     checkbox.dataset.uuid

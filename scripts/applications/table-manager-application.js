@@ -2159,6 +2159,34 @@ export class TableManagerApplication
         return generateProfileTables(profile);
     }
 
+    async openManualInclusions(profileId) {
+        if (!profileId)
+            return;
+
+        if (this._profileInclusions?.rendered) {
+            if (
+                this._profileInclusions.profileId ===
+                    profileId
+            ) {
+                this._profileInclusions.bringToFront();
+                return;
+            }
+
+            await this._profileInclusions.close();
+        }
+
+        this._profileInclusions =
+            new TableProfileInclusionsApplication(
+                this.browserApp,
+                this,
+                profileId
+            );
+
+        this._profileInclusions.render({
+            force: true
+        });
+    }
+
     static DEFAULT_OPTIONS = {
         id: "compendium-curator-table-manager",
         classes: [
@@ -4578,6 +4606,9 @@ export class TableManagerApplication
     }
 
     static async #onManualInclusions(event, target) {
+        event.preventDefault();
+        event.stopPropagation();
+
         const profileId = target
             .closest("[data-profile-id]")
             ?.dataset?.profileId;
@@ -4585,22 +4616,7 @@ export class TableManagerApplication
         if (!profileId)
             return;
 
-        if (this._profileInclusions?.rendered) {
-            if (this._profileInclusions.profileId === profileId) {
-                this._profileInclusions.bringToFront();
-                return;
-            }
-
-            await this._profileInclusions.close();
-        }
-
-        this._profileInclusions = new TableProfileInclusionsApplication(
-            this.browserApp,
-            this,
-            profileId
-        );
-
-        this._profileInclusions.render({ force: true });
+        await this.openManualInclusions(profileId);
     }
 
     static async #onManualExclusions(event, target) {

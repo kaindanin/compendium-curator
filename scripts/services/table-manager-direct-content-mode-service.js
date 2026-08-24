@@ -345,22 +345,34 @@ function ownSources(profile, filterGroups) {
     const excluded = new Set(profile?.manualExcludes ?? []);
     const excludeZeroPrice = profile?.itemRules?.excludeZeroPrice === true;
     const ids = [...new Set(profile.filterGroupIds ?? [])];
-    const covered = new Set();
     const sources = [];
 
     const eligible = uuids => prepareDnd5eIndexedEntries(uuids)
         .filter(entry => entry.available !== false &&
             !hidden.has(entry.uuid) && !excluded.has(entry.uuid) &&
             (!excludeZeroPrice || entry.documentName !== "Item" || entry.hasPositivePrice));
+    const manual = dedupe(
+        eligible(profile.manualIncludes ?? [])
+            .map(entry => ({
+                ...entry,
+                origins: [text("Añadidos manualmente", "Manual additions")]
+            }))
+    );
+    const manuallyIncluded = new Set(
+        manual.map(entry => entry.uuid)
+    );
 
     for (const id of ids) {
         const filterGroup = filterGroups?.[id];
         if (!filterGroup) continue;
-        const entries = dedupe(eligible(filterGroup.matches ?? []).map(entry => ({
-            ...entry,
-            origins: [filterGroup.name]
-        })));
-        for (const entry of entries) covered.add(entry.uuid);
+        const entries = dedupe(
+            eligible(filterGroup.matches ?? [])
+                .filter(entry => !manuallyIncluded.has(entry.uuid))
+                .map(entry => ({
+                    ...entry,
+                    origins: [filterGroup.name]
+                }))
+        );
         const key = `filter:${id}`;
         const criterion = sourceCriterion(profile, key);
         sources.push({
@@ -375,14 +387,6 @@ function ownSources(profile, filterGroups) {
         });
     }
 
-    const manual = dedupe(
-        eligible(profile.manualIncludes ?? [])
-            .filter(entry => !covered.has(entry.uuid))
-            .map(entry => ({
-                ...entry,
-                origins: [text("Añadidos manualmente", "Manual additions")]
-            }))
-    );
     if (manual.length) {
         const key = "manual";
         const criterion = sourceCriterion(profile, key);

@@ -7,8 +7,7 @@ import {
 import {
     canUseTableChild,
     getTableChildren,
-    setTableChildEnabled,
-    setTableChildWeight
+    setTableChildEnabled
 } from "../services/table-profile-relations-service.js";
 import {
     TableFilterGroupApplication
@@ -33,20 +32,6 @@ function sortByName(entries) {
             { sensitivity: "base" }
         )
     );
-}
-
-function normalizePositiveWeight(
-    value,
-    fallback = 1
-) {
-    const parsed = Number(value);
-
-    return (
-        Number.isFinite(parsed) &&
-        parsed > 0
-    )
-        ? parsed
-        : fallback;
 }
 
 export class TableManagerContentApplication
@@ -148,10 +133,6 @@ export class TableManagerContentApplication
             "Otras tablas",
             "Other tables"
         );
-        context.weightLabel = text(
-            "Peso",
-            "Weight"
-        );
         context.addCurrentFiltersLabel = text(
             "Crear grupo con los filtros actuales",
             "Create group from current filters"
@@ -240,12 +221,7 @@ export class TableManagerContentApplication
                         id: candidate.id,
                         name: candidate.name,
                         checked:
-                            relation?.enabled === true,
-                        weight:
-                            normalizePositiveWeight(
-                                relation?.weight,
-                                1
-                            )
+                            relation?.enabled === true
                     };
                 })
         );
@@ -323,32 +299,6 @@ export class TableManagerContentApplication
             );
         }
 
-        for (
-            const checkbox
-            of this.element.querySelectorAll(
-                '[name="tableProfileIds"]'
-            )
-        ) {
-            const row = checkbox.closest(
-                "[data-cc-table-content-row]"
-            );
-            const weight = row?.querySelector(
-                '[name="tableProfileWeight"]'
-            );
-
-            const sync = () => {
-                if (weight) {
-                    weight.disabled =
-                        !checkbox.checked;
-                }
-            };
-
-            checkbox.addEventListener(
-                "change",
-                sync
-            );
-            sync();
-        }
     }
 
     async _openFilterGroupCreator() {
@@ -407,45 +357,17 @@ export class TableManagerContentApplication
             const checkbox = row.querySelector(
                 '[name="tableProfileIds"]'
             );
-            const weightInput = row.querySelector(
-                '[name="tableProfileWeight"]'
-            );
             const childProfileId = String(
                 checkbox?.value ?? ""
             ).trim();
-            const weight = Number(
-                weightInput?.value
-            );
 
             if (!childProfileId)
                 continue;
 
-            if (
-                checkbox?.checked &&
-                (
-                    !Number.isFinite(weight) ||
-                    weight <= 0
-                )
-            ) {
-                ui.notifications.warn(
-                    text(
-                        "El peso de una tabla debe ser mayor que cero.",
-                        "A table weight must be greater than zero."
-                    )
-                );
-                weightInput?.focus();
-                return;
-            }
-
             requestedRelations.push({
                 profileId: childProfileId,
                 enabled:
-                    checkbox?.checked === true,
-                weight:
-                    normalizePositiveWeight(
-                        weight,
-                        1
-                    )
+                    checkbox?.checked === true
             });
         }
 
@@ -469,15 +391,15 @@ export class TableManagerContentApplication
                     );
             }
 
-            let currentProfile =
+            const currentProfile =
                 TableProfileStorageService
                     .getProfiles()?.[
                         this.profileId
                     ];
-            let currentProfiles =
+            const currentProfiles =
                 TableProfileStorageService
                     .getProfiles();
-            let currentRelations =
+            const currentRelations =
                 new Map(
                     getTableChildren(
                         currentProfile,
@@ -511,44 +433,6 @@ export class TableManagerContentApplication
                         requested.enabled
                     );
                 }
-
-                if (requested.enabled) {
-                    currentProfile =
-                        TableProfileStorageService
-                            .getProfiles()?.[
-                                this.profileId
-                            ];
-                    currentProfiles =
-                        TableProfileStorageService
-                            .getProfiles();
-                    currentRelations =
-                        new Map(
-                            getTableChildren(
-                                currentProfile,
-                                currentProfiles
-                            ).map(child => [
-                                child.profileId,
-                                child
-                            ])
-                        );
-
-                    const updated =
-                        currentRelations.get(
-                            requested.profileId
-                        );
-
-                    if (
-                        updated &&
-                        updated.weight !==
-                            requested.weight
-                    ) {
-                        await setTableChildWeight(
-                            this.profileId,
-                            requested.profileId,
-                            requested.weight
-                        );
-                    }
-                }
             }
 
             if (this.managerApp?.rendered) {
@@ -565,18 +449,10 @@ export class TableManagerContentApplication
                 error
             );
 
-            ui.notifications.error(
-                error?.message ===
-                    "INVALID_TABLE_WEIGHT"
-                    ? text(
-                        "El peso de una tabla debe ser mayor que cero.",
-                        "A table weight must be greater than zero."
-                    )
-                    : text(
-                        "No se pudo guardar el contenido de la tabla.",
-                        "The table content could not be saved."
-                    )
-            );
+            ui.notifications.error(text(
+                "No se pudo guardar el contenido de la tabla.",
+                "The table content could not be saved."
+            ));
         }
         finally {
             if (target.isConnected)
