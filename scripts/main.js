@@ -24,6 +24,9 @@ import {
 import {
     registerTableManagerDirectContentMode
 } from "./services/table-manager-direct-content-mode-service.js";
+import {
+    registerTableManagerDirectContentEditor
+} from "./services/table-manager-direct-content-editor-service.js";
 
 Hooks.once("init", () => {
 
@@ -38,6 +41,7 @@ Hooks.once("init", () => {
     registerTableManagerUnifiedTabs();
     registerTableManagerRecursivePreview();
     registerTableManagerDirectContentMode();
+    registerTableManagerDirectContentEditor();
 
     debug("Settings registradas");
 
