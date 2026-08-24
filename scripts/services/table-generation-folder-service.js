@@ -93,6 +93,8 @@ function getLocation(table) {
             normalizeId(location.managerFolderId),
         generatedFolderId:
             normalizeId(location.generatedFolderId),
+        fromTargetRoot:
+            location.fromTargetRoot === true,
         internalPath:
             normalizeInternalPath(
                 location.internalPath
@@ -160,10 +162,14 @@ async function createInternalFolder(
 async function ensureFolderPath(
     profile,
     target,
-    internalPath = []
+    internalPath = [],
+    fromTargetRoot = false
 ) {
-    const path = TableProfileStorageService
+    const managerPath = TableProfileStorageService
         .getProfileFolderPath(profile.id);
+    const path = fromTargetRoot
+        ? []
+        : managerPath;
     const normalizedInternalPath =
         normalizeInternalPath(internalPath);
     let parentId = null;
@@ -244,8 +250,9 @@ async function ensureFolderPath(
 
     return {
         managerFolderId:
-            path.at(-1)?.id ?? null,
+            managerPath.at(-1)?.id ?? null,
         generatedFolderId: parentId,
+        fromTargetRoot,
         internalPath: normalizedInternalPath
     };
 }
@@ -282,6 +289,7 @@ function locationData({
     targetKey,
     managerFolderId,
     generatedFolderId,
+    fromTargetRoot = false,
     internalPath = []
 }) {
     return {
@@ -291,6 +299,8 @@ function locationData({
             normalizeId(managerFolderId),
         generatedFolderId:
             normalizeId(generatedFolderId),
+        fromTargetRoot:
+            fromTargetRoot === true,
         internalPath:
             normalizeInternalPath(internalPath)
     };
@@ -325,6 +335,8 @@ function locationEquals(left, right) {
             right?.managerFolderId &&
         left?.generatedFolderId ===
             right?.generatedFolderId &&
+        left?.fromTargetRoot ===
+            right?.fromTargetRoot &&
         internalPathEquals(
             left?.internalPath,
             right?.internalPath
@@ -399,7 +411,8 @@ export class TableGenerationFolderService {
         profile,
         table,
         target,
-        internalPath
+        internalPath,
+        fromTargetRoot
     }) {
         const currentLocation = getLocation(table);
         const desiredInternalPath =
@@ -408,6 +421,11 @@ export class TableGenerationFolderService {
                 : normalizeInternalPath(
                     internalPath
                 );
+        const desiredFromTargetRoot =
+            fromTargetRoot === undefined
+                ? currentLocation
+                    ?.fromTargetRoot === true
+                : fromTargetRoot === true;
         const automatic = !table ||
             isAutomaticLocation(
                 table,
@@ -429,6 +447,8 @@ export class TableGenerationFolderService {
                         profile?.folderId,
                     generatedFolderId:
                         actualFolderId,
+                    fromTargetRoot:
+                        desiredFromTargetRoot,
                     internalPath:
                         desiredInternalPath
                 })
@@ -438,7 +458,8 @@ export class TableGenerationFolderService {
         const desired = await ensureFolderPath(
             profile,
             target,
-            desiredInternalPath
+            desiredInternalPath,
+            desiredFromTargetRoot
         );
 
         return {

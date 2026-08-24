@@ -171,7 +171,8 @@ async function reconcileTable({
     entries,
     storedUuid,
     target,
-    internalPath = []
+    internalPath = [],
+    fromTargetRoot = false
 }) {
     let table =
         await TableGenerationTargetService
@@ -216,7 +217,8 @@ async function reconcileTable({
                 profile,
                 table,
                 target,
-                internalPath
+                internalPath,
+                fromTargetRoot
             });
 
     TableGenerationFolderService
@@ -269,18 +271,23 @@ function numberedName(index, name) {
 }
 
 function profileInternalPath(profile) {
-    const managerFolderId = String(
-        profile?.folderId ?? ""
-    ).trim() || "root";
+    const managerPath =
+        TableProfileStorageService
+            .getProfileFolderPath(profile.id);
 
     return [
         {
-            key: `subtables:${managerFolderId}`,
+            key: "subtables:root",
             name: game.i18n.localize(
                 "COMPENDIUM_CURATOR.GeneratedSubtablesFolder"
             ),
             shared: true
         },
+        ...managerPath.map(folder => ({
+            key: `manager:${folder.id}`,
+            name: folder.name,
+            shared: true
+        })),
         {
             key: "profile",
             name: profile.name
@@ -535,7 +542,8 @@ export class TableProfileGenerationService {
                                     internalPath:
                                         profileInternalPath(
                                             profile
-                                        )
+                                        ),
+                                    fromTargetRoot: true
                                 });
 
                             nodes[node.nodeId] = {
@@ -731,7 +739,8 @@ export class TableProfileGenerationService {
                                         ),
                                     target,
                                     internalPath:
-                                        sourceInternalPath
+                                        sourceInternalPath,
+                                    fromTargetRoot: true
                                 });
 
                             nodes[groupNodeId] = {
@@ -769,7 +778,8 @@ export class TableProfileGenerationService {
                                     ),
                                 target,
                                 internalPath:
-                                    rootInternalPath
+                                    rootInternalPath,
+                                fromTargetRoot: true
                             });
 
                         nodes[sourceNodeId] = {
