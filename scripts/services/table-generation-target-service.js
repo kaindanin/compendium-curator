@@ -639,16 +639,16 @@ export class TableGenerationTargetService {
         profile,
         keepUuids = new Set()
     ) {
-        const storedUuids =
-            getStoredGeneratedUuids(profile);
+        const generatedTables =
+            await findManagedTablesAnywhere(
+                profile.id
+            );
         const worldTables = [];
         const packTables = new Map();
 
-        for (const uuid of storedUuids) {
-            if (keepUuids.has(uuid))
+        for (const table of generatedTables) {
+            if (keepUuids.has(table.uuid))
                 continue;
-
-            const table = await resolveUuid(uuid);
 
             if (
                 !isManagedTable(

@@ -163,6 +163,164 @@ async function replaceTableResults(
     }
 }
 
+function cloneData(value) {
+    return globalThis.foundry?.utils?.deepClone
+        ? globalThis.foundry.utils.deepClone(value)
+        : structuredClone(value);
+}
+
+async function restoreTableSnapshot(
+    table,
+    snapshot
+) {
+    const update = {};
+
+    for (const field of [
+        "name",
+        "img",
+        "description",
+        "formula",
+        "replacement",
+        "displayRoll",
+        "folder",
+        "flags"
+    ]) {
+        if (
+            Object.prototype.hasOwnProperty.call(
+                snapshot,
+                field
+            )
+        ) {
+            update[field] = cloneData(
+                snapshot[field]
+            );
+        }
+    }
+
+    await table.update(update);
+
+    const results = Array.from(
+        snapshot.results ?? []
+    ).map(result => {
+        const restored = cloneData(result);
+        delete restored._id;
+        return restored;
+    });
+
+    await replaceTableResults(
+        table,
+        results
+    );
+}
+
+export class TableGenerationTransaction {
+
+    constructor(target) {
+        this.target = target;
+        this.snapshots = new Map();
+        this.created = new Map();
+    }
+
+    remember(table) {
+        const key = String(
+            table?.uuid ?? table?.id ?? ""
+        ).trim();
+
+        if (
+            !key ||
+            this.created.has(key) ||
+            this.snapshots.has(key)
+        ) {
+            return;
+        }
+
+        this.snapshots.set(key, {
+            table,
+            data: cloneData(table.toObject())
+        });
+    }
+
+    registerCreated(table) {
+        const key = String(
+            table?.uuid ?? table?.id ?? ""
+        ).trim();
+
+        if (key)
+            this.created.set(key, table);
+    }
+
+    async rollback() {
+        const failures = [];
+
+        for (
+            const table
+            of [...this.created.values()].reverse()
+        ) {
+            try {
+                await table.delete();
+            }
+            catch (error) {
+                failures.push(error);
+            }
+        }
+
+        for (
+            const { table, data }
+            of [...this.snapshots.values()].reverse()
+        ) {
+            try {
+                await restoreTableSnapshot(
+                    table,
+                    data
+                );
+            }
+            catch (error) {
+                failures.push(error);
+            }
+        }
+
+        try {
+            await TableGenerationFolderService
+                .cleanupTarget(this.target);
+        }
+        catch (error) {
+            failures.push(error);
+        }
+
+        if (failures.length) {
+            throw new AggregateError(
+                failures,
+                "TABLE_GENERATION_ROLLBACK_FAILED"
+            );
+        }
+    }
+}
+
+async function runGenerationTransaction(
+    target,
+    callback
+) {
+    const transaction =
+        new TableGenerationTransaction(target);
+
+    try {
+        return await callback(transaction);
+    }
+    catch (error) {
+        try {
+            await transaction.rollback();
+        }
+        catch (rollbackError) {
+            console.error(
+                "Compendium Curator | Error restaurando una generación de tablas fallida.",
+                rollbackError
+            );
+        }
+
+        throw error;
+    }
+}
+
 async function reconcileTable({
     profile,
     nodeId,
@@ -172,7 +330,8 @@ async function reconcileTable({
     storedUuid,
     target,
     internalPath = [],
-    fromTargetRoot = false
+    fromTargetRoot = false,
+    transaction = null
 }) {
     let table =
         await TableGenerationTargetService
@@ -182,6 +341,9 @@ async function reconcileTable({
                 storedUuid,
                 target
             );
+
+    if (table)
+        transaction?.remember(table);
 
     const prepared = buildTableResults(
         entries,
@@ -238,6 +400,7 @@ async function reconcileTable({
             TableGenerationTargetService
                 .getCreateContext(target)
         );
+        transaction?.registerCreated(table);
     }
     else {
         /*
@@ -405,15 +568,6 @@ async function finalizeGeneration(
             .filter(Boolean)
     );
 
-    await TableGenerationTargetService
-        .removePreviousGeneratedTables(
-            profile,
-            keepUuids
-        );
-
-    await TableGenerationFolderService
-        .cleanupTarget(target);
-
     const updatedProfile =
         await TableProfileStorageService
             .setGenerationState(
@@ -427,6 +581,28 @@ async function finalizeGeneration(
                         )
                 }
             );
+
+    try {
+        await TableGenerationTargetService
+            .removePreviousGeneratedTables(
+                profile,
+                keepUuids
+            );
+
+        await TableGenerationFolderService
+            .cleanupTarget(target);
+    }
+    catch (error) {
+        /*
+         * La generación ya está guardada y es válida. Una tabla o
+         * carpeta obsoleta puede limpiarse de forma segura en la
+         * siguiente actualización, sin invalidar el resultado nuevo.
+         */
+        console.warn(
+            "Compendium Curator | La generación terminó, pero quedó contenido obsoleto pendiente de limpieza.",
+            error
+        );
+    }
 
     return {
         root,
@@ -494,7 +670,9 @@ export class TableProfileGenerationService {
         return TableGenerationTargetService
             .withWritableTarget(
                 target,
-                async () => {
+                () => runGenerationTransaction(
+                    target,
+                    async transaction => {
                     const nodes = {};
                     let rootEntries;
 
@@ -543,7 +721,8 @@ export class TableProfileGenerationService {
                                         profileInternalPath(
                                             profile
                                         ),
-                                    fromTargetRoot: true
+                                    fromTargetRoot: true,
+                                    transaction
                                 });
 
                             nodes[node.nodeId] = {
@@ -593,7 +772,8 @@ export class TableProfileGenerationService {
                                     profile,
                                     ROOT_NODE_ID
                                 ),
-                            target
+                            target,
+                            transaction
                         });
 
                     nodes[ROOT_NODE_ID] = {
@@ -606,7 +786,8 @@ export class TableProfileGenerationService {
                         nodes,
                         target
                     );
-                }
+                    }
+                )
             );
     }
 
@@ -668,7 +849,9 @@ export class TableProfileGenerationService {
         return TableGenerationTargetService
             .withWritableTarget(
                 target,
-                async () => {
+                () => runGenerationTransaction(
+                    target,
+                    async transaction => {
                     const nodes = {};
                     const rootEntries = [];
                     const rootInternalPath =
@@ -740,7 +923,8 @@ export class TableProfileGenerationService {
                                     target,
                                     internalPath:
                                         sourceInternalPath,
-                                    fromTargetRoot: true
+                                    fromTargetRoot: true,
+                                    transaction
                                 });
 
                             nodes[groupNodeId] = {
@@ -779,7 +963,8 @@ export class TableProfileGenerationService {
                                 target,
                                 internalPath:
                                     rootInternalPath,
-                                fromTargetRoot: true
+                                fromTargetRoot: true,
+                                transaction
                             });
 
                         nodes[sourceNodeId] = {
@@ -836,7 +1021,8 @@ export class TableProfileGenerationService {
                                     profile,
                                     ROOT_NODE_ID
                                 ),
-                            target
+                            target,
+                            transaction
                         });
 
                     nodes[ROOT_NODE_ID] = {
@@ -849,7 +1035,8 @@ export class TableProfileGenerationService {
                         nodes,
                         target
                     );
-                }
+                    }
+                )
             );
     }
 
@@ -930,7 +1117,9 @@ export class TableProfileGenerationService {
         return TableGenerationTargetService
             .withWritableTarget(
                 target,
-                async () => {
+                () => runGenerationTransaction(
+                    target,
+                    async transaction => {
                     const entries =
                         activeChildren.map(
                             child => ({
@@ -968,7 +1157,8 @@ export class TableProfileGenerationService {
                                     profile,
                                     ROOT_NODE_ID
                                 ),
-                            target
+                            target,
+                            transaction
                         });
                     const nodes = {
                         [ROOT_NODE_ID]: {
@@ -982,7 +1172,8 @@ export class TableProfileGenerationService {
                         nodes,
                         target
                     );
-                }
+                    }
+                )
             );
     }
 
