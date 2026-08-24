@@ -1688,7 +1688,7 @@ async function saveSourceConfiguration(
 
 function updateCount(inspector, count) {
     const summary = inspector.querySelector(
-        ":scope > summary strong"
+        ":scope > summary .cc-table-manager-profile-object-count"
     );
 
     if (summary) {
@@ -1911,8 +1911,8 @@ function renderEditableGroup(source, group) {
                     ${esc(group.label)}
                 </span>
                 <span class="hint">
-                    ${esc(text("Objetos", "Objects"))}:
                     ${group.count}
+                    ${esc(text("objetos", "objects"))}
                 </span>
                 <strong
                     style="min-width:64px;text-align:right;"
@@ -3037,9 +3037,13 @@ function activateEditor(
                         `[data-profile-id="${CSS.escape(childId)}"]`
                     );
                 const inspector =
-                    targetRow?.querySelector(
+                    targetRow?.matches(
                         "details[data-cc-content-inspector]"
-                    );
+                    )
+                        ? targetRow
+                        : targetRow?.querySelector(
+                            "details[data-cc-content-inspector]"
+                        );
 
                 if (!targetRow || !inspector) {
                     ui.notifications.info(text(
@@ -3144,9 +3148,13 @@ function enhanceDirectEditor(
             );
         }
 
-        const inspector = row.querySelector(
+        const inspector = row.matches(
             "details[data-cc-content-inspector]"
-        );
+        )
+            ? row
+            : row.querySelector(
+                "details[data-cc-content-inspector]"
+            );
 
         if (inspector) {
             updateCount(

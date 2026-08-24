@@ -869,6 +869,54 @@
     font-size: 0.8rem;
 }
 
+.cc-table-manager-profile-summary {
+    display: grid;
+    grid-template-columns:
+        auto
+        minmax(0, 1fr)
+        auto
+        auto
+        auto
+        auto;
+    align-items: center;
+    gap: 0.75rem;
+
+    grid-column: 1 / -1;
+
+    min-width: 0;
+
+    cursor: pointer;
+    list-style: none;
+}
+
+.cc-table-manager-profile-summary::-webkit-details-marker {
+    display: none;
+}
+
+.cc-table-manager-profile-summary
+    .cc-table-manager-profile-info {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.55rem;
+}
+
+.cc-table-manager-profile-object-count {
+    color: var(--color-text-subtle);
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.cc-table-manager-app .fa-chevron-down {
+    transition: transform 140ms ease;
+}
+
+.cc-table-manager-app
+    details[open]
+    > summary
+    .fa-chevron-down {
+    transform: rotate(180deg);
+}
+
 .cc-table-manager-generate-button {
     align-self: center;
     width: auto;

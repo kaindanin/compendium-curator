@@ -1303,7 +1303,7 @@ function updateInspectorCount(
 ) {
     const summaryCount =
         inspector.querySelector(
-            ":scope > summary strong"
+            ":scope > summary .cc-table-manager-profile-object-count"
         );
 
     if (summaryCount) {
@@ -1343,9 +1343,13 @@ function renderRecursivePreviews(
             `[data-profile-id="${CSS.escape(profileId)}"]`
         );
         const inspector =
-            profileRow?.querySelector(
+            profileRow?.matches(
                 "details[data-cc-content-inspector]"
-            );
+            )
+                ? profileRow
+                : profileRow?.querySelector(
+                    "details[data-cc-content-inspector]"
+                );
 
         if (!profileRow || !inspector)
             continue;

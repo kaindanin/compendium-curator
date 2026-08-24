@@ -237,40 +237,39 @@
             <div class="cc-table-manager-profiles">
                 {{#if hasProfiles}}
                     {{#each profiles}}
+                        {{#if isContent}}
+                        <details
+                            class="cc-table-manager-profile"
+                            data-profile-id="{{id}}"
+                            data-cc-search-text="{{searchText}}"
+                            data-cc-content-inspector
+                            {{#if inspectorOpen}}open{{/if}}
+                        >
+                            <summary class="cc-table-manager-profile-summary">
+                                <i class="fas fa-chevron-down"></i>
+                        {{else}}
                         <div
                             class="cc-table-manager-profile"
                             data-profile-id="{{id}}"
                             data-cc-search-text="{{searchText}}"
                         >
+                        {{/if}}
                             <div class="cc-table-manager-profile-info">
                                 <strong>{{name}}</strong>
                                 <span>
                                     <i class="{{typeIcon}}"></i>
                                     {{typeLabel}} · {{summary}}
                                 </span>
-
-                                {{#if filterGroups.length}}
-                                    <div class="cc-table-manager-filter-groups">
-                                        {{#each filterGroups}}
-                                            <div
-                                                class="cc-table-manager-filter-group"
-                                                data-filter-group-id="{{id}}"
-                                            >
-                                                <i class="fas fa-filter"></i>
-                                                <span>{{name}}</span>
-                                                <button
-                                                    type="button"
-                                                    class="cc-table-manager-filter-group-control"
-                                                    data-action="unlinkFilterGroup"
-                                                    title="{{localize 'COMPENDIUM_CURATOR.UnlinkFilterGroup'}}"
-                                                >
-                                                    <i class="fas fa-link-slash"></i>
-                                                </button>
-                                            </div>
-                                        {{/each}}
-                                    </div>
-                                {{/if}}
                             </div>
+
+                            {{#if isContent}}
+                                <strong class="cc-table-manager-profile-object-count">
+                                    {{localize
+                                        "COMPENDIUM_CURATOR.GroupObjectCount"
+                                        count=inspector.finalCount
+                                    }}
+                                </strong>
+                            {{/if}}
 
                             <div class="cc-table-manager-profile-status">
                                 {{status}}
@@ -422,49 +421,18 @@
                             </div>
 
                             {{#if isContent}}
-                                <details
-                                    class="cc-table-manager-content-inspector"
-                                    data-cc-content-inspector
-                                    {{#if inspectorOpen}}open{{/if}}
-                                    style="
-                                        grid-column: 1 / -1;
-                                        margin-top: 0.15rem;
-                                        padding-top: 0.65rem;
-                                        border-top: 1px solid rgb(255 255 255 / 7%);
-                                    "
-                                >
-                                    <summary
-                                        style="
-                                            display: flex;
-                                            align-items: center;
-                                            justify-content: space-between;
-                                            gap: 1rem;
-                                            min-height: 34px;
-                                            padding: 0.4rem 0.55rem;
-                                            cursor: pointer;
-                                            background: rgb(0 0 0 / 16%);
-                                            border-radius: 5px;
-                                            list-style: none;
-                                        "
-                                    >
-                                        <span>
-                                            <i class="fas fa-chevron-down"></i>
-                                            {{localize "COMPENDIUM_CURATOR.EditContent"}}
-                                        </span>
-                                        <strong>
-                                            {{localize
-                                                "COMPENDIUM_CURATOR.GroupObjectCount"
-                                                count=inspector.finalCount
-                                            }}
-                                        </strong>
-                                    </summary>
+                                </summary>
 
                                     <div
+                                        class="cc-table-manager-content-inspector"
                                         style="
+                                            grid-column: 1 / -1;
                                             display: flex;
                                             flex-direction: column;
                                             gap: 0.75rem;
+                                            margin-top: 0.15rem;
                                             padding: 0.75rem 0 0.15rem;
+                                            border-top: 1px solid rgb(255 255 255 / 7%);
                                         "
                                     >
                                         <div
@@ -1142,7 +1110,6 @@
                                             {{/if}}
                                         {{/if}}
                                     </div>
-                                </details>
                             {{/if}}
 
                             {{#if isNested}}
@@ -1239,7 +1206,11 @@
                                     </div>
                                 </details>
                             {{/if}}
+                        {{#if isContent}}
+                        </details>
+                        {{else}}
                         </div>
+                        {{/if}}
                     {{/each}}
                 {{else}}
                     <p class="cc-table-manager-empty">

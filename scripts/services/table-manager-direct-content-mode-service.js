@@ -477,7 +477,9 @@ async function saveMode(profileId, mode) {
 }
 
 function updateCount(inspector, count) {
-    const summary = inspector.querySelector(":scope > summary strong");
+    const summary = inspector.querySelector(
+        ":scope > summary .cc-table-manager-profile-object-count"
+    );
     if (summary) {
         summary.textContent = game.i18n.format(
             "COMPENDIUM_CURATOR.GroupObjectCount", { count }
@@ -634,7 +636,9 @@ function configureDirect(application, profile, profiles, filterGroups, row, prev
         ...ownSources(profile, filterGroups),
         ...tableSources(profile, profiles, preview)
     ];
-    const inspector = row.querySelector("details[data-cc-content-inspector]");
+    const inspector = row.matches("details[data-cc-content-inspector]")
+        ? row
+        : row.querySelector("details[data-cc-content-inspector]");
     if (inspector) updateCount(
         inspector,
         dedupe(sources.flatMap(source => source.entries)).length
@@ -682,7 +686,9 @@ function configureDirect(application, profile, profiles, filterGroups, row, prev
 }
 
 function appendInheritedIndividual(row, preview) {
-    const inspector = row.querySelector("details[data-cc-content-inspector]");
+    const inspector = row.matches("details[data-cc-content-inspector]")
+        ? row
+        : row.querySelector("details[data-cc-content-inspector]");
     const list = inspector?.querySelector(
         ":scope > div > section.inventory-element ol.item-list"
     );
@@ -698,7 +704,9 @@ function appendInheritedIndividual(row, preview) {
 }
 
 function appendInheritedGrouped(row, preview) {
-    const inspector = row.querySelector("details[data-cc-content-inspector]");
+    const inspector = row.matches("details[data-cc-content-inspector]")
+        ? row
+        : row.querySelector("details[data-cc-content-inspector]");
     const body = inspector?.querySelector(":scope > div");
     if (!body) return;
 
