@@ -26,8 +26,7 @@ function createEmptyTableProfile(name) {
             quantityMax: 1
         },
         itemRules: {
-            excludeZeroPrice: false,
-            includeHidden: false
+            excludeZeroPrice: false
         },
         distribution: {
             version: 2,

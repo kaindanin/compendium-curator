@@ -34,6 +34,10 @@ Forget about spending hours creating and organizing custom compendiums just to c
 * Automatically select lower-priority copies for hiding.
 * Detect duplicate entries with inconsistent translations.
 * Display loading indicators during long operations.
+* Create content and composite tables directly from the Compendium Browser.
+* Visually organize tables into folders and reproduce that structure on first generation.
+* Configure groups, weights, object rules, exclusions, and linked tables from one view.
+* Export one table or create a complete Manager backup with folders and defaults.
 
 ## Requirements
 
@@ -102,6 +106,16 @@ This action only changes the selection. Entries are not hidden until you click *
 Click **Translations** to display only duplicate groups containing two or more different translations for the same original name.
 
 Untranslated copies may still appear within these groups for comparison, but one translated copy and one untranslated original do not count as a translation conflict by themselves.
+
+### Table Manager
+
+Click **Manage tables** in the Compendium Browser to open the Manager. Creating a table only asks for a name; filter groups and linked tables can then be added from its actions menu.
+
+The **Content** block presents every group and linked table as an expandable branch. Groups expose their grouping, weights, and object rules. Linked tables reproduce the original structure as a read-only view, while only the relationship weight remains editable from the parent table.
+
+Manager folders are a visual organization. When a table is generated for the first time, that structure is reproduced in the default world or compendium destination. Later updates keep the document in its current location; if the user manually moves it elsewhere, the Manager does not force it back. Technical subtables are stored below the root **Subtables** folder and mirror the Manager organization.
+
+The configuration menu can export or restore a complete backup containing profiles, groups, folders, and defaults. Exporting a single table retains its dependencies, but imports it at the root without carrying over its visual source folder.
 
 ### Profiles
 

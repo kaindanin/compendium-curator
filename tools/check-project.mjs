@@ -16,6 +16,15 @@ function filesBelow(directory) {
     return readdirSync(directory, {
         withFileTypes: true
     }).flatMap(entry => {
+        if (
+            entry.isDirectory() &&
+            [".git", "node_modules"].includes(
+                entry.name
+            )
+        ) {
+            return [];
+        }
+
         const path = resolve(directory, entry.name);
         return entry.isDirectory()
             ? filesBelow(path)
@@ -23,10 +32,7 @@ function filesBelow(directory) {
     });
 }
 
-const projectFiles = filesBelow(root).filter(path =>
-    !path.includes(`${resolve(root, ".git")}\\`) &&
-    !path.includes(`${resolve(root, "node_modules")}\\`)
-);
+const projectFiles = filesBelow(root);
 const javascriptFiles = projectFiles.filter(path =>
     [".js", ".mjs"].includes(extname(path))
 );
@@ -80,7 +86,7 @@ for (const path of javascriptFiles) {
     for (
         const match
         of source.matchAll(
-            /["'`](templates\/[^"'`]+\.hbs)["'`]/g
+            /["'`](?:modules\/compendium-curator\/)?(templates\/[^"'`]+\.hbs)["'`]/g
         )
     ) {
         const target = resolve(root, match[1]);

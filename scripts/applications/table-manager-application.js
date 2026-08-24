@@ -2,7 +2,6 @@ import { TableProfileEditorApplication } from "./table-profile-editor-applicatio
 import { TableDefaultsApplication } from "./table-defaults-application.js";
 import { TableProfileStorageService } from "../services/table-profile-storage-service.js";
 import { TableFilterGroupApplication } from "./table-filter-group-application.js";
-import { TableProfilePreviewApplication } from "./table-profile-preview-application.js";
 import { TableProfileExclusionsApplication } from "./table-profile-exclusions-application.js";
 import { TableFilterGroupInclusionsApplication } from "./table-profile-inclusions-application.js";
 import { TableGroupingRangeApplication } from "./table-grouping-range-application.js";
@@ -1560,14 +1559,9 @@ function updateRenderedProfileStatus(
 }
 
 function buildContentInspector(profile) {
-    const includeHidden =
-        profile?.itemRules
-            ?.includeHidden === true;
-    const hiddenUuids = includeHidden
-        ? new Set()
-        : new Set(
-            StorageService.getHiddenUuids()
-        );
+    const hiddenUuids = new Set(
+        StorageService.getHiddenUuids()
+    );
 
     const finalUuids = new Set();
 
@@ -1910,7 +1904,6 @@ function buildContentInspector(profile) {
             finalUuids.size >
                 sourceAvailableCount,
         excludeZeroPrice,
-        includeHidden,
         priceExcludedCount,
         hasPriceExcluded:
             priceExcludedCount > 0,
@@ -2138,7 +2131,6 @@ export class TableManagerApplication
         this._defaultsEditor = null;
         this._filterGroupEditor = null;
         this._filterCriteriaEditor = null;
-        this._profilePreview = null;
         this._profileExclusions = null;
         this._filterGroupInclusions = null;
         this._filterGroupDetails = null;
@@ -2189,7 +2181,6 @@ export class TableManagerApplication
             editGroupingRanges: this.#onEditGroupingRanges,
             editManualGroups: this.#onEditManualGroups,
             addCurrentFilters: this.#onAddCurrentFilters,
-            previewProfile: this.#onPreviewProfile,
             filterGroupInclusions:
                 this.#onFilterGroupInclusions,
             manualExclusions: this.#onManualExclusions,
@@ -2767,68 +2758,6 @@ export class TableManagerApplication
         }
 
         for (
-            const ruleInput
-            of this.element.querySelectorAll(
-                "[data-cc-include-hidden]"
-            )
-        ) {
-            ruleInput.addEventListener(
-                "change",
-                event => {
-                    const target = event.currentTarget;
-                    const profileElement = target.closest(
-                        "[data-profile-id]"
-                    );
-                    const profileId =
-                        profileElement?.dataset?.profileId;
-
-                    if (!profileId)
-                        return;
-
-                    target.disabled = true;
-                    this._openContentInspectors.add(
-                        profileId
-                    );
-
-                    this._distributionSaveQueue =
-                        this._distributionSaveQueue
-                            .catch(() => {})
-                            .then(() =>
-                                TableProfileStorageService
-                                    .setIncludeHidden(
-                                        profileId,
-                                        target.checked
-                                    )
-                            )
-                            .then(() =>
-                                this.render({ force: true })
-                            )
-                            .catch(error => {
-                                console.error(
-                                    "Compendium Curator | Error cambiando la regla de objetos ocultos.",
-                                    error
-                                );
-
-                                const profile =
-                                    TableProfileStorageService
-                                        .getProfiles()?.[profileId];
-
-                                if (target.isConnected) {
-                                    target.checked =
-                                        profile?.itemRules
-                                            ?.includeHidden ===
-                                        true;
-                                }
-                            })
-                            .finally(() => {
-                                if (target.isConnected)
-                                    target.disabled = false;
-                            });
-                }
-            );
-        }
-
-        for (
             const childToggle
             of this.element.querySelectorAll(
                 "[data-cc-nested-child-enabled]"
@@ -3018,13 +2947,6 @@ export class TableManagerApplication
                                 updatedProfile
                             );
 
-                            if (
-                                this._profilePreview?.rendered &&
-                                this._profilePreview.profileId === profileId
-                            ) {
-                                this._profilePreview.render({ force: true });
-                            }
-
                             this.render({ force: true });
                         })
                         .catch(error => {
@@ -3093,13 +3015,6 @@ export class TableManagerApplication
                                 updatedProfile
                             );
 
-                            if (
-                                this._profilePreview?.rendered &&
-                                this._profilePreview.profileId === profileId
-                            ) {
-                                this._profilePreview.render({ force: true });
-                            }
-
                             this.render({ force: true });
                         })
                         .catch(error => {
@@ -3166,13 +3081,6 @@ export class TableManagerApplication
                                 profileElement,
                                 updatedProfile
                             );
-
-                            if (
-                                this._profilePreview?.rendered &&
-                                this._profilePreview.profileId === profileId
-                            ) {
-                                this._profilePreview.render({ force: true });
-                            }
 
                             this.render({ force: true });
                         })
@@ -3278,12 +3186,6 @@ export class TableManagerApplication
                                 updatedProfile
                             );
 
-                            if (
-                                this._profilePreview?.rendered &&
-                                this._profilePreview.profileId === profileId
-                            ) {
-                                this._profilePreview.render({ force: true });
-                            }
                         })
                         .catch(error => {
                             console.error(
@@ -3617,12 +3519,6 @@ export class TableManagerApplication
                                 updatedProfile
                             );
 
-                            if (
-                                this._profilePreview?.rendered &&
-                                this._profilePreview.profileId === profileId
-                            ) {
-                                this._profilePreview.render({ force: true });
-                            }
                         })
                         .catch(error => {
                             console.error(
@@ -3715,12 +3611,6 @@ export class TableManagerApplication
                                 updatedProfile
                             );
 
-                            if (
-                                this._profilePreview?.rendered &&
-                                this._profilePreview.profileId === profileId
-                            ) {
-                                this._profilePreview.render({ force: true });
-                            }
                         })
                         .catch(error => {
                             console.error(
@@ -3785,13 +3675,6 @@ export class TableManagerApplication
         );
 
         if (
-            this._profilePreview?.rendered &&
-            affectedProfiles.has(this._profilePreview.profileId)
-        ) {
-            this._profilePreview.render({ force: true });
-        }
-
-        if (
             this._profileExclusions?.rendered &&
             affectedProfiles.has(this._profileExclusions.profileId)
         ) {
@@ -3824,7 +3707,6 @@ export class TableManagerApplication
             "_defaultsEditor",
             "_filterGroupEditor",
             "_filterCriteriaEditor",
-            "_profilePreview",
             "_profileExclusions",
             "_filterGroupInclusions",
             "_filterGroupDetails",
@@ -4634,31 +4516,6 @@ export class TableManagerApplication
         this._filterGroupEditor.render({ force: true });
     }
 
-    static async #onPreviewProfile(event, target) {
-        const profileId = target
-            .closest("[data-profile-id]")
-            ?.dataset?.profileId;
-
-        if (!profileId)
-            return;
-
-        if (this._profilePreview?.rendered) {
-            if (this._profilePreview.profileId === profileId) {
-                this._profilePreview.bringToFront();
-                return;
-            }
-
-            await this._profilePreview.close();
-        }
-
-        this._profilePreview = new TableProfilePreviewApplication(
-            this.browserApp,
-            profileId
-        );
-
-        this._profilePreview.render({ force: true });
-    }
-
     static async #onFilterGroupInclusions(
         event,
         target
@@ -5383,7 +5240,6 @@ export class TableManagerApplication
         this.render({ force: true });
 
         const applications = [
-            this._profilePreview,
             this._profileExclusions
         ];
 
@@ -5539,7 +5395,6 @@ export class TableManagerApplication
         const profileApplications = [
             "_filterGroupEditor",
             "_filterCriteriaEditor",
-            "_profilePreview",
             "_profileExclusions",
             "_filterGroupDetails",
             "_groupingRangeEditor",
@@ -6467,7 +6322,6 @@ export class TableManagerApplication
         this.render({ force: true });
 
         const applications = [
-            this._profilePreview,
             this._profileExclusions
         ];
 

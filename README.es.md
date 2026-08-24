@@ -33,6 +33,10 @@ Olvídate de invertir horas creando y organizando compendios personalizados solo
 * Seleccionar automáticamente las copias de menor prioridad para ocultarlas.
 * Detectar duplicados con traducciones diferentes.
 * Mostrar indicadores de carga durante operaciones largas.
+* Crear tablas de contenido y tablas compuestas desde el propio Navegador de Compendios.
+* Organizar visualmente las tablas en carpetas y reproducir esa estructura en su primera generación.
+* Configurar grupos, pesos, reglas de objetos, exclusiones y tablas enlazadas desde una única vista.
+* Exportar una tabla o realizar una copia completa del Gestor con sus carpetas y valores predeterminados.
 
 ## Requisitos
 
@@ -101,6 +105,16 @@ La acción solo modifica la selección. Las entradas no se ocultan hasta que pul
 Pulsa **Traducciones** para mostrar únicamente los grupos duplicados que contienen dos o más traducciones diferentes para el mismo nombre original.
 
 Las copias sin traducir pueden aparecer dentro de estos grupos para facilitar la comparación, pero una traducción y una copia original sin traducir no se consideran por sí solas un conflicto.
+
+### Gestor de tablas
+
+Pulsa **Gestionar tablas** en el Navegador de Compendios para abrir el Gestor. Una tabla nueva solo pide un nombre; después puedes añadirle grupos de filtros y tablas enlazadas desde su menú de acciones.
+
+El bloque **Contenido** reúne cada grupo y tabla enlazada como una rama desplegable. Los grupos permiten configurar su agrupación, pesos y reglas. Las tablas enlazadas muestran la estructura original en modo de solo lectura y únicamente permiten cambiar el peso de la relación desde la tabla padre.
+
+Las carpetas del Gestor son una organización visual. La primera vez que se genera una tabla, esa estructura se replica en el mundo o compendio predeterminado. Las actualizaciones posteriores conservan el documento en su ubicación actual; si el usuario lo mueve manualmente a otro lugar, el Gestor no lo devuelve a la fuerza. Las subtablas técnicas se guardan bajo la carpeta raíz **Subtablas**, reflejando la organización del Gestor.
+
+El menú de configuración permite exportar o restaurar una copia completa con perfiles, grupos, carpetas y valores predeterminados. La exportación de una sola tabla conserva sus dependencias, pero se importa en la raíz y no arrastra su carpeta visual de origen.
 
 ### Perfiles
 

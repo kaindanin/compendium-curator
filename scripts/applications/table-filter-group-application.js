@@ -913,7 +913,6 @@ export class TableFilterGroupApplication
         }
 
         const applications = [
-            this.managerApp?._profilePreview,
             this.managerApp?._profileExclusions
         ];
 

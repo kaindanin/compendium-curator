@@ -1211,9 +1211,7 @@ export class TableProfileStorageService {
 
         profile.itemRules = {
             excludeZeroPrice:
-                source.excludeZeroPrice === true,
-            includeHidden:
-                source.includeHidden === true
+                source.excludeZeroPrice === true
         };
     }
 
@@ -1762,7 +1760,7 @@ export class TableProfileStorageService {
         );
 
         console.info(
-            "Compendium Curator | Perfiles de tabla migrados al formato v4."
+            "Compendium Curator | Perfiles de tabla migrados al formato v5."
         );
 
         return true;
@@ -3014,65 +3012,6 @@ export class TableProfileStorageService {
             ),
             excludeZeroPrice:
                 requested
-        };
-        profile.revision =
-            Number(profile.revision ?? 1) + 1;
-
-        const normalizedStorage =
-            this.#normalizeStorage(storage);
-
-        await game.settings.set(
-            MODULE_ID,
-            TABLE_PROFILES_SETTING,
-            normalizedStorage
-        );
-
-        return this.#hydrateProfile(
-            normalizedStorage
-                .profiles?.[profileId],
-            normalizedStorage
-        );
-    }
-
-    static async setIncludeHidden(
-        profileId,
-        includeHidden
-    ) {
-        const storage =
-            foundry.utils.deepClone(
-                this.getStorage()
-            );
-        const profile =
-            storage.profiles?.[profileId];
-
-        if (
-            !profile ||
-            profile.version !== 2 ||
-            profile.type !== "content"
-        ) {
-            throw new Error(
-                "TABLE_PROFILE_NOT_FOUND"
-            );
-        }
-
-        const requested =
-            includeHidden === true;
-
-        if (
-            profile.itemRules
-                ?.includeHidden === requested
-        ) {
-            return this.#hydrateProfile(
-                profile,
-                storage
-            );
-        }
-
-        profile.itemRules = {
-            ...foundry.utils.deepClone(
-                profile.itemRules ?? {}
-            ),
-            includeHidden: requested
         };
         profile.revision =
             Number(profile.revision ?? 1) + 1;

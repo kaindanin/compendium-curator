@@ -895,12 +895,9 @@ function nativeItemWeight(
 }
 
 function eligibleEntries(profile, uuids) {
-    const hidden =
-        profile?.itemRules?.includeHidden === true
-            ? new Set()
-            : new Set(
-                StorageService.getHiddenUuids()
-            );
+    const hidden = new Set(
+        StorageService.getHiddenUuids()
+    );
     const excluded = new Set(
         profile?.manualExcludes ?? []
     );

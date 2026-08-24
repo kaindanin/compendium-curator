@@ -1,7 +1,5 @@
 import {
-    MODULE_ID,
-    STORAGE_CHANGED_HOOK,
-    TABLE_PROFILES_SETTING
+    STORAGE_CHANGED_HOOK
 } from "../settings.js";
 import {
     TableProfileStorageService
@@ -12,8 +10,6 @@ import {
 
 const managers = new Set();
 const syncTimers = new WeakMap();
-
-let hiddenPolicyWrite = false;
 
 function isTableManager(app) {
     return (
@@ -173,79 +169,6 @@ function refreshOpenManagers(options = {}) {
     }
 }
 
-async function enforceGlobalHiddenPolicy() {
-    if (hiddenPolicyWrite)
-        return false;
-
-    const current = game.settings.get(
-        MODULE_ID,
-        TABLE_PROFILES_SETTING
-    );
-
-    if (
-        !current?.profiles ||
-        typeof current.profiles !== "object"
-    ) {
-        return false;
-    }
-
-    const storage =
-        foundry.utils.deepClone(current);
-    let changed = false;
-
-    for (
-        const profile
-        of Object.values(storage.profiles)
-    ) {
-        if (
-            !profile?.itemRules ||
-            !Object.prototype.hasOwnProperty.call(
-                profile.itemRules,
-                "includeHidden"
-            )
-        ) {
-            continue;
-        }
-
-        const changedContent =
-            profile.itemRules.includeHidden === true;
-
-        delete profile.itemRules.includeHidden;
-        changed = true;
-
-        if (changedContent) {
-            profile.revision =
-                Number(profile.revision ?? 1) + 1;
-        }
-    }
-
-    if (!changed)
-        return false;
-
-    hiddenPolicyWrite = true;
-
-    try {
-        await game.settings.set(
-            MODULE_ID,
-            TABLE_PROFILES_SETTING,
-            storage
-        );
-    }
-    finally {
-        hiddenPolicyWrite = false;
-    }
-
-    return true;
-}
-
-function isTableProfilesSetting(setting) {
-    return String(
-        setting?.key ??
-        setting?.name ??
-        ""
-    ) === `${MODULE_ID}.${TABLE_PROFILES_SETTING}`;
-}
-
 export function registerTableManagerSynchronization() {
     Hooks.on(
         "renderApplicationV2",
@@ -320,28 +243,4 @@ export function registerTableManagerSynchronization() {
         );
     }
 
-    /*
-     * `includeHidden` era una excepción antigua.
-     * Los ocultos pasan a ser una exclusión global.
-     */
-    Hooks.on(
-        "updateSetting",
-        setting => {
-            if (
-                hiddenPolicyWrite ||
-                !isTableProfilesSetting(setting)
-            ) {
-                return;
-            }
-
-            void enforceGlobalHiddenPolicy();
-        }
-    );
-
-    Hooks.once(
-        "ready",
-        () => {
-            void enforceGlobalHiddenPolicy();
-        }
-    );
 }

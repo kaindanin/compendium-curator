@@ -339,9 +339,9 @@ function sourceCriterion(profile, sourceKey, sourceProfile = profile) {
 }
 
 function ownSources(profile, filterGroups) {
-    const hidden = profile?.itemRules?.includeHidden === true
-        ? new Set()
-        : new Set(StorageService.getHiddenUuids());
+    const hidden = new Set(
+        StorageService.getHiddenUuids()
+    );
     const excluded = new Set(profile?.manualExcludes ?? []);
     const excludeZeroPrice = profile?.itemRules?.excludeZeroPrice === true;
     const ids = [...new Set(profile.filterGroupIds ?? [])];

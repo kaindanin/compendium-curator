@@ -688,6 +688,10 @@
    Table Manager
    ========================================================================== */
 
+.cc-table-manager-app {
+    container-type: inline-size;
+}
+
 .cc-table-manager-app .window-content {
     display: flex;
     flex-direction: column;
@@ -1547,19 +1551,6 @@
 }
 
 
-/* Legacy preview step retained by the editor */
-
-.cc-table-profile-preview {
-    display: flex;
-    flex-direction: column;
-
-    flex: 1 1 0;
-
-    min-height: 0;
-
-    overflow: hidden;
-}
-
 .cc-table-profile-count {
     flex: 0 0 auto;
 }
@@ -1633,6 +1624,109 @@
 
 .cc-table-profile-editor-row > .form-fields {
     flex: 0 0 270px;
+}
+
+@container (max-width: 620px) {
+    .cc-table-manager-header {
+        flex-wrap: wrap;
+        gap: 0.65rem;
+    }
+
+    .cc-table-manager-actions {
+        flex: 1 1 100%;
+        flex-wrap: wrap;
+    }
+
+    .cc-table-profile-list {
+        padding-inline: 0.65rem;
+    }
+
+    .cc-table-manager-folder-children {
+        margin-left: 0.25rem;
+        padding-left: 0.35rem;
+    }
+
+    .cc-table-manager-profile-summary,
+    .cc-table-manager-profile-summary:has(
+        > .cc-table-manager-folder-drag-handle
+    ) {
+        grid-template-columns:
+            auto
+            minmax(0, 1fr)
+            auto;
+        gap: 0.45rem 0.6rem;
+    }
+
+    .cc-table-manager-profile-summary
+        > .fa-chevron-down {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .cc-table-manager-profile-summary
+        > .cc-table-manager-folder-drag-handle {
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    .cc-table-manager-profile-summary
+        > .cc-table-manager-profile-info {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .cc-table-manager-profile-summary
+        > .cc-table-manager-profile-status {
+        grid-column: 2;
+        grid-row: 2;
+        justify-self: start;
+    }
+
+    .cc-table-manager-profile-summary
+        > .cc-table-manager-primary-actions {
+        grid-column: 2;
+        grid-row: 3;
+        flex-wrap: wrap;
+        justify-self: start;
+    }
+
+    .cc-table-manager-profile-summary
+        > .cc-table-manager-profile-menu-wrapper {
+        grid-column: 3;
+        grid-row: 1 / span 3;
+        align-self: start;
+    }
+
+    .cc-table-manager-profile-summary
+        .cc-table-manager-profile-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.2rem;
+    }
+
+    .cc-table-manager-content-inspector {
+        min-width: 0;
+        overflow-x: auto;
+    }
+
+    .cc-table-manager-app
+        [data-cc-direct-content-editor]
+        .cc-direct-configuration-row {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .cc-table-manager-app
+        [data-cc-direct-content-editor]
+        .cc-direct-configuration-select {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .cc-table-content-list summary,
+    .cc-table-filter-detail-choice {
+        flex-wrap: wrap;
+    }
 }
 
 .cc-table-profile-editor-general
@@ -2002,131 +2096,6 @@
 
 .cc-table-filter-group-matches-title strong {
     flex: 0 0 auto;
-}
-
-
-/* ==========================================================================
-   Table Profile Preview
-   ========================================================================== */
-
-.cc-table-profile-preview-app
-    .window-content {
-    display: flex;
-    flex-direction: column;
-
-    height: 100%;
-    min-height: 0;
-
-    padding: 0;
-
-    overflow: hidden;
-}
-
-.cc-table-profile-preview-app
-    [data-application-part="body"] {
-    display: flex;
-    flex-direction: column;
-
-    flex: 1 1 0;
-
-    height: 100%;
-    min-height: 0;
-
-    overflow: hidden;
-}
-
-.cc-table-profile-full-preview {
-    display: flex;
-    flex-direction: column;
-
-    flex: 1 1 0;
-
-    height: 100%;
-    min-height: 0;
-
-    overflow: hidden;
-}
-
-.cc-table-profile-full-preview > h2 {
-    flex: 0 0 auto;
-
-    margin: 0;
-
-    padding: 1rem 1rem 0.75rem;
-
-    border-bottom: 0;
-}
-
-.cc-table-profile-preview-scroll {
-    display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
-
-    flex: 1 1 0;
-
-    min-height: 0;
-
-    padding: 0 1rem 1rem;
-
-    overflow-x: hidden;
-    overflow-y: auto;
-}
-
-.cc-table-profile-preview-scroll > section {
-    flex: 0 0 auto;
-
-    padding: 0;
-
-    background: transparent;
-
-    border: 0;
-    border-radius: 0;
-
-    box-shadow: none;
-}
-
-.cc-table-profile-preview-scroll
-    > section > h3 {
-    margin: 0 0 0.65rem;
-
-    padding-bottom: 0.45rem;
-
-    border-bottom: 1px solid
-        rgb(255 255 255 / 10%);
-}
-
-.cc-table-profile-preview-scroll
-    > section + section {
-    margin-top: 0.35rem;
-}
-
-.cc-table-profile-preview-results {
-    display: block;
-
-    min-height: auto;
-
-    overflow: visible;
-}
-
-.cc-table-profile-preview-results
-    .cc-dnd5e-document-list,
-.cc-table-profile-preview-results
-    .cc-dnd5e-document-list
-    .items-section {
-    margin: 0;
-}
-
-.cc-table-profile-preview-results
-    .cc-dnd5e-document-list
-    .item-controls {
-    width: 16px;
-    min-width: 16px;
-}
-
-.cc-table-profile-preview-results
-    .cc-dnd5e-document-list
-    .item-name.rollable {
-    cursor: var(--cursor-pointer);
 }
 
 

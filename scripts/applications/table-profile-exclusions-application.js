@@ -253,22 +253,6 @@ export class TableProfileExclusionsApplication
 
         }
 
-        const preview =
-            this.managerApp
-                ?._profilePreview;
-
-        if (
-            preview?.rendered &&
-            preview.profileId ===
-                this.profileId
-        ) {
-
-            preview.render({
-                force: true
-            });
-
-        }
-
         await this.close();
 
     }
