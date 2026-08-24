@@ -1194,6 +1194,20 @@ function decorateSourcePercentages(sources) {
     }
 }
 
+export function buildDirectContentGenerationSources(
+    profile,
+    filterGroups =
+        TableProfileStorageService.getFilterGroups()
+) {
+    const sources = ownSources(
+        profile,
+        filterGroups
+    );
+
+    decorateSourcePercentages(sources);
+    return sources;
+}
+
 function tableModeLabel(profile) {
     if (
         profile?.contentLayout?.mode ===

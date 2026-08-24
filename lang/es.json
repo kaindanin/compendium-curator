@@ -361,6 +361,7 @@
     "TableFolderCycle": "Una carpeta no puede colocarse dentro de sí misma.",
     "TableFolderNotFound": "La carpeta ya no existe.",
     "TableFolderOperationFailed": "No se pudo completar la operación con la carpeta.",
+    "GeneratedFolderSyncFailed": "La organización del Gestor se guardó, pero no se pudo sincronizar alguna carpeta generada.",
     "TableFolderTableCount": "{count} tablas",
     "TablesWithoutFolder": "Sin carpeta",
     "MoveTableToFolderHint": "Arrastrar para mover la tabla",

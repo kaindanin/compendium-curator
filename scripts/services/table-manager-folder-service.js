@@ -4,6 +4,9 @@ import {
 import {
     TableProfileStorageService
 } from "./table-profile-storage-service.js";
+import {
+    TableGenerationFolderService
+} from "./table-generation-folder-service.js";
 
 const PATCH_FLAG = Symbol.for(
     "compendium-curator.table-manager-folders"
@@ -60,6 +63,32 @@ function folderError(error) {
             "COMPENDIUM_CURATOR.TableFolderOperationFailed"
         )
     );
+}
+
+async function syncGeneratedLocations(
+    profileId = null
+) {
+    try {
+        if (profileId) {
+            await TableGenerationFolderService
+                .syncProfile(profileId);
+        }
+        else {
+            await TableGenerationFolderService
+                .syncAllProfiles();
+        }
+    }
+    catch (error) {
+        console.error(
+            "Compendium Curator | Error sincronizando carpetas generadas.",
+            error
+        );
+        ui.notifications.warn(
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.GeneratedFolderSyncFailed"
+            )
+        );
+    }
 }
 
 async function requestFolderName({
@@ -224,6 +253,9 @@ function configureDropZone(
                         profileId,
                         folderId
                     );
+                await syncGeneratedLocations(
+                    profileId
+                );
             }
             else {
                 await TableProfileStorageService
@@ -231,6 +263,7 @@ function configureDropZone(
                         draggedFolderId,
                         folderId
                     );
+                await syncGeneratedLocations();
             }
 
             await application.render({ force: true });
@@ -527,6 +560,7 @@ function createFolderElement(
 
                 await TableProfileStorageService
                     .renameFolder(folder.id, newName);
+                await syncGeneratedLocations();
             }
             else if (action === "delete") {
                 const confirmed =
@@ -554,6 +588,7 @@ function createFolderElement(
 
                 await TableProfileStorageService
                     .removeFolder(folder.id);
+                await syncGeneratedLocations();
                 application._ccCollapsedTableFolders
                     .delete(folder.id);
             }

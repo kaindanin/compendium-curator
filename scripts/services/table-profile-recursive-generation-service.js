@@ -4,6 +4,9 @@ import { TableProfileStorageService } from "./table-profile-storage-service.js";
 import { TableProfileGenerationService } from "./table-profile-generation-service.js";
 import { TableProfileDrawService } from "./table-profile-draw-service.js";
 import { getActiveTableChildren } from "./table-profile-relations-service.js";
+import {
+    buildDirectContentGenerationSources
+} from "./table-manager-direct-content-editor-service.js";
 
 const PATCH_FLAG = Symbol.for("compendium-curator.table-profile-recursive-generation");
 const DRAW_PATCH_FLAG = Symbol.for("compendium-curator.table-profile-recursive-draw");
@@ -171,6 +174,30 @@ async function generateRecursive(application, profileId, originalGenerate, state
     let generated;
     let ownContent = false;
     if (profile.type === "content") {
+        if (
+            profile?.contentLayout?.mode ===
+                "direct"
+        ) {
+            generated =
+                await TableProfileGenerationService
+                    .generateDirect(
+                        profile,
+                        buildDirectContentGenerationSources(
+                            profile
+                        ),
+                        children
+                    );
+            generated.profile =
+                TableProfileStorageService
+                    .getProfiles()?.[profile.id] ??
+                generated.profile;
+            state.generated.set(
+                profileId,
+                generated
+            );
+            return generated;
+        }
+
         try {
             generated = await originalGenerate.call(application, profile.id);
             ownContent = true;

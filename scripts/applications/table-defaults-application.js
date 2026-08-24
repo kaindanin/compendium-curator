@@ -104,12 +104,12 @@ export class TableDefaultsApplication
 
         context.generationDestinationLabel =
             game.i18n.lang.startsWith("es")
-                ? "Ubicación sugerida al generar"
-                : "Suggested generation location";
+                ? "Ubicación predeterminada al generar"
+                : "Default generation location";
         context.generationDestinationHint =
             game.i18n.lang.startsWith("es")
-                ? "Esta opción solo aparecerá preseleccionada al generar una RollTable nueva. Podrás elegir otra ubicación antes de crearla y las tablas existentes no se moverán si cambias este valor."
-                : "This option is only preselected when generating a new RollTable. You can choose another location before creating it, and existing tables are not moved when this value changes.";
+                ? "Las RollTables nuevas se crean aquí automáticamente, usando las carpetas del Gestor. Las tablas ya generadas conservan el mundo o compendio donde estén."
+                : "New RollTables are created here automatically using the Manager folders. Existing tables keep their current World or compendium.";
 
         return context;
 

@@ -738,35 +738,10 @@ function integrateLinked(row, profile, preview) {
         appendInheritedGrouped(row, preview);
 }
 
-function disableGeneration(row, direct) {
-    if (!direct) return false;
-    const reason = text(
-        "La generación de esta distribución se activará después de validar este editor.",
-        "Generation for this distribution will be enabled after this editor is validated."
-    );
-    for (const control of row.querySelectorAll([
-        '[data-action="generateProfile"]',
-        '[data-action="quickDrawGeneratedTable"]',
-        '[data-action="drawGeneratedTable"]',
-        '[data-action="openGeneratedTable"]'
-    ].join(","))) {
-        control.disabled = true;
-        control.title = reason;
-    }
-    for (const handle of row.querySelectorAll("[data-cc-rolltable-drag]")) {
-        handle.draggable = false;
-        handle.setAttribute("aria-disabled", "true");
-        handle.title = reason;
-    }
-    return !row.hidden;
-}
-
 function enhanceManager(application, element) {
     const profiles = TableProfileStorageService.getProfiles();
     const filterGroups = TableProfileStorageService.getFilterGroups();
     const previews = application._ccRecursivePreviewData;
-    let directVisible = false;
-
     for (const profile of Object.values(profiles)) {
         if (profile?.version !== 2 || profile.type !== "content") continue;
         const row = element.querySelector(
@@ -791,20 +766,6 @@ function enhanceManager(application, element) {
             integrateLinked(row, profile, preview);
         }
 
-        if (disableGeneration(row, direct)) directVisible = true;
-    }
-
-    if (directVisible) {
-        const batch = element.querySelector(
-            '[data-action="generateVisibleProfiles"]'
-        );
-        if (batch) {
-            batch.disabled = true;
-            batch.title = text(
-                "Hay una tabla visible usando separación por contenido directo.",
-                "A visible table is using direct-content separation."
-            );
-        }
     }
 }
 

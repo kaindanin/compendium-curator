@@ -1,6 +1,9 @@
 import { MODULE_ID } from "../settings.js";
 import { TableProfileStorageService } from "./table-profile-storage-service.js";
 import { TableGenerationTargetService } from "./table-generation-target-service.js";
+import {
+    TableGenerationFolderService
+} from "./table-generation-folder-service.js";
 
 const ROOT_NODE_ID = "root";
 const MAX_TABLE_RANGE = 1_000_000;
@@ -206,14 +209,25 @@ async function reconcileTable({
         }
     };
 
+    const placement =
+        await TableGenerationFolderService
+            .resolvePlacement({
+                profile,
+                table,
+                target
+            });
+
+    TableGenerationFolderService
+        .applyPlacementToData(
+            tableData,
+            placement
+        );
+
     if (!table) {
         const createData = {
             ...tableData,
             results: prepared.results
         };
-
-        if (target.mode === "world")
-            createData.folder = null;
 
         table = await RollTable.create(
             createData,
@@ -223,9 +237,10 @@ async function reconcileTable({
     }
     else {
         /*
-         * La ubicación es decisión del usuario una vez creada.
-         * No incluimos `folder` ni cambiamos de pack al actualizar,
-         * por lo que mover una tabla manualmente no se deshace.
+         * Solo incluimos `folder` cuando la tabla continúa en la
+         * ubicación automática que registramos. Si el usuario la
+         * movió, el servicio de carpetas omite ese campo y conserva
+         * su colocación actual.
          */
         await table.update(tableData);
         await replaceTableResults(
@@ -482,6 +497,220 @@ export class TableProfileGenerationService {
                                 profile,
                                 inspector
                             );
+                    }
+
+                    const root =
+                        await reconcileTable({
+                            profile,
+                            nodeId: ROOT_NODE_ID,
+                            name: profile.name,
+                            img:
+                                rootEntries.find(
+                                    entry => entry.img
+                                )?.img ??
+                                "icons/svg/d20-grey.svg",
+                            entries: rootEntries,
+                            storedUuid:
+                                profile.generation
+                                    ?.rootUuid ??
+                                getStoredNodeUuid(
+                                    profile,
+                                    ROOT_NODE_ID
+                                ),
+                            target
+                        });
+
+                    nodes[ROOT_NODE_ID] = {
+                        uuid: root.uuid
+                    };
+
+                    return finalizeGeneration(
+                        profile,
+                        root,
+                        nodes
+                    );
+                }
+            );
+    }
+
+    static async generateDirect(
+        profile,
+        sources,
+        children = []
+    ) {
+        if (
+            !profile?.id ||
+            profile.type !== "content"
+        ) {
+            throw new Error(
+                "INVALID_TABLE_PROFILE"
+            );
+        }
+
+        const activeSources = (
+            Array.isArray(sources)
+                ? sources
+                : []
+        ).map(source => ({
+            ...source,
+            groups: (
+                Array.isArray(source?.groups)
+                    ? source.groups
+                    : []
+            ).filter(group =>
+                group?.enabled !== false &&
+                Array.isArray(group?.entries) &&
+                group.entries.length > 0
+            )
+        })).filter(source =>
+            source?.key &&
+            source.groups.length > 0
+        );
+        const activeChildren = (
+            Array.isArray(children)
+                ? children
+                : []
+        ).filter(child =>
+            child?.profile?.id &&
+            child?.table?.uuid
+        );
+
+        if (
+            !activeSources.length &&
+            !activeChildren.length
+        ) {
+            throw new Error(
+                "TABLE_PROFILE_NO_OBJECTS"
+            );
+        }
+
+        const target =
+            await TableGenerationTargetService
+                .resolveTarget(profile);
+
+        return TableGenerationTargetService
+            .withWritableTarget(
+                target,
+                async () => {
+                    const nodes = {};
+                    const rootEntries = [];
+
+                    for (const source of activeSources) {
+                        const sourceNodeId =
+                            `source:${source.key}`;
+                        const sourceEntries = [];
+
+                        for (const group of source.groups) {
+                            const groupNodeId =
+                                `${sourceNodeId}:group:${encodeURIComponent(group.key)}`;
+                            const groupTable =
+                                await reconcileTable({
+                                    profile,
+                                    nodeId: groupNodeId,
+                                    name:
+                                        `${profile.name} — ${source.name} — ${group.label}`,
+                                    img:
+                                        group.entries.find(
+                                            entry => entry.img
+                                        )?.img ??
+                                        "icons/svg/d20-grey.svg",
+                                    entries:
+                                        group.entries.map(
+                                            entry => ({
+                                                documentUuid:
+                                                    entry.uuid,
+                                                name:
+                                                    entry.name,
+                                                img:
+                                                    entry.img,
+                                                resultKey:
+                                                    entry.uuid,
+                                                weight:
+                                                    normalizePositiveWeight(
+                                                        entry.weight,
+                                                        1
+                                                    )
+                                            })
+                                        ),
+                                    storedUuid:
+                                        getStoredNodeUuid(
+                                            profile,
+                                            groupNodeId
+                                        ),
+                                    target
+                                });
+
+                            nodes[groupNodeId] = {
+                                uuid: groupTable.uuid
+                            };
+                            sourceEntries.push({
+                                documentUuid:
+                                    groupTable.uuid,
+                                name: group.label,
+                                img: groupTable.img,
+                                resultKey: groupNodeId,
+                                weight:
+                                    normalizePositiveWeight(
+                                        group.weight,
+                                        1
+                                    )
+                            });
+                        }
+
+                        const sourceTable =
+                            await reconcileTable({
+                                profile,
+                                nodeId: sourceNodeId,
+                                name:
+                                    `${profile.name} — ${source.name}`,
+                                img:
+                                    sourceEntries.find(
+                                        entry => entry.img
+                                    )?.img ??
+                                    "icons/svg/d20-grey.svg",
+                                entries: sourceEntries,
+                                storedUuid:
+                                    getStoredNodeUuid(
+                                        profile,
+                                        sourceNodeId
+                                    ),
+                                target
+                            });
+
+                        nodes[sourceNodeId] = {
+                            uuid: sourceTable.uuid
+                        };
+                        rootEntries.push({
+                            documentUuid:
+                                sourceTable.uuid,
+                            name: source.name,
+                            img: sourceTable.img,
+                            resultKey: source.key,
+                            weight:
+                                normalizePositiveWeight(
+                                    source.weight,
+                                    1
+                                )
+                        });
+                    }
+
+                    for (const child of activeChildren) {
+                        rootEntries.push({
+                            documentUuid:
+                                child.table.uuid,
+                            name:
+                                child.profile.name,
+                            img:
+                                child.table.img ??
+                                "icons/svg/d20-grey.svg",
+                            resultKey:
+                                `table:${child.profile.id}`,
+                            weight:
+                                normalizePositiveWeight(
+                                    child.weight,
+                                    1
+                                )
+                        });
                     }
 
                     const root =

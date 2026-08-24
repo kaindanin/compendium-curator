@@ -450,10 +450,56 @@ export class TableGenerationTargetService {
     }
 
     static async resolveExistingTarget(profile) {
+        const storedRootUuid = String(
+            profile?.generation?.rootUuid ??
+            ""
+        ).trim();
+        const storedRoot = await resolveUuid(
+            storedRootUuid
+        );
+
+        if (
+            isManagedTable(
+                storedRoot,
+                profile.id,
+                ROOT_NODE_ID
+            )
+        ) {
+            const target =
+                await this.getTargetFromDocument(
+                    storedRoot
+                );
+
+            if (target)
+                return target;
+        }
+
+        /*
+         * La raíz visible manda sobre las tablas internas. Si el
+         * usuario la traslada a otro compendio, su UUID puede
+         * cambiar mientras aún quedan nodos antiguos en el destino
+         * anterior.
+         */
+        const discoveredRoot =
+            await findManagedTableAnywhere(
+                profile.id,
+                ROOT_NODE_ID
+            );
+        const discoveredTarget =
+            await this.getTargetFromDocument(
+                discoveredRoot
+            );
+
+        if (discoveredTarget)
+            return discoveredTarget;
+
         for (
             const uuid
             of getStoredGeneratedUuids(profile)
         ) {
+            if (uuid === storedRootUuid)
+                continue;
+
             const table = await resolveUuid(uuid);
 
             if (
@@ -474,89 +520,7 @@ export class TableGenerationTargetService {
                 return target;
         }
 
-        const discovered =
-            await findManagedTableAnywhere(
-                profile.id,
-                ROOT_NODE_ID
-            );
-
-        return this.getTargetFromDocument(
-            discovered
-        );
-    }
-
-    static async promptForTarget(profile) {
-        const choices = this.getTargetChoices();
-        const selected = this.choiceValue(
-            this.getDefaultTarget()
-        );
-        const escape = foundry.utils.escapeHTML;
-        const options = choices
-            .map(choice => {
-                const value = escape(
-                    String(choice.value)
-                );
-                const label = escape(
-                    String(choice.label)
-                );
-                const selectedAttribute =
-                    choice.value === selected
-                        ? " selected"
-                        : "";
-
-                return (
-                    `<option value="${value}"${selectedAttribute}>${label}</option>`
-                );
-            })
-            .join("");
-        const destinationLabel =
-            game.i18n.lang.startsWith("es")
-                ? "Guardar en"
-                : "Save to";
-        const destinationHint =
-            game.i18n.lang.startsWith("es")
-                ? "Solo se elige al crear esta RollTable. Después puedes moverla manualmente y Curator no cambiará su ubicación al actualizarla."
-                : "This is only chosen when creating this RollTable. Afterwards you can move it manually and Curator will not change its location when updating it.";
-        const title =
-            game.i18n.lang.startsWith("es")
-                ? `Generar «${profile.name}»`
-                : `Generate “${profile.name}”`;
-        const generateLabel =
-            game.i18n.lang.startsWith("es")
-                ? "Generar"
-                : "Generate";
-        const result =
-            await foundry.applications.api.DialogV2
-                .input({
-                    window: { title },
-                    content: `
-                        <div class="form-group">
-                            <label>${escape(destinationLabel)}</label>
-                            <div class="form-fields">
-                                <select name="generationTarget">
-                                    ${options}
-                                </select>
-                            </div>
-                            <p class="hint">
-                                ${escape(destinationHint)}
-                            </p>
-                        </div>
-                    `,
-                    ok: {
-                        label: generateLabel
-                    },
-                    rejectClose: false,
-                    modal: true
-                });
-
-        if (!result)
-            return null;
-
-        return this.resolveSelectedTarget(
-            this.parseChoice(
-                result.generationTarget
-            )
-        );
+        return null;
     }
 
     static async resolveTarget(profile) {
@@ -568,16 +532,9 @@ export class TableGenerationTargetService {
         if (existing)
             return existing;
 
-        const selected =
-            await this.promptForTarget(profile);
-
-        if (!selected) {
-            throw new Error(
-                "ROLLTABLE_GENERATION_CANCELLED"
-            );
-        }
-
-        return selected;
+        return this.resolveSelectedTarget(
+            this.getDefaultTarget()
+        );
     }
 
     static async withWritableTarget(
@@ -665,6 +622,12 @@ export class TableGenerationTargetService {
         return findManagedTableAnywhere(
             profileId,
             nodeId
+        );
+    }
+
+    static async findManagedTables(profileId) {
+        return findManagedTablesAnywhere(
+            profileId
         );
     }
 
