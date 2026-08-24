@@ -330,6 +330,10 @@ function enhanceManager(element) {
 }
 
 function disclosureSegment(details) {
+    if (details.dataset.ccItemRules !== undefined) {
+        return "item-rules";
+    }
+
     if (details.dataset.ccDirectSource !== undefined) {
         return `source:${details.dataset.ccDirectSource}`;
     }

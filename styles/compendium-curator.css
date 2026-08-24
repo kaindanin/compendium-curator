@@ -989,70 +989,82 @@
     height: 30px;
     min-height: 30px;
 
-    margin: 0;
+    margin: 0 0 0 0.25rem;
     padding: 0;
 
     border-radius: 5px;
 }
 
 .cc-table-item-rules {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
+    display: block;
 }
 
-.cc-table-item-rules-heading {
+.cc-table-item-rules-summary {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
+    gap: 0.5rem;
+
+    cursor: pointer;
+    list-style: none;
 }
 
-.cc-table-item-rules-heading > strong {
+.cc-table-item-rules-summary::-webkit-details-marker {
+    display: none;
+}
+
+.cc-table-item-rules-summary > span {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
 }
 
-.cc-table-item-rules-heading > strong > i {
+.cc-table-item-rules-summary .fa-tags {
     opacity: 0.75;
 }
 
-.cc-table-item-rule-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
+.cc-table-item-rules-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
 
-    min-height: 30px;
+    padding-top: 0.55rem;
+}
 
-    padding: 0.3rem 0.55rem;
+.cc-table-item-rule {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.6rem;
+    align-items: start;
+
+    padding: 0.55rem 0.65rem;
 
     background: rgb(0 0 0 / 16%);
 
     border-radius: 5px;
 
     cursor: pointer;
-    white-space: nowrap;
 }
 
-.cc-table-item-rule-toggle:has(input:disabled) {
+.cc-table-item-rule:has(input:disabled) {
     cursor: not-allowed;
-    opacity: 0.55;
+    opacity: 0.6;
 }
 
-.cc-table-item-rule-toggle input {
-    margin: 0;
+.cc-table-item-rule > input {
+    margin: 0.15rem 0 0;
 }
 
-.cc-table-item-rule-hint,
-.cc-table-item-rule-unavailable,
-.cc-table-item-rule-result {
-    margin: 0;
-}
-
-.cc-table-item-rule-unavailable,
-.cc-table-item-rule-result {
+.cc-table-item-rule-content {
     display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+
+    min-width: 0;
+}
+
+.cc-table-item-rule-unavailable,
+.cc-table-item-rule-result {
+    display: inline-flex;
     align-items: center;
     gap: 0.4rem;
 }

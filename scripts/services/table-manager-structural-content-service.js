@@ -181,13 +181,6 @@ function refineTableSource(source) {
         );
     }
 
-    const tableActions = source.querySelector(
-        ":scope > div > [data-cc-linked-table-actions]"
-    );
-    const legacyModeSummary =
-        tableActions?.nextElementSibling;
-
-    legacyModeSummary?.remove();
 }
 
 function refineRow(row) {

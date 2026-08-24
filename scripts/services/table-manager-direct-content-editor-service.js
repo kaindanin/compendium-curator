@@ -2361,6 +2361,22 @@ function renderTableSource(source, tableView) {
                     <i class="fas fa-table-list"></i>
                     <span class="hint">${esc(text("Tabla", "Table"))}:</span>
                     ${esc(source.name)}
+                    <button
+                        type="button"
+                        class="unbutton cc-open-original-table-button"
+                        data-cc-open-original-table
+                        data-child-profile-id="${esc(childId)}"
+                        aria-label="${esc(text(
+                            "Ir a la tabla original",
+                            "Go to original table"
+                        ))}"
+                        title="${esc(text(
+                            "Ir a la tabla original",
+                            "Go to original table"
+                        ))}"
+                    >
+                        <i class="fas fa-arrow-up-right-from-square"></i>
+                    </button>
                 </span>
                 <span class="hint">
                     ${source.entries.length}
@@ -2396,49 +2412,6 @@ function renderTableSource(source, tableView) {
                     padding:0 0.55rem 0.55rem;
                 "
             >
-                <div
-                    data-cc-linked-table-actions
-                    style="
-                        display:flex;
-                        justify-content:flex-end;
-                        padding-top:0.45rem;
-                    "
-                >
-                    <button
-                        type="button"
-                        class="unbutton cc-open-original-table-button"
-                        data-cc-open-original-table
-                        data-child-profile-id="${esc(childId)}"
-                        aria-label="${esc(text(
-                            "Ir a la tabla original",
-                            "Go to original table"
-                        ))}"
-                        title="${esc(text(
-                            "Ir a la tabla original",
-                            "Go to original table"
-                        ))}"
-                    >
-                        <i class="fas fa-arrow-up-right-from-square"></i>
-                    </button>
-                </div>
-                <div
-                    style="
-                        display:grid;
-                        grid-template-columns:minmax(140px,1fr) minmax(180px,1.3fr);
-                        gap:0.45rem 0.8rem;
-                        align-items:center;
-                    "
-                >
-                    <span>${esc(text("Modo", "Mode"))}</span>
-                    <strong>${esc(tableView.mode)}</strong>
-                    ${tableView.kind === "grouped"
-                        ? `
-                            <span>${esc(text("Agrupar por", "Group by"))}</span>
-                            <strong>${esc(tableView.criterionLabel)}</strong>
-                        `
-                        : ""
-                    }
-                </div>
                 ${tableView.kind === "grouped"
                     ? tableView.groups.map(
                         renderReadOnlyGroup

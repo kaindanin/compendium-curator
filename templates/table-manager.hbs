@@ -450,15 +450,21 @@
                                             </p>
                                         {{/if}}
 
-                                        <div class="cc-table-filter-detail-block cc-table-item-rules">
-                                            <div class="cc-table-item-rules-heading">
-                                                <strong>
+                                        <details
+                                            class="cc-table-filter-detail-block cc-table-item-rules"
+                                            data-cc-item-rules
+                                        >
+                                            <summary class="cc-table-item-rules-summary">
+                                                <span>
+                                                    <i class="fas fa-chevron-down"></i>
                                                     <i class="fas fa-tags"></i>
                                                     {{localize "COMPENDIUM_CURATOR.ItemRules"}}
-                                                </strong>
+                                                </span>
+                                            </summary>
 
+                                            <div class="cc-table-item-rules-list">
                                                 <label
-                                                    class="cc-table-item-rule-toggle"
+                                                    class="cc-table-item-rule"
                                                     for="cc-exclude-zero-price-{{id}}"
                                                 >
                                                     <input
@@ -468,33 +474,36 @@
                                                         {{#if inspector.excludeZeroPrice}}checked{{/if}}
                                                         {{#unless inspector.hasItemDocuments}}disabled{{/unless}}
                                                     >
-                                                    <span>
-                                                        {{localize "COMPENDIUM_CURATOR.ExcludeZeroPrice"}}
+
+                                                    <span class="cc-table-item-rule-content">
+                                                        <strong>
+                                                            {{localize "COMPENDIUM_CURATOR.ExcludeZeroPrice"}}
+                                                        </strong>
+
+                                                        <span class="hint">
+                                                            {{localize "COMPENDIUM_CURATOR.ExcludeZeroPriceHint"}}
+                                                        </span>
+
+                                                        {{#unless inspector.hasItemDocuments}}
+                                                            <span class="hint cc-table-item-rule-unavailable">
+                                                                <i class="fas fa-circle-info"></i>
+                                                                {{localize "COMPENDIUM_CURATOR.ItemRulesUnavailableHint"}}
+                                                            </span>
+                                                        {{/unless}}
+
+                                                        {{#if inspector.hasPriceExcluded}}
+                                                            <span class="hint cc-table-item-rule-result">
+                                                                <i class="fas fa-filter-circle-xmark"></i>
+                                                                {{localize
+                                                                    "COMPENDIUM_CURATOR.ZeroPriceExcludedCount"
+                                                                    count=inspector.priceExcludedCount
+                                                                }}
+                                                            </span>
+                                                        {{/if}}
                                                     </span>
                                                 </label>
                                             </div>
-
-                                            <p class="hint cc-table-item-rule-hint">
-                                                {{localize "COMPENDIUM_CURATOR.ExcludeZeroPriceHint"}}
-                                            </p>
-
-                                            {{#unless inspector.hasItemDocuments}}
-                                                <p class="hint cc-table-item-rule-unavailable">
-                                                    <i class="fas fa-circle-info"></i>
-                                                    {{localize "COMPENDIUM_CURATOR.ItemRulesUnavailableHint"}}
-                                                </p>
-                                            {{/unless}}
-
-                                            {{#if inspector.hasPriceExcluded}}
-                                                <p class="hint cc-table-item-rule-result">
-                                                    <i class="fas fa-filter-circle-xmark"></i>
-                                                    {{localize
-                                                        "COMPENDIUM_CURATOR.ZeroPriceExcludedCount"
-                                                        count=inspector.priceExcludedCount
-                                                    }}
-                                                </p>
-                                            {{/if}}
-                                        </div>
+                                        </details>
 
                                         <div class="cc-table-filter-detail-block">
                                             <div class="cc-table-filter-detail-heading">
