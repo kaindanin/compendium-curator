@@ -80,11 +80,25 @@ function sourcePercentage(source) {
 }
 
 function makeReadOnly(root) {
-    for (const control of root.querySelectorAll(
+    for (const control of [...root.querySelectorAll(
         "input, select, textarea"
-    )) {
-        control.disabled = true;
-        control.setAttribute("aria-disabled", "true");
+    )]) {
+        const value = control.matches("select")
+            ? control.selectedOptions?.[0]?.textContent?.trim()
+            : control.type === "checkbox"
+                ? text(
+                    control.checked ? "Incluido" : "Excluido",
+                    control.checked ? "Included" : "Excluded"
+                )
+                : control.value;
+        const replacement = document.createElement(
+            control.type === "checkbox" ? "span" : "strong"
+        );
+
+        replacement.className = "hint";
+        replacement.textContent = String(value ?? "").trim();
+        replacement.dataset.ccLinkedReadOnlyValue = "";
+        control.replaceWith(replacement);
     }
 
     for (const button of root.querySelectorAll([
@@ -105,6 +119,27 @@ function makeReadOnly(root) {
         ".notification"
     )) {
         notification.remove();
+    }
+}
+
+function removeDuplicateGroups(root) {
+    for (
+        const source
+        of root.querySelectorAll(
+            ":scope > [data-cc-direct-source]"
+        )
+    ) {
+        if (
+            source.querySelector(
+                ":scope > summary [data-cc-direct-table-weight]"
+            )
+        ) {
+            continue;
+        }
+
+        source.querySelector(
+            ":scope > div > .cc-table-filter-detail-choices"
+        )?.remove();
     }
 }
 
@@ -177,7 +212,7 @@ function cloneProfileStructure(
     clone.dataset.ccLinkedExpandedPreview = "";
     clone.querySelector(":scope > p.hint")?.remove();
 
-    makeReadOnly(clone);
+    removeDuplicateGroups(clone);
     scalePercentages(clone, rootScale);
 
     for (
@@ -211,6 +246,8 @@ function cloneProfileStructure(
             nextPath
         );
     }
+
+    makeReadOnly(clone);
 
     return clone;
 }
