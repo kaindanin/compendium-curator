@@ -18,10 +18,13 @@ function getResultWeight(result) {
         : 1;
 }
 
-function isWorldRollTableUuid(uuid) {
-    return /^RollTable\.[^.]+$/.test(
-        String(uuid ?? "")
-    );
+function isRollTableUuid(uuid) {
+    const value = String(uuid ?? "");
+
+    return /^RollTable\.[^.]+$/.test(value) ||
+        /^Compendium\.[^.]+\.[^.]+\.RollTable\.[^.]+$/.test(
+            value
+        );
 }
 
 async function collectLeafEntries(
@@ -67,9 +70,16 @@ async function collectLeafEntries(
             getResultWeight(result) /
             totalWeight;
 
-        if (isWorldRollTableUuid(documentUuid)) {
-            const childTable =
-                await fromUuid(documentUuid);
+        if (isRollTableUuid(documentUuid)) {
+            let childTable = null;
+
+            try {
+                childTable =
+                    await fromUuid(documentUuid);
+            }
+            catch {
+                childTable = null;
+            }
 
             if (childTable?.documentName === "RollTable") {
                 await collectLeafEntries(

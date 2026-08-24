@@ -1,15 +1,11 @@
 import { MODULE_ID } from "../settings.js";
-import { TableManagerApplication } from "../applications/table-manager-application.js";
 import { TableProfileStorageService } from "./table-profile-storage-service.js";
 import { TableProfileGenerationService } from "./table-profile-generation-service.js";
-import { TableProfileDrawService } from "./table-profile-draw-service.js";
 import { getActiveTableChildren } from "./table-profile-relations-service.js";
 import {
     buildDirectContentGenerationSources
 } from "./table-manager-direct-content-editor-service.js";
 
-const PATCH_FLAG = Symbol.for("compendium-curator.table-profile-recursive-generation");
-const DRAW_PATCH_FLAG = Symbol.for("compendium-curator.table-profile-recursive-draw");
 const MAX_TABLE_RANGE = 1_000_000;
 const WEIGHT_PRECISION = 1000;
 
@@ -218,164 +214,21 @@ async function generateRecursive(application, profileId, originalGenerate, state
     return generated;
 }
 
-function profileIdFromTarget(target) {
-    return String(target?.closest?.("[data-profile-id]")?.dataset?.profileId ?? "").trim();
-}
-
-function generationErrorKey(error) {
-    if (error?.message === "TABLE_PROFILE_NO_ACTIVE_GROUPS") return "TableProfileNoActiveGroups";
-    if (error?.message === "TABLE_PROFILE_NO_ACTIVE_CHILDREN") return "TableProfileNoActiveChildren";
-    if (error?.message === "TABLE_PROFILE_NO_OBJECTS") return "TableProfileNoObjects";
-    return "RollTableGenerationFailed";
-}
-
-function skippable(error) {
-    return ["TABLE_PROFILE_NO_ACTIVE_GROUPS", "TABLE_PROFILE_NO_ACTIVE_CHILDREN", "TABLE_PROFILE_NO_OBJECTS"].includes(error?.message);
-}
-
-function patchActions(originalActions) {
-    const actions = TableManagerApplication.DEFAULT_OPTIONS?.actions;
-    if (!actions) return;
-
-    actions.generateProfile = async function(event, target) {
-        event.preventDefault();
-        event.stopPropagation();
-        const profileId = profileIdFromTarget(target);
-        if (!profileId) return;
-        target.disabled = true;
-        this._closeProfileActionsPopover?.();
-        try {
-            const generated = await this.generateStoredProfileTables(profileId);
-            ui.notifications.info(game.i18n.format("COMPENDIUM_CURATOR.RollTableGenerated", { name: generated.root.name }));
-            await this.render({ force: true });
-        }
-        catch (error) {
-            console.error("Compendium Curator | Error generando RollTables recursivas.", error);
-            ui.notifications.error(game.i18n.localize(`COMPENDIUM_CURATOR.${generationErrorKey(error)}`));
-        }
-        finally {
-            if (target.isConnected) target.disabled = false;
-        }
-    };
-
-    actions.generateVisibleProfiles = async function(event, target) {
-        event.preventDefault();
-        event.stopPropagation();
-        if (this._activeTab === "filters") return;
-        const ids = [...new Set(Array.from(this.element.querySelectorAll(".cc-table-manager-profile[data-profile-id]"))
-            .filter(element => !element.hidden).map(element => element.dataset.profileId).filter(Boolean))];
-        if (!ids.length) return;
-        target.disabled = true;
-        let generated = 0;
-        let skipped = 0;
-        let failed = 0;
-        for (const id of ids) {
-            try { await this.generateStoredProfileTables(id); generated++; }
-            catch (error) {
-                if (skippable(error)) skipped++;
-                else { failed++; console.error("Compendium Curator | Error generando una tabla visible recursiva.", { profileId: id, error }); }
-            }
-        }
-        const summary = game.i18n.format("COMPENDIUM_CURATOR.VisibleTablesGenerationSummary", { generated, skipped, failed });
-        failed ? ui.notifications.warn(summary) : ui.notifications.info(summary);
-        await this.render({ force: true });
-        if (target.isConnected) target.disabled = false;
-    };
-
-    for (const name of ["openGeneratedTable", "drawGeneratedTable", "quickDrawGeneratedTable"]) {
-        const original = originalActions[name];
-        if (typeof original !== "function") continue;
-        actions[name] = async function(event, target) {
-            const profileId = profileIdFromTarget(target);
-            const profiles = TableProfileStorageService.getProfiles();
-            const profile = profiles?.[profileId];
-            if (profile && profileHasPendingTableDependencies(profile, profiles)) {
-                try {
-                    const generated = await this.generateStoredProfileTables(profileId);
-                    ui.notifications.info(game.i18n.format("COMPENDIUM_CURATOR.RollTableAutoUpdated", { name: generated.root.name }));
-                    await this.render({ force: true });
-                }
-                catch (error) {
-                    console.error("Compendium Curator | Error actualizando dependencias recursivas.", error);
-                    ui.notifications.error(game.i18n.localize("COMPENDIUM_CURATOR.RollTableGenerationFailed"));
-                    return;
-                }
-            }
-            return original.call(this, event, target);
-        };
-    }
-}
-
-function resultWeight(result) {
-    const weight = Number(result?.weight);
-    if (Number.isFinite(weight) && weight > 0) return weight;
-    const start = Number(result?.range?.[0]);
-    const end = Number(result?.range?.[1]);
-    return Number.isFinite(start) && Number.isFinite(end) && end >= start ? end - start + 1 : 1;
-}
-
-function rollTableUuid(uuid) {
-    const value = String(uuid ?? "");
-    return /^RollTable\.[^.]+$/.test(value) || /^Compendium\.[^.]+\.[^.]+\.RollTable\.[^.]+$/.test(value);
-}
-
-async function collectLeaves(table, multiplier, leaves, active) {
-    const tableUuid = String(table?.uuid ?? "");
-    if (!tableUuid || active.has(tableUuid)) return;
-    const results = Array.from(table.results ?? []).filter(result => Boolean(result?.documentUuid));
-    const total = results.reduce((sum, result) => sum + resultWeight(result), 0);
-    if (!(total > 0)) return;
-    const next = new Set(active);
-    next.add(tableUuid);
-    for (const result of results) {
-        const uuid = String(result.documentUuid ?? "");
-        const probability = multiplier * resultWeight(result) / total;
-        if (rollTableUuid(uuid)) {
-            let child = null;
-            try { child = await fromUuid(uuid); } catch { child = null; }
-            if (child?.documentName === "RollTable") {
-                await collectLeaves(child, probability, leaves, next);
-                continue;
-            }
-        }
-        const existing = leaves.get(uuid);
-        if (existing) existing.weight += probability;
-        else leaves.set(uuid, {
-            uuid,
-            name: String(result.name ?? "").trim() || uuid,
-            img: String(result.img ?? "").trim() || "icons/svg/item-bag.svg",
-            weight: probability
-        });
-    }
-}
-
-function patchDrawPool() {
-    if (TableProfileDrawService[DRAW_PATCH_FLAG]) return;
-    TableProfileDrawService.getDrawPool = async function(table) {
-        if (table?.documentName !== "RollTable") throw new Error("INVALID_ROLL_TABLE");
-        const leaves = new Map();
-        await collectLeaves(table, 1, leaves, new Set());
-        return [...leaves.values()].filter(entry => entry.uuid && entry.weight > 0);
-    };
-    Object.defineProperty(TableProfileDrawService, DRAW_PATCH_FLAG, { value: true, configurable: false });
-}
-
-export function registerTableProfileRecursiveGeneration() {
-    const prototype = TableManagerApplication.prototype;
-    if (prototype[PATCH_FLAG]) return;
-    const originalGenerate = prototype.generateStoredProfileTables;
-    const originalActions = { ...TableManagerApplication.DEFAULT_OPTIONS?.actions };
-    if (typeof originalGenerate !== "function") return;
-
-    prototype.generateStoredProfileTables = async function(profileId) {
-        return generateRecursive(this, profileId, originalGenerate, {
-            profiles: TableProfileStorageService.getProfiles(),
+export function generateStoredProfileTablesRecursively(
+    application,
+    profileId,
+    originalGenerate
+) {
+    return generateRecursive(
+        application,
+        profileId,
+        originalGenerate,
+        {
+            profiles:
+                TableProfileStorageService
+                    .getProfiles(),
             generated: new Map(),
             stack: new Set()
-        });
-    };
-
-    patchActions(originalActions);
-    patchDrawPool();
-    Object.defineProperty(prototype, PATCH_FLAG, { value: true, configurable: false });
+        }
+    );
 }

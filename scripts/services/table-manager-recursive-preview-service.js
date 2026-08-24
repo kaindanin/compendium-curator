@@ -1,7 +1,4 @@
 import {
-    TableManagerApplication
-} from "../applications/table-manager-application.js";
-import {
     TableProfileStorageService
 } from "./table-profile-storage-service.js";
 import {
@@ -12,9 +9,6 @@ import {
     getDnd5eDistributionIndexEntry
 } from "../ui/dnd5e-document-list.js";
 
-const PATCH_FLAG = Symbol.for(
-    "compendium-curator.table-manager-recursive-preview"
-);
 const PREVIEW_LIMIT = 150;
 
 const RARITY_ORDER = [
@@ -911,100 +905,66 @@ function buildRecursivePreview(
     };
 }
 
-function patchPrepareContext() {
-    const prototype =
-        TableManagerApplication.prototype;
+export function prepareTableManagerRecursivePreviewContext(
+    application,
+    context
+) {
+    application._ccRecursivePreviewData =
+        new Map();
 
-    if (prototype[PATCH_FLAG])
-        return;
+    if (
+        application._activeTab === "filters" ||
+        !Array.isArray(context?.profiles)
+    ) {
+        return context;
+    }
 
-    const original =
-        prototype._prepareContext;
+    const profiles =
+        TableProfileStorageService.getProfiles();
+    const contextById = new Map(
+        context.profiles
+            .filter(profile => profile?.id)
+            .map(profile => [
+                profile.id,
+                profile
+            ])
+    );
 
-    if (typeof original !== "function")
-        return;
-
-    prototype._prepareContext =
-        async function recursivePreviewPrepareContext(
-            options
+    for (
+        const profileContext
+        of context.profiles
+    ) {
+        if (
+            !profileContext?.id ||
+            !profileContext.inspector
         ) {
-            const context =
-                await original.call(
-                    this,
-                    options
-                );
+            continue;
+        }
 
-            this._ccRecursivePreviewData =
-                new Map();
+        const profile =
+            profiles?.[profileContext.id];
 
-            if (
-                this._activeTab === "filters" ||
-                !Array.isArray(context?.profiles)
-            ) {
-                return context;
-            }
+        if (!profile)
+            continue;
 
-            const profiles =
-                TableProfileStorageService
-                    .getProfiles();
-            const contextById = new Map(
-                context.profiles
-                    .filter(profile =>
-                        profile?.id
-                    )
-                    .map(profile => [
-                        profile.id,
-                        profile
-                    ])
+        const preview =
+            buildRecursivePreview(
+                profileContext,
+                profile,
+                profiles,
+                contextById
             );
 
-            for (
-                const profileContext
-                of context.profiles
-            ) {
-                if (
-                    !profileContext?.id ||
-                    !profileContext.inspector
-                ) {
-                    continue;
-                }
+        if (!preview.hasLinkedTables)
+            continue;
 
-                const profile =
-                    profiles?.[
-                        profileContext.id
-                    ];
+        application._ccRecursivePreviewData.set(
+            profile.id,
+            preview
+        );
+    }
 
-                if (!profile)
-                    continue;
-
-                const preview =
-                    buildRecursivePreview(
-                        profileContext,
-                        profile,
-                        profiles,
-                        contextById
-                    );
-
-                if (!preview.hasLinkedTables)
-                    continue;
-
-                this._ccRecursivePreviewData.set(
-                    profile.id,
-                    preview
-                );
-            }
-
-            return context;
-        };
-
-    Object.defineProperty(
-        prototype,
-        PATCH_FLAG,
-        {
-            value: true,
-            configurable: false
-        }
-    );
+    return context;
 }
 
 function renderEntry(entry) {
@@ -1424,8 +1384,6 @@ function renderRecursivePreviews(
 }
 
 export function registerTableManagerRecursivePreview() {
-    patchPrepareContext();
-
     Hooks.on(
         "renderTableManagerApplication",
         (application, element) => {

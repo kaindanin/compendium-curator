@@ -1424,6 +1424,86 @@ export class TableProfileStorageService {
         return children;
     }
 
+    static #assertPortableRelations(profiles) {
+        for (
+            const [profileId, profile]
+            of Object.entries(profiles ?? {})
+        ) {
+            if (
+                !profileId ||
+                profile?.version !== 2 ||
+                (
+                    profile.children !== undefined &&
+                    !Array.isArray(profile.children)
+                )
+            ) {
+                throw new Error(
+                    "INVALID_TABLE_PROFILE_BUNDLE"
+                );
+            }
+
+            const used = new Set();
+
+            for (const child of profile.children ?? []) {
+                const childId = String(
+                    typeof child === "string"
+                        ? child
+                        : child?.profileId ??
+                            child?.id ??
+                            ""
+                ).trim();
+
+                if (
+                    !childId ||
+                    childId === profileId ||
+                    used.has(childId) ||
+                    profiles?.[childId]
+                        ?.version !== 2
+                ) {
+                    throw new Error(
+                        "INVALID_TABLE_PROFILE_BUNDLE"
+                    );
+                }
+
+                used.add(childId);
+            }
+        }
+
+        const visiting = new Set();
+        const visited = new Set();
+        const visit = profileId => {
+            if (visited.has(profileId))
+                return;
+
+            if (visiting.has(profileId)) {
+                throw new Error(
+                    "INVALID_TABLE_PROFILE_BUNDLE"
+                );
+            }
+
+            visiting.add(profileId);
+
+            for (
+                const child
+                of profiles[profileId]?.children ?? []
+            ) {
+                visit(String(
+                    typeof child === "string"
+                        ? child
+                        : child?.profileId ??
+                            child?.id ??
+                            ""
+                ).trim());
+            }
+
+            visiting.delete(profileId);
+            visited.add(profileId);
+        };
+
+        for (const profileId of Object.keys(profiles))
+            visit(profileId);
+    }
+
     static #normalizeStorage(rawStorage) {
         const source =
             foundry.utils.deepClone(
@@ -1691,9 +1771,6 @@ export class TableProfileStorageService {
             const [profileId, profile]
             of Object.entries(storage.profiles)
         ) {
-            if (profile.type !== "nested")
-                continue;
-
             profile.children =
                 this.#normalizeNestedChildren(
                     profileId,
@@ -3697,10 +3774,12 @@ export class TableProfileStorageService {
 
             profileIds.add(currentId);
 
-            if (profile.type === "nested") {
-                for (const child of profile.children ?? []) {
-                    pending.push(child.profileId);
-                }
+            for (const child of profile.children ?? []) {
+                pending.push(
+                    typeof child === "string"
+                        ? child
+                        : child?.profileId
+                );
             }
         }
 
@@ -3712,6 +3791,12 @@ export class TableProfileStorageService {
                 storage.profiles[currentId]
             );
 
+            profile.children =
+                this.#normalizeNestedChildren(
+                    currentId,
+                    profile.children,
+                    storage.profiles
+                );
             profile.generation = {
                 masterUuid: null,
                 groupUuids: {},
@@ -3801,6 +3886,10 @@ export class TableProfileStorageService {
             );
         }
 
+        this.#assertPortableRelations(
+            sourceProfiles
+        );
+
         for (
             const [sourceId, profile]
             of profileEntries
@@ -3817,9 +3906,9 @@ export class TableProfileStorageService {
                     profile.filterGroupIds ?? []
                 ) ||
                 (
-                    profile.type === "nested" &&
+                    profile.children !== undefined &&
                     !Array.isArray(
-                        profile.children ?? []
+                        profile.children
                     )
                 )
             ) {
@@ -3839,21 +3928,6 @@ export class TableProfileStorageService {
                 }
             }
 
-            if (profile.type === "nested") {
-                for (const child of profile.children ?? []) {
-                    if (
-                        !this.#isSupportedNestedChild(
-                            sourceId,
-                            child?.profileId,
-                            sourceProfiles
-                        )
-                    ) {
-                        throw new Error(
-                            "INVALID_TABLE_PROFILE_BUNDLE"
-                        );
-                    }
-                }
-            }
         }
 
         for (
@@ -4009,17 +4083,21 @@ export class TableProfileStorageService {
             };
             delete profile.filterGroups;
 
-            if (profile.type === "nested") {
-                profile.children = (
-                    profile.children ?? []
-                ).map(child => ({
-                    ...child,
-                    profileId:
-                        profileIdMap.get(
-                            child.profileId
-                        )
-                }));
-            }
+            profile.children = (
+                profile.children ?? []
+            ).map(child => ({
+                ...(
+                    typeof child === "string"
+                        ? {}
+                        : child
+                ),
+                profileId:
+                    profileIdMap.get(
+                        typeof child === "string"
+                            ? child
+                            : child.profileId
+                    )
+            }));
 
             storage.profiles[newId] = profile;
         }
@@ -4514,16 +4592,17 @@ export class TableProfileStorageService {
             const candidate
             of Object.values(storage.profiles)
         ) {
-            if (
-                candidate?.type !== "nested" ||
-                !Array.isArray(candidate.children)
-            ) {
+            if (!Array.isArray(candidate.children)) {
                 continue;
             }
 
             const nextChildren =
                 candidate.children.filter(child =>
-                    child?.profileId !== profileId
+                    (
+                        typeof child === "string"
+                            ? child
+                            : child?.profileId
+                    ) !== profileId
                 );
 
             if (

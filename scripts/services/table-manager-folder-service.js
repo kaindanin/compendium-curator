@@ -1,16 +1,10 @@
 import {
-    TableManagerApplication
-} from "../applications/table-manager-application.js";
-import {
     TableProfileStorageService
 } from "./table-profile-storage-service.js";
 import {
     TableGenerationFolderService
 } from "./table-generation-folder-service.js";
 
-const PATCH_FLAG = Symbol.for(
-    "compendium-curator.table-manager-folders"
-);
 const PROFILE_DRAG_TYPE =
     "application/x-compendium-curator-profile";
 const FOLDER_DRAG_TYPE =
@@ -862,32 +856,13 @@ function installFolderTree(application, element) {
     updateFolderSearch(application);
 }
 
-function patchSearch() {
-    const prototype = TableManagerApplication.prototype;
-
-    if (prototype[PATCH_FLAG])
-        return;
-
-    const original = prototype._applyManagerSearch;
-
-    prototype._applyManagerSearch = function () {
-        const result = original.call(this);
-        updateFolderSearch(this);
-        return result;
-    };
-
-    Object.defineProperty(
-        prototype,
-        PATCH_FLAG,
-        {
-            value: true,
-            configurable: false
+export function registerTableManagerFolders() {
+    Hooks.on(
+        "filterTableManagerApplication",
+        application => {
+            updateFolderSearch(application);
         }
     );
-}
-
-export function registerTableManagerFolders() {
-    patchSearch();
 
     Hooks.on(
         "renderTableManagerApplication",

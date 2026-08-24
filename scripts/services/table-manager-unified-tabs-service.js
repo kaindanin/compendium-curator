@@ -1,106 +1,11 @@
 import {
-    TableManagerApplication
-} from "../applications/table-manager-application.js";
-import {
     TableProfileStorageService
 } from "./table-profile-storage-service.js";
-
-const PATCH_FLAG =
-    Symbol.for(
-        "compendium-curator.table-manager-unified-tabs"
-    );
 
 function text(es, en) {
     return game.i18n.lang.startsWith("es")
         ? es
         : en;
-}
-
-function sortByName(entries) {
-    return [...entries].sort((a, b) =>
-        String(a?.name ?? "").localeCompare(
-            String(b?.name ?? ""),
-            game.i18n.lang,
-            { sensitivity: "base" }
-        )
-    );
-}
-
-function patchPrepareContext() {
-    const prototype =
-        TableManagerApplication.prototype;
-
-    if (prototype[PATCH_FLAG])
-        return;
-
-    const original =
-        prototype._prepareContext;
-
-    if (typeof original !== "function")
-        return;
-
-    prototype._prepareContext =
-        async function unifiedPrepareContext(options) {
-            const requestedTab =
-                this._activeTab === "filters"
-                    ? "filters"
-                    : "content";
-
-            this._activeTab = requestedTab;
-
-            const context =
-                await original.call(this, options);
-
-            if (requestedTab === "filters")
-                return context;
-
-            let nestedContext;
-
-            try {
-                this._activeTab = "nested";
-                nestedContext =
-                    await original.call(this, options);
-            }
-            finally {
-                this._activeTab = "content";
-            }
-
-            const profiles =
-                sortByName([
-                    ...(context.profiles ?? []),
-                    ...(nestedContext?.profiles ?? [])
-                ]);
-
-            context.profiles = profiles;
-            context.hasProfiles =
-                profiles.length > 0;
-            context.contentProfileCount =
-                profiles.length;
-
-            /*
-             * Conservamos "content" como pestaña interna durante
-             * la transición para que el editor actual cree siempre
-             * una tabla básica y las acciones existentes sigan
-             * funcionando sin una migración de datos prematura.
-             */
-            context.isContentTab = true;
-            context.isNestedTab = false;
-            context.isFilterGroupsTab = false;
-            context.contentTabClass = "active";
-            context.nestedTabClass = "";
-            context.filterGroupsTabClass = "";
-
-            return context;
-        };
-
-    Object.defineProperty(
-        prototype,
-        PATCH_FLAG,
-        {
-            value: true,
-            configurable: false
-        }
-    );
 }
 
 function replaceTabContents(
@@ -331,8 +236,6 @@ function simplifyTableEditor(
 }
 
 export function registerTableManagerUnifiedTabs() {
-    patchPrepareContext();
-
     Hooks.on(
         "renderTableManagerApplication",
         (application, element) => {

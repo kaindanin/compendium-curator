@@ -8,12 +8,10 @@ import {
     TableProfileStorageService
 } from "./table-profile-storage-service.js";
 import {
-    getActiveTableChildren,
-    registerTableProfileRelations
+    getActiveTableChildren
 } from "./table-profile-relations-service.js";
 import {
-    profileHasPendingTableDependencies,
-    registerTableProfileRecursiveGeneration
+    profileHasPendingTableDependencies
 } from "./table-profile-recursive-generation-service.js";
 
 const MANAGE_CONTENT_ACTION =
@@ -318,8 +316,6 @@ function augmentUnifiedTableRelations(
 }
 
 export function registerTableManagerRecursiveNesting() {
-    registerTableProfileRelations();
-    registerTableProfileRecursiveGeneration();
     registerManageContentAction();
 
     Hooks.on(

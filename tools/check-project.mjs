@@ -11,6 +11,7 @@ const root = resolve(
     dirname(fileURLToPath(import.meta.url)),
     ".."
 );
+const checkerPath = fileURLToPath(import.meta.url);
 
 function filesBelow(directory) {
     return readdirSync(directory, {
@@ -63,10 +64,25 @@ for (
 
 const missingImports = [];
 const missingTemplates = [];
+const forbiddenManagerPatches = [];
 const usedTranslations = new Set();
 
 for (const path of javascriptFiles) {
     const source = readFileSync(path, "utf8");
+
+    for (const pattern of path === checkerPath
+        ? []
+        : [
+            "TableManagerApplication.prototype",
+            "TableManagerApplication.DEFAULT_OPTIONS?.actions",
+            "registerTableProfileRelations();"
+        ]) {
+        if (source.includes(pattern)) {
+            forbiddenManagerPatches.push(
+                `${path}: ${pattern}`
+            );
+        }
+    }
 
     for (
         const match
@@ -137,6 +153,9 @@ const failures = [
     ),
     ...missingTemplates.map(path =>
         `Missing template: ${path}`
+    ),
+    ...forbiddenManagerPatches.map(value =>
+        `Forbidden Table Manager patch: ${value}`
     ),
     ...missingTranslations.map(value =>
         `Missing translation: ${value}`

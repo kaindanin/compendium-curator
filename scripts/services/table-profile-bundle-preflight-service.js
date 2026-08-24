@@ -67,9 +67,9 @@ function assertBundle(bundle) {
                 profile.filterGroupIds ?? []
             ) ||
             (
-                profile.type === "nested" &&
+                profile.children !== undefined &&
                 !Array.isArray(
-                    profile.children ?? []
+                    profile.children
                 )
             )
         ) {
@@ -89,19 +89,65 @@ function assertBundle(bundle) {
             }
         }
 
-        if (profile.type === "nested") {
-            for (const child of profile.children ?? []) {
-                const childProfile =
-                    profiles[child?.profileId];
+        const usedChildren = new Set();
 
-                if (childProfile?.type !== "content") {
-                    throw new Error(
-                        "INVALID_TABLE_PROFILE_BUNDLE"
-                    );
-                }
+        for (const child of profile.children ?? []) {
+            const childId = String(
+                typeof child === "string"
+                    ? child
+                    : child?.profileId ??
+                        child?.id ??
+                        ""
+            ).trim();
+
+            if (
+                !childId ||
+                childId === sourceId ||
+                usedChildren.has(childId) ||
+                profiles[childId]?.version !== 2
+            ) {
+                throw new Error(
+                    "INVALID_TABLE_PROFILE_BUNDLE"
+                );
             }
+
+            usedChildren.add(childId);
         }
     }
+
+    const visiting = new Set();
+    const visited = new Set();
+    const visit = profileId => {
+        if (visited.has(profileId))
+            return;
+
+        if (visiting.has(profileId)) {
+            throw new Error(
+                "INVALID_TABLE_PROFILE_BUNDLE"
+            );
+        }
+
+        visiting.add(profileId);
+
+        for (
+            const child
+            of profiles[profileId]?.children ?? []
+        ) {
+            visit(String(
+                typeof child === "string"
+                    ? child
+                    : child?.profileId ??
+                        child?.id ??
+                        ""
+            ).trim());
+        }
+
+        visiting.delete(profileId);
+        visited.add(profileId);
+    };
+
+    for (const profileId of Object.keys(profiles))
+        visit(profileId);
 
     for (
         const [sourceId, filterGroup]

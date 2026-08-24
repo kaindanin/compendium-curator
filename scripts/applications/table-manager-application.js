@@ -23,6 +23,13 @@ import {
     prepareDnd5eDocumentEntries,
     prepareDnd5eIndexedEntries
 } from "../ui/dnd5e-document-list.js";
+import {
+    prepareTableManagerRecursivePreviewContext
+} from "../services/table-manager-recursive-preview-service.js";
+import {
+    generateStoredProfileTablesRecursively,
+    profileHasPendingTableDependencies
+} from "../services/table-profile-recursive-generation-service.js";
 
 const {
     ApplicationV2,
@@ -2010,30 +2017,10 @@ async function profileNeedsRegeneration(profile) {
         return true;
     }
 
-    if (profile.type !== "nested")
-        return false;
-
-    const profiles =
-        TableProfileStorageService.getProfiles();
-
-    for (const child of profile.children ?? []) {
-        if (!child.enabled)
-            continue;
-
-        const childProfile =
-            profiles?.[child.profileId];
-
-        if (
-            !childProfile ||
-            await profileNeedsRegeneration(
-                childProfile
-            )
-        ) {
-            return true;
-        }
-    }
-
-    return false;
+    return profileHasPendingTableDependencies(
+        profile,
+        TableProfileStorageService.getProfiles()
+    );
 }
 
 async function prepareProfileTableForUse(
@@ -2055,7 +2042,10 @@ async function prepareProfileTableForUse(
     if (await profileNeedsRegeneration(profile)) {
         try {
             const generated =
-                await generateProfileTables(profile);
+                await application
+                    .generateStoredProfileTables(
+                        profileId
+                    );
 
             profile = generated.profile;
             table = generated.root;
@@ -2149,17 +2139,23 @@ export class TableManagerApplication
     }
 
     async generateStoredProfileTables(profileId) {
-        const profile =
-            TableProfileStorageService
-                .getProfiles()?.[profileId];
+        return generateStoredProfileTablesRecursively(
+            this,
+            profileId,
+            id => {
+                const profile =
+                    TableProfileStorageService
+                        .getProfiles()?.[id];
 
-        if (!profile) {
-            throw new Error(
-                "TABLE_PROFILE_NOT_FOUND"
-            );
-        }
+                if (!profile) {
+                    throw new Error(
+                        "TABLE_PROFILE_NOT_FOUND"
+                    );
+                }
 
-        return generateProfileTables(profile);
+                return generateProfileTables(profile);
+            }
+        );
     }
 
     static DEFAULT_OPTIONS = {
@@ -2564,17 +2560,27 @@ export class TableManagerApplication
                 )
             );
 
-        if (![
-            "content",
-            "nested",
-            "filters"
-        ].includes(this._activeTab)) {
+        if (
+            !["content", "filters"].includes(
+                this._activeTab
+            )
+        ) {
             this._activeTab = "content";
         }
 
-        const isContentTab = this._activeTab === "content";
-        const isNestedTab = this._activeTab === "nested";
         const isFilterGroupsTab = this._activeTab === "filters";
+        const isContentTab = !isFilterGroupsTab;
+        const isNestedTab = false;
+        const tableProfiles = [
+            ...contentProfiles,
+            ...nestedProfiles
+        ].sort((a, b) =>
+            String(a.name ?? "").localeCompare(
+                String(b.name ?? ""),
+                game.i18n.lang,
+                { sensitivity: "base" }
+            )
+        );
 
         context.isContentTab = isContentTab;
         context.isNestedTab = isNestedTab;
@@ -2584,13 +2590,11 @@ export class TableManagerApplication
         context.nestedTabClass = isNestedTab ? "active" : "";
         context.filterGroupsTabClass = isFilterGroupsTab ? "active" : "";
 
-        context.contentProfileCount = contentProfiles.length;
+        context.contentProfileCount = tableProfiles.length;
         context.nestedProfileCount = nestedProfiles.length;
         context.filterGroupCount = filterGroups.length;
 
-        context.profiles = isNestedTab
-            ? nestedProfiles
-            : contentProfiles;
+        context.profiles = tableProfiles;
 
         context.hasProfiles = context.profiles.length > 0;
         context.filterGroups = filterGroups;
@@ -2604,7 +2608,10 @@ export class TableManagerApplication
                 "COMPENDIUM_CURATOR.TableProfiles"
             );
 
-        return context;
+        return prepareTableManagerRecursivePreviewContext(
+            this,
+            context
+        );
     }
 
     async _onRender(context, options) {
@@ -3665,6 +3672,11 @@ export class TableManagerApplication
 
             entry.hidden = Boolean(query) && !haystack.includes(query);
         }
+
+        Hooks.callAll(
+            "filterTableManagerApplication",
+            this
+        );
     }
 
     _refreshApplicationsForFilterGroup(filterGroupId) {
@@ -4604,7 +4616,10 @@ export class TableManagerApplication
 
         try {
             const generated =
-                await generateProfileTables(profile);
+                await this
+                    .generateStoredProfileTables(
+                        profileId
+                    );
 
             ui.notifications.info(
                 game.i18n.format(
@@ -4698,39 +4713,32 @@ export class TableManagerApplication
                 continue;
             }
 
-            if (profile.type === "content") {
-                const inspector =
-                    buildContentInspector(profile);
-
-                if (!inspector.hasObjects) {
-                    skipped++;
-                    continue;
-                }
-            }
-            else if (
-                !Array.isArray(profile.children) ||
-                !profile.children.some(child =>
-                    child?.enabled === true
-                )
-            ) {
-                skipped++;
-                continue;
-            }
-
             try {
-                await generateProfileTables(profile);
+                await this
+                    .generateStoredProfileTables(
+                        profileId
+                    );
                 generated++;
             }
             catch (error) {
-                failed++;
-                console.error(
-                    "Compendium Curator | Error generando un perfil visible.",
-                    {
-                        profileId,
-                        profileName: profile.name,
-                        error
-                    }
-                );
+                if ([
+                    "TABLE_PROFILE_NO_ACTIVE_GROUPS",
+                    "TABLE_PROFILE_NO_ACTIVE_CHILDREN",
+                    "TABLE_PROFILE_NO_OBJECTS"
+                ].includes(error?.message)) {
+                    skipped++;
+                }
+                else {
+                    failed++;
+                    console.error(
+                        "Compendium Curator | Error generando un perfil visible.",
+                        {
+                            profileId,
+                            profileName: profile.name,
+                            error
+                        }
+                    );
+                }
             }
         }
 
