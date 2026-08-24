@@ -12,6 +12,8 @@ const INTERNAL_PROFILE_FLAG =
     "generatedTableFolderProfileId";
 const INTERNAL_KEY_FLAG =
     "generatedTableFolderKey";
+const INTERNAL_SHARED_FLAG =
+    "generatedTableFolderShared";
 
 function normalizeId(value) {
     const id = String(value ?? "").trim();
@@ -51,7 +53,8 @@ function normalizeInternalPath(path) {
         key: normalizeId(segment?.key),
         name: String(
             segment?.name ?? ""
-        ).trim()
+        ).trim(),
+        shared: segment?.shared === true
     })).filter(segment =>
         segment.key && segment.name
     );
@@ -65,10 +68,12 @@ function getInternalFolder(folder) {
     const key = normalizeId(
         flags?.[INTERNAL_KEY_FLAG]
     );
+    const shared =
+        flags?.[INTERNAL_SHARED_FLAG] === true;
 
     return flags?.[FOLDER_FLAG] === true &&
-        profileId && key
-        ? { profileId, key }
+        key && (profileId || shared)
+        ? { profileId, key, shared }
         : null;
 }
 
@@ -133,10 +138,16 @@ async function createInternalFolder(
             flags: {
                 [MODULE_ID]: {
                     [FOLDER_FLAG]: true,
-                    [INTERNAL_PROFILE_FLAG]:
-                        profile.id,
                     [INTERNAL_KEY_FLAG]:
-                        segment.key
+                        segment.key,
+                    [INTERNAL_SHARED_FLAG]:
+                        segment.shared,
+                    ...(segment.shared
+                        ? {}
+                        : {
+                            [INTERNAL_PROFILE_FLAG]:
+                                profile.id
+                        })
                 }
             }
         },
@@ -196,9 +207,13 @@ async function ensureFolderPath(
                     getInternalFolder(candidate);
 
                 return (
-                    internal?.profileId ===
-                        profile.id &&
-                    internal?.key === segment.key
+                    internal?.key === segment.key &&
+                    (
+                        segment.shared
+                            ? internal?.shared === true
+                            : internal?.profileId ===
+                                profile.id
+                    )
                 );
             }
         );
@@ -295,7 +310,9 @@ function internalPathEquals(left, right) {
                 segment.key ===
                     normalizedRight[index]?.key &&
                 segment.name ===
-                    normalizedRight[index]?.name
+                    normalizedRight[index]?.name &&
+                segment.shared ===
+                    normalizedRight[index]?.shared
         )
     );
 }

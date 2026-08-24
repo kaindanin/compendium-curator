@@ -362,6 +362,7 @@
     "TableFolderNotFound": "La carpeta ya no existe.",
     "TableFolderOperationFailed": "No se pudo completar la operación con la carpeta.",
     "GeneratedFolderSyncFailed": "La organización del Gestor se guardó, pero no se pudo sincronizar alguna carpeta generada.",
+    "GeneratedSubtablesFolder": "Subtablas",
     "TableFolderTableCount": "{count} tablas",
     "TablesWithoutFolder": "Sin carpeta",
     "MoveTableToFolderHint": "Arrastrar para mover la tabla",

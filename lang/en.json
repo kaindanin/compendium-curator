@@ -363,6 +363,7 @@
     "TableFolderNotFound": "The folder no longer exists.",
     "TableFolderOperationFailed": "The folder operation could not be completed.",
     "GeneratedFolderSyncFailed": "The Manager organization was saved, but a generated folder could not be synchronized.",
+    "GeneratedSubtablesFolder": "Subtables",
     "TableFolderTableCount": "{count} tables",
     "TablesWithoutFolder": "No folder",
     "MoveTableToFolderHint": "Drag to move the table",

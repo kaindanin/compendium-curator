@@ -269,10 +269,23 @@ function numberedName(index, name) {
 }
 
 function profileInternalPath(profile) {
-    return [{
-        key: "profile",
-        name: profile.name
-    }];
+    const managerFolderId = String(
+        profile?.folderId ?? ""
+    ).trim() || "root";
+
+    return [
+        {
+            key: `subtables:${managerFolderId}`,
+            name: game.i18n.localize(
+                "COMPENDIUM_CURATOR.GeneratedSubtablesFolder"
+            ),
+            shared: true
+        },
+        {
+            key: "profile",
+            name: profile.name
+        }
+    ];
 }
 
 function getInternalItemWeight(
