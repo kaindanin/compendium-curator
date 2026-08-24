@@ -8,7 +8,6 @@
 - Added visual manager folders and first-generation folder mirroring for world and compendium destinations.
 - Added grouped item draws, stock quantities, price adjustments and Item Piles restocking workflows.
 - Added import and export for individual tables and complete portable manager backups.
-- Added faithful import of existing Foundry RollTables.
 
 ### Improvements
 

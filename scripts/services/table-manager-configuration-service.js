@@ -388,26 +388,6 @@ async function pruneLegacyTableProfiles() {
     return true;
 }
 
-function clarifyRollTableControl(element) {
-    const rollTableButton = element.querySelector(
-        '[data-action="importRollTable"]'
-    );
-
-    if (!rollTableButton)
-        return;
-
-    const label = text(
-        "Crear perfil desde RollTable",
-        "Create profile from RollTable"
-    );
-
-    rollTableButton.title = label;
-    rollTableButton.setAttribute(
-        "aria-label",
-        label
-    );
-}
-
 function synchronizeVisibleProfileNames(
     application,
     storage
@@ -1189,7 +1169,6 @@ export function registerTableManagerConfigurationControls() {
             if (!game.user.can("SETTINGS_MODIFY"))
                 return;
 
-            clarifyRollTableControl(element);
             installConfigurationMenu(
                 application,
                 element

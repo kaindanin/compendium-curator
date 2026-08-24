@@ -162,23 +162,6 @@ function simplifyManagerChrome(
         );
     }
 
-    const rollTableButton = element.querySelector(
-        '[data-action="importRollTable"]'
-    );
-
-    if (rollTableButton) {
-        const label = text(
-            "Crear tabla desde RollTable",
-            "Create table from RollTable"
-        );
-
-        rollTableButton.title = label;
-        rollTableButton.setAttribute(
-            "aria-label",
-            label
-        );
-    }
-
     const empty = element.querySelector(
         ".cc-table-manager-empty"
     );
