@@ -6,7 +6,8 @@
   "scripts": {
     "check": "node tools/check-project.mjs",
     "test": "node --test tests/*.test.js",
-    "verify": "npm run check && npm test"
+    "verify": "npm run check && npm test",
+    "release:build": "pwsh -NoProfile -File tools/build-release.ps1"
   },
   "engines": {
     "node": ">=22"

@@ -19,7 +19,7 @@ function filesBelow(directory) {
     }).flatMap(entry => {
         if (
             entry.isDirectory() &&
-            [".git", "node_modules"].includes(
+            [".git", ".release", "node_modules"].includes(
                 entry.name
             )
         ) {
