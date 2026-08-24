@@ -330,6 +330,43 @@ export class TableProfileStorageService {
         });
     }
 
+    static #isFolderNameTakenInStorage(
+        storage,
+        name,
+        parentId = null,
+        excludeId = null
+    ) {
+        const normalizedName =
+            this.#normalizeComparableName(name);
+        const normalizedParentId =
+            String(parentId ?? "").trim() || null;
+
+        if (!normalizedName)
+            return false;
+
+        return Object.entries(
+            storage.folders ?? {}
+        ).some(([folderId, folder]) => {
+            if (
+                excludeId &&
+                (
+                    folderId === excludeId ||
+                    folder?.id === excludeId
+                )
+            ) {
+                return false;
+            }
+
+            return (
+                (String(folder?.parentId ?? "").trim() || null) ===
+                    normalizedParentId &&
+                this.#normalizeComparableName(
+                    folder?.name
+                ) === normalizedName
+            );
+        });
+    }
+
     static #normalizeMatches(uuids) {
         const matches = [
             ...new Set(
@@ -1400,13 +1437,75 @@ export class TableProfileStorageService {
 
         const storage = {
             ...source,
-            version: 4,
+            version: 5,
             profiles: {},
+            folders:
+                foundry.utils.deepClone(
+                    source.folders ?? {}
+                ),
             filterGroups:
                 foundry.utils.deepClone(
                     source.filterGroups ?? {}
                 )
         };
+
+        if (
+            !storage.folders ||
+            typeof storage.folders !== "object" ||
+            Array.isArray(storage.folders)
+        ) {
+            storage.folders = {};
+        }
+
+        for (
+            const [folderId, sourceFolder]
+            of Object.entries(storage.folders)
+        ) {
+            const name =
+                String(sourceFolder?.name ?? "").trim();
+
+            if (!name) {
+                delete storage.folders[folderId];
+                continue;
+            }
+
+            storage.folders[folderId] = {
+                id: folderId,
+                name,
+                parentId:
+                    String(
+                        sourceFolder?.parentId ?? ""
+                    ).trim() || null
+            };
+        }
+
+        for (
+            const [folderId, folder]
+            of Object.entries(storage.folders)
+        ) {
+            if (
+                folder.parentId === folderId ||
+                !storage.folders[folder.parentId]
+            ) {
+                folder.parentId = null;
+                continue;
+            }
+
+            const visited = new Set([folderId]);
+            let parentId = folder.parentId;
+
+            while (parentId) {
+                if (visited.has(parentId)) {
+                    folder.parentId = null;
+                    break;
+                }
+
+                visited.add(parentId);
+                parentId =
+                    storage.folders[parentId]
+                        ?.parentId ?? null;
+            }
+        }
 
         for (
             const [groupId, sourceGroup]
@@ -1456,6 +1555,12 @@ export class TableProfileStorageService {
 
             profile.version = 2;
             profile.id = profileId;
+            profile.folderId =
+                storage.folders[
+                    String(profile.folderId ?? "").trim()
+                ]
+                    ? String(profile.folderId).trim()
+                    : null;
 
             let filterGroupIds = [];
 
@@ -3340,6 +3445,272 @@ export class TableProfileStorageService {
         );
     }
 
+    static getFolders() {
+        return foundry.utils.deepClone(
+            this.getStorage().folders ?? {}
+        );
+    }
+
+    static getProfileFolderPath(profileId) {
+        const storage = this.getStorage();
+        const profile = storage.profiles?.[profileId];
+
+        if (!profile)
+            return [];
+
+        const path = [];
+        const visited = new Set();
+        let folderId = profile.folderId ?? null;
+
+        while (
+            folderId &&
+            storage.folders?.[folderId] &&
+            !visited.has(folderId)
+        ) {
+            visited.add(folderId);
+            path.unshift(
+                foundry.utils.deepClone(
+                    storage.folders[folderId]
+                )
+            );
+            folderId =
+                storage.folders[folderId]
+                    .parentId ?? null;
+        }
+
+        return path;
+    }
+
+    static async createFolder(name, parentId = null) {
+        const normalizedName =
+            String(name ?? "").trim();
+
+        if (!normalizedName) {
+            throw new Error("TABLE_FOLDER_NAME_REQUIRED");
+        }
+
+        const storage = foundry.utils.deepClone(
+            this.getStorage()
+        );
+        const normalizedParentId =
+            String(parentId ?? "").trim() || null;
+
+        if (
+            normalizedParentId &&
+            !storage.folders?.[normalizedParentId]
+        ) {
+            throw new Error("TABLE_FOLDER_NOT_FOUND");
+        }
+
+        if (
+            this.#isFolderNameTakenInStorage(
+                storage,
+                normalizedName,
+                normalizedParentId
+            )
+        ) {
+            throw new Error("TABLE_FOLDER_NAME_TAKEN");
+        }
+
+        storage.folders ??= {};
+
+        let id;
+        do {
+            id = foundry.utils.randomID();
+        }
+        while (storage.folders[id]);
+
+        storage.folders[id] = {
+            id,
+            name: normalizedName,
+            parentId: normalizedParentId
+        };
+
+        const normalizedStorage =
+            this.#normalizeStorage(storage);
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            normalizedStorage
+        );
+
+        return foundry.utils.deepClone(
+            normalizedStorage.folders[id]
+        );
+    }
+
+    static async renameFolder(folderId, name) {
+        const normalizedName =
+            String(name ?? "").trim();
+
+        if (!normalizedName) {
+            throw new Error("TABLE_FOLDER_NAME_REQUIRED");
+        }
+
+        const storage = foundry.utils.deepClone(
+            this.getStorage()
+        );
+        const folder = storage.folders?.[folderId];
+
+        if (!folder) {
+            throw new Error("TABLE_FOLDER_NOT_FOUND");
+        }
+
+        if (
+            this.#isFolderNameTakenInStorage(
+                storage,
+                normalizedName,
+                folder.parentId,
+                folderId
+            )
+        ) {
+            throw new Error("TABLE_FOLDER_NAME_TAKEN");
+        }
+
+        folder.name = normalizedName;
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            this.#normalizeStorage(storage)
+        );
+
+        return foundry.utils.deepClone(folder);
+    }
+
+    static async moveFolder(folderId, parentId = null) {
+        const storage = foundry.utils.deepClone(
+            this.getStorage()
+        );
+        const folder = storage.folders?.[folderId];
+        const normalizedParentId =
+            String(parentId ?? "").trim() || null;
+
+        if (!folder) {
+            throw new Error("TABLE_FOLDER_NOT_FOUND");
+        }
+
+        if (
+            normalizedParentId &&
+            !storage.folders?.[normalizedParentId]
+        ) {
+            throw new Error("TABLE_FOLDER_NOT_FOUND");
+        }
+
+        if (normalizedParentId === folderId) {
+            throw new Error("TABLE_FOLDER_CYCLE");
+        }
+
+        let ancestorId = normalizedParentId;
+
+        while (ancestorId) {
+            if (ancestorId === folderId) {
+                throw new Error("TABLE_FOLDER_CYCLE");
+            }
+
+            ancestorId =
+                storage.folders[ancestorId]
+                    ?.parentId ?? null;
+        }
+
+        if (
+            this.#isFolderNameTakenInStorage(
+                storage,
+                folder.name,
+                normalizedParentId,
+                folderId
+            )
+        ) {
+            throw new Error("TABLE_FOLDER_NAME_TAKEN");
+        }
+
+        folder.parentId = normalizedParentId;
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            this.#normalizeStorage(storage)
+        );
+
+        return foundry.utils.deepClone(folder);
+    }
+
+    static async removeFolder(folderId) {
+        const storage = foundry.utils.deepClone(
+            this.getStorage()
+        );
+        const folder = storage.folders?.[folderId];
+
+        if (!folder) {
+            throw new Error("TABLE_FOLDER_NOT_FOUND");
+        }
+
+        const parentId = folder.parentId ?? null;
+
+        for (const candidate of Object.values(
+            storage.folders ?? {}
+        )) {
+            if (candidate?.parentId === folderId) {
+                candidate.parentId = parentId;
+            }
+        }
+
+        for (const profile of Object.values(
+            storage.profiles ?? {}
+        )) {
+            if (profile?.folderId === folderId) {
+                profile.folderId = parentId;
+            }
+        }
+
+        delete storage.folders[folderId];
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            this.#normalizeStorage(storage)
+        );
+
+        return foundry.utils.deepClone(folder);
+    }
+
+    static async moveProfileToFolder(
+        profileId,
+        folderId = null
+    ) {
+        const storage = foundry.utils.deepClone(
+            this.getStorage()
+        );
+        const profile = storage.profiles?.[profileId];
+        const normalizedFolderId =
+            String(folderId ?? "").trim() || null;
+
+        if (!profile || profile.version !== 2) {
+            throw new Error("TABLE_PROFILE_NOT_FOUND");
+        }
+
+        if (
+            normalizedFolderId &&
+            !storage.folders?.[normalizedFolderId]
+        ) {
+            throw new Error("TABLE_FOLDER_NOT_FOUND");
+        }
+
+        profile.folderId = normalizedFolderId;
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            this.#normalizeStorage(storage)
+        );
+
+        return this.#hydrateProfile(
+            profile,
+            storage
+        );
+    }
+
     static canUseNestedChild(
         profileId,
         childProfileId
@@ -3409,6 +3780,7 @@ export class TableProfileStorageService {
                 nodes: {},
                 generatedRevision: 0
             };
+            profile.folderId = null;
             delete profile.filterGroups;
             profiles[currentId] = profile;
 
@@ -3988,7 +4360,7 @@ export class TableProfileStorageService {
             );
         }
 
-        storage.version = 4;
+        storage.version = 5;
         storage.profiles ??= {};
         storage.filterGroups ??= {};
 

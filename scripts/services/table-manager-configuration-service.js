@@ -50,6 +50,10 @@ function sanitizeTableProfiles(source) {
         tableProfiles.filterGroups = {};
     }
 
+    if (!isPlainObject(tableProfiles.folders)) {
+        tableProfiles.folders = {};
+    }
+
     for (
         const [profileId, profile]
         of Object.entries(tableProfiles.profiles)
@@ -272,6 +276,10 @@ export class TableManagerConfigurationService {
             filterGroupCount:
                 Object.keys(
                     tableProfiles.filterGroups ?? {}
+                ).length,
+            folderCount:
+                Object.keys(
+                    tableProfiles.folders ?? {}
                 ).length
         };
     }
@@ -413,7 +421,12 @@ async function restoreConfigurationBundle(
                             "Grupos de filtros",
                             "Filter groups"
                         ))}:</strong>
-                        ${preview.filterGroupCount}
+                        ${preview.filterGroupCount}<br>
+                        <strong>${escape(text(
+                            "Carpetas",
+                            "Folders"
+                        ))}:</strong>
+                        ${preview.folderCount}
                     </p>
                     <p>${text(
                         "Las referencias a RollTables generadas no se restaurarán.",

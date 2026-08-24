@@ -350,6 +350,21 @@
     "IncludeSubtable": "Incluir subtabla",
     "ChildTableWeight": "Peso de la subtabla",
     "NoContentProfiles": "Crea al menos un perfil de objetos para poder añadirlo.",
-    "TableProfileNoActiveChildren": "Selecciona al menos una subtabla antes de generar."
+    "TableProfileNoActiveChildren": "Selecciona al menos una subtabla antes de generar.",
+    "CreateFolder": "Crear carpeta",
+    "CreateSubfolder": "Crear subcarpeta",
+    "RenameFolder": "Renombrar carpeta",
+    "DeleteFolder": "Eliminar carpeta",
+    "TableFolderName": "Nombre de la carpeta",
+    "TableFolderNameRequired": "Debes introducir un nombre para la carpeta.",
+    "TableFolderNameTaken": "Ya existe una carpeta con ese nombre en este nivel.",
+    "TableFolderCycle": "Una carpeta no puede colocarse dentro de sí misma.",
+    "TableFolderNotFound": "La carpeta ya no existe.",
+    "TableFolderOperationFailed": "No se pudo completar la operación con la carpeta.",
+    "TableFolderTableCount": "{count} tablas",
+    "TablesWithoutFolder": "Sin carpeta",
+    "MoveTableToFolderHint": "Arrastrar para mover la tabla",
+    "MoveFolderHint": "Arrastrar para mover la carpeta",
+    "DeleteFolderConfirm": "¿Eliminar la carpeta «{name}»? Sus tablas y subcarpetas pasarán al nivel superior; no se eliminará ninguna tabla."
   }
 }

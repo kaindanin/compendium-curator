@@ -795,6 +795,158 @@
     scrollbar-gutter: stable;
 }
 
+.cc-table-manager-folder-tree,
+.cc-table-manager-folder-children,
+.cc-table-manager-folder-profiles {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.cc-table-manager-folder-tree {
+    padding-bottom: 0.25rem;
+}
+
+.cc-table-manager-folder {
+    overflow: hidden;
+
+    background: rgb(0 0 0 / 12%);
+    border: 1px solid rgb(255 255 255 / 8%);
+    border-radius: 7px;
+}
+
+.cc-table-manager-folder-header {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+
+    min-height: 2.5rem;
+    padding: 0.45rem 0.6rem;
+
+    background: rgb(255 255 255 / 4%);
+    cursor: pointer;
+    list-style: none;
+}
+
+.cc-table-manager-folder-header::-webkit-details-marker {
+    display: none;
+}
+
+.cc-table-manager-folder-header > .fa-folder {
+    color: var(--color-warm-2);
+}
+
+.cc-table-manager-folder-header > strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cc-table-manager-folder-count {
+    margin-left: 0.15rem;
+    color: var(--color-text-subtle);
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.cc-table-manager-folder-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin-left: auto;
+}
+
+.cc-table-manager-folder-action {
+    display: inline-grid;
+    place-items: center;
+
+    width: 1.8rem;
+    min-width: 1.8rem;
+    height: 1.8rem;
+    padding: 0;
+
+    border: 0;
+    background: transparent;
+    color: var(--color-text-light-6);
+}
+
+.cc-table-manager-folder-action:hover {
+    background: rgb(255 255 255 / 9%);
+    color: white;
+}
+
+.cc-table-manager-folder-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+
+    min-height: 0.6rem;
+    padding: 0.65rem;
+}
+
+.cc-table-manager-folder-children {
+    margin-left: 0.55rem;
+    padding-left: 0.55rem;
+    border-left: 1px solid rgb(255 255 255 / 10%);
+}
+
+.cc-table-manager-folder-children:empty,
+.cc-table-manager-folder-profiles:empty {
+    display: none;
+}
+
+.cc-table-manager-folder-root {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+
+    min-height: 2.4rem;
+    padding: 0.55rem;
+
+    border: 1px dashed rgb(255 255 255 / 12%);
+    border-radius: 7px;
+}
+
+.cc-table-manager-folder-root-label {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+
+    color: var(--color-text-subtle);
+    font-size: 0.82rem;
+}
+
+.cc-table-manager-folder-drag-handle {
+    display: inline-grid;
+    place-items: center;
+
+    width: 1rem;
+    min-width: 1rem;
+
+    color: var(--color-text-subtle);
+    cursor: grab;
+}
+
+.cc-table-manager-folder-drag-handle:active {
+    cursor: grabbing;
+}
+
+.cc-table-folder-drag-over {
+    outline: 2px solid var(--color-warm-2);
+    outline-offset: -2px;
+    background:
+        color-mix(
+            in srgb,
+            var(--dnd5e-background-card) 82%,
+            var(--color-warm-2) 18%
+        );
+}
+
+.cc-table-folder-dragging {
+    opacity: 0.45;
+}
+
 
 /* Profile card */
 
@@ -821,6 +973,17 @@
     border-radius: 6px;
 
     box-shadow: none;
+}
+
+.cc-table-manager-profile:not(details):has(
+    > .cc-table-manager-folder-drag-handle
+) {
+    grid-template-columns:
+        auto
+        minmax(0, 1fr)
+        auto
+        auto
+        auto;
 }
 
 .cc-table-manager-profile:hover {
@@ -886,6 +1049,18 @@
 
     cursor: pointer;
     list-style: none;
+}
+
+.cc-table-manager-profile-summary:has(
+    > .cc-table-manager-folder-drag-handle
+) {
+    grid-template-columns:
+        auto
+        auto
+        minmax(0, 1fr)
+        auto
+        auto
+        auto;
 }
 
 .cc-table-manager-profile-summary::-webkit-details-marker {

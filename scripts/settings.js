@@ -89,8 +89,10 @@ export function registerSettings() {
             type: Object,
 
             default: {
-                version: 1,
-                profiles: {}
+                version: 5,
+                profiles: {},
+                filterGroups: {},
+                folders: {}
             }
         }
     );

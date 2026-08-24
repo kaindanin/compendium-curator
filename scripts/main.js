@@ -33,6 +33,9 @@ import {
 import {
     registerTableManagerLinkedTableExpandedPreview
 } from "./services/table-manager-linked-table-expanded-preview-service.js";
+import {
+    registerTableManagerFolders
+} from "./services/table-manager-folder-service.js";
 
 Hooks.once("init", () => {
 
@@ -50,6 +53,7 @@ Hooks.once("init", () => {
     registerTableManagerDirectContentEditor();
     registerTableManagerStructuralContent();
     registerTableManagerLinkedTableExpandedPreview();
+    registerTableManagerFolders();
 
     debug("Settings registradas");
 

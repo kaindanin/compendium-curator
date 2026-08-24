@@ -351,6 +351,21 @@
     "IncludeSubtable": "Include subtable",
     "ChildTableWeight": "Subtable weight",
     "NoContentProfiles": "Create at least one item profile before adding it.",
-    "TableProfileNoActiveChildren": "Select at least one subtable before generating."
+    "TableProfileNoActiveChildren": "Select at least one subtable before generating.",
+    "CreateFolder": "Create folder",
+    "CreateSubfolder": "Create subfolder",
+    "RenameFolder": "Rename folder",
+    "DeleteFolder": "Delete folder",
+    "TableFolderName": "Folder name",
+    "TableFolderNameRequired": "You must enter a folder name.",
+    "TableFolderNameTaken": "A folder with that name already exists at this level.",
+    "TableFolderCycle": "A folder cannot be placed inside itself.",
+    "TableFolderNotFound": "The folder no longer exists.",
+    "TableFolderOperationFailed": "The folder operation could not be completed.",
+    "TableFolderTableCount": "{count} tables",
+    "TablesWithoutFolder": "No folder",
+    "MoveTableToFolderHint": "Drag to move the table",
+    "MoveFolderHint": "Drag to move the folder",
+    "DeleteFolderConfirm": "Delete the “{name}” folder? Its tables and subfolders will move to the parent level; no table will be deleted."
   }
 }
