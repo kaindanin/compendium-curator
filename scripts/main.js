@@ -27,6 +27,9 @@ import {
 import {
     registerTableManagerDirectContentEditor
 } from "./services/table-manager-direct-content-editor-service.js";
+import {
+    registerTableManagerStructuralContent
+} from "./services/table-manager-structural-content-service.js";
 
 Hooks.once("init", () => {
 
@@ -42,6 +45,7 @@ Hooks.once("init", () => {
     registerTableManagerRecursivePreview();
     registerTableManagerDirectContentMode();
     registerTableManagerDirectContentEditor();
+    registerTableManagerStructuralContent();
 
     debug("Settings registradas");
 
