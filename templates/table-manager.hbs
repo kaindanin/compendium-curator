@@ -450,45 +450,51 @@
                                             </p>
                                         {{/if}}
 
-                                        {{#if inspector.hasItemDocuments}}
-                                            <div class="cc-table-filter-detail-block">
-                                                <div class="cc-table-filter-detail-heading">
-                                                    <strong>
-                                                        {{localize "COMPENDIUM_CURATOR.ItemRules"}}
-                                                    </strong>
-                                                </div>
+                                        <div class="cc-table-filter-detail-block cc-table-item-rules">
+                                            <div class="cc-table-item-rules-heading">
+                                                <strong>
+                                                    <i class="fas fa-tags"></i>
+                                                    {{localize "COMPENDIUM_CURATOR.ItemRules"}}
+                                                </strong>
 
                                                 <label
+                                                    class="cc-table-item-rule-toggle"
                                                     for="cc-exclude-zero-price-{{id}}"
-                                                    style="display:grid;grid-template-columns:auto minmax(0, 1fr);gap:0.6rem;align-items:start;cursor:pointer;"
                                                 >
                                                     <input
                                                         id="cc-exclude-zero-price-{{id}}"
                                                         type="checkbox"
                                                         data-cc-exclude-zero-price
                                                         {{#if inspector.excludeZeroPrice}}checked{{/if}}
+                                                        {{#unless inspector.hasItemDocuments}}disabled{{/unless}}
                                                     >
                                                     <span>
-                                                        <strong style="display:block;">
-                                                            {{localize "COMPENDIUM_CURATOR.ExcludeZeroPrice"}}
-                                                        </strong>
-                                                        <span class="hint">
-                                                            {{localize "COMPENDIUM_CURATOR.ExcludeZeroPriceHint"}}
-                                                        </span>
+                                                        {{localize "COMPENDIUM_CURATOR.ExcludeZeroPrice"}}
                                                     </span>
                                                 </label>
-
-                                                {{#if inspector.hasPriceExcluded}}
-                                                    <p class="hint" style="margin:0.55rem 0 0;">
-                                                        <i class="fas fa-filter-circle-xmark"></i>
-                                                        {{localize
-                                                            "COMPENDIUM_CURATOR.ZeroPriceExcludedCount"
-                                                            count=inspector.priceExcludedCount
-                                                        }}
-                                                    </p>
-                                                {{/if}}
                                             </div>
-                                        {{/if}}
+
+                                            <p class="hint cc-table-item-rule-hint">
+                                                {{localize "COMPENDIUM_CURATOR.ExcludeZeroPriceHint"}}
+                                            </p>
+
+                                            {{#unless inspector.hasItemDocuments}}
+                                                <p class="hint cc-table-item-rule-unavailable">
+                                                    <i class="fas fa-circle-info"></i>
+                                                    {{localize "COMPENDIUM_CURATOR.ItemRulesUnavailableHint"}}
+                                                </p>
+                                            {{/unless}}
+
+                                            {{#if inspector.hasPriceExcluded}}
+                                                <p class="hint cc-table-item-rule-result">
+                                                    <i class="fas fa-filter-circle-xmark"></i>
+                                                    {{localize
+                                                        "COMPENDIUM_CURATOR.ZeroPriceExcludedCount"
+                                                        count=inspector.priceExcludedCount
+                                                    }}
+                                                </p>
+                                            {{/if}}
+                                        </div>
 
                                         <div class="cc-table-filter-detail-block">
                                             <div class="cc-table-filter-detail-heading">

@@ -944,7 +944,11 @@
 .cc-table-manager-app
     [data-cc-direct-content-editor]
     .cc-direct-weight-header {
+    display: flex;
+    align-self: stretch;
+    align-items: center;
     justify-content: center;
+    min-height: 100%;
     text-align: center;
 }
 
@@ -971,6 +975,86 @@
     width: fit-content;
     min-width: 180px;
     max-width: 320px;
+}
+
+.cc-open-original-table-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    flex: 0 0 30px;
+
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    min-height: 30px;
+
+    margin: 0;
+    padding: 0;
+
+    border-radius: 5px;
+}
+
+.cc-table-item-rules {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.cc-table-item-rules-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.cc-table-item-rules-heading > strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.cc-table-item-rules-heading > strong > i {
+    opacity: 0.75;
+}
+
+.cc-table-item-rule-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+
+    min-height: 30px;
+
+    padding: 0.3rem 0.55rem;
+
+    background: rgb(0 0 0 / 16%);
+
+    border-radius: 5px;
+
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.cc-table-item-rule-toggle:has(input:disabled) {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.cc-table-item-rule-toggle input {
+    margin: 0;
+}
+
+.cc-table-item-rule-hint,
+.cc-table-item-rule-unavailable,
+.cc-table-item-rule-result {
+    margin: 0;
+}
+
+.cc-table-item-rule-unavailable,
+.cc-table-item-rule-result {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
 }
 
 .cc-table-manager-generate-button {

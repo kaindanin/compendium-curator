@@ -236,6 +236,7 @@
     "ItemRules": "Reglas de objetos",
     "ExcludeZeroPrice": "Omitir objetos sin precio",
     "ExcludeZeroPriceHint": "Excluye objetos con precio 0, sin valor o sin moneda. No elimina nada de los compendios.",
+    "ItemRulesUnavailableHint": "Esta tabla no contiene objetos con precio; la regla se muestra deshabilitada.",
     "IncludeHiddenObjects": "Conservar objetos ocultos",
     "IncludeHiddenObjectsHint": "Incluye en este perfil los resultados que estaban ocultos globalmente. Se activa automáticamente al importar una RollTable para conservar su contenido.",
     "ZeroPriceExcludedCount": "Objetos omitidos por no tener un precio válido: {count}.",

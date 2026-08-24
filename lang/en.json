@@ -237,6 +237,7 @@
     "ItemRules": "Item rules",
     "ExcludeZeroPrice": "Skip items without a price",
     "ExcludeZeroPriceHint": "Excludes items with a price of 0, no value, or no currency. Nothing is deleted from compendiums.",
+    "ItemRulesUnavailableHint": "This table contains no priced items; the rule is shown disabled.",
     "IncludeHiddenObjects": "Keep hidden entries",
     "IncludeHiddenObjectsHint": "Include results that were globally hidden in this profile. This is enabled automatically when importing a RollTable to preserve its contents.",
     "ZeroPriceExcludedCount": "Items skipped because they do not have a valid price: {count}.",

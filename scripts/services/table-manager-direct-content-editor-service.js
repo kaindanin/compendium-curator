@@ -2406,12 +2406,19 @@ function renderTableSource(source, tableView) {
                 >
                     <button
                         type="button"
+                        class="unbutton cc-open-original-table-button"
                         data-cc-open-original-table
                         data-child-profile-id="${esc(childId)}"
-                        style="width:auto;white-space:nowrap;"
+                        aria-label="${esc(text(
+                            "Ir a la tabla original",
+                            "Go to original table"
+                        ))}"
+                        title="${esc(text(
+                            "Ir a la tabla original",
+                            "Go to original table"
+                        ))}"
                     >
                         <i class="fas fa-arrow-up-right-from-square"></i>
-                        ${esc(text("Editar tabla original", "Edit original table"))}
                     </button>
                 </div>
                 <div
