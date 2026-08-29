@@ -5,7 +5,7 @@ import {
 const TABLE_PROFILE_BUNDLE_TYPE =
     "compendium-curator-table-profile-bundle";
 const SUPPORTED_TABLE_PROFILE_BUNDLE_VERSIONS =
-    new Set([1, 2]);
+    new Set([1, 2, 3]);
 const TABLE_PROFILE_BUNDLE_LIMIT = 500;
 
 function normalizeComparableName(value) {
@@ -67,6 +67,9 @@ function assertBundle(bundle) {
             !String(profile.name ?? "").trim() ||
             !Array.isArray(
                 profile.filterGroupIds ?? []
+            ) ||
+            !Array.isArray(
+                profile.directUuids ?? []
             ) ||
             (
                 profile.children !== undefined &&
@@ -171,6 +174,14 @@ function assertBundle(bundle) {
             throw new Error(
                 "INVALID_TABLE_PROFILE_BUNDLE"
             );
+        }
+
+        for (const uuid of profile.directUuids ?? []) {
+            if (!String(uuid ?? "").trim()) {
+                throw new Error(
+                    "INVALID_TABLE_PROFILE_BUNDLE"
+                );
+            }
         }
 
         if (Number(bundle?.version) >= 2) {
@@ -279,6 +290,13 @@ function collectReferencedUuids(
     for (const profile of Object.values(profiles)) {
         if (profile?.type !== "content")
             continue;
+
+        for (const uuid of profile.directUuids ?? []) {
+            const value = String(uuid ?? "").trim();
+
+            if (value)
+                referenced.add(value);
+        }
 
         for (
             const filterGroupId

@@ -184,7 +184,7 @@ function configureManageContentButton(
         return;
 
     let button = menu.querySelector(
-        '[data-action="addCurrentFilters"], ' +
+        '[data-action="manageContent"], ' +
         "[data-cc-manage-content]"
     );
 

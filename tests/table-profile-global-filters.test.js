@@ -13,6 +13,20 @@ let storage = {
             type: "content",
             name: "Tienda",
             filterGroupIds: [],
+            manualIncludes: [
+                "Compendium.test.items.Item.legacy"
+            ],
+            globalFilters: {
+                browser: {
+                    filters: {
+                        documentClass: "Item",
+                        types: ["equipment"]
+                    }
+                },
+                matches: [
+                    "Compendium.test.items.Item.legacy"
+                ]
+            },
             revision: 3,
             generation: {}
         }
@@ -43,7 +57,18 @@ const {
     "../scripts/services/table-profile-storage-service.js"
 );
 
-test("stores and clears table-wide filters", async () => {
+test("migrates, stores and clears table restrictions", async () => {
+    const migrated = TableProfileStorageService
+        .getProfiles().shop;
+
+    assert.deepEqual(migrated.directUuids, [
+        "Compendium.test.items.Item.legacy"
+    ]);
+    assert.deepEqual(migrated.restrictions.matches, [
+        "Compendium.test.items.Item.legacy"
+    ]);
+    assert.equal(migrated.globalFilters, undefined);
+
     const saved = await TableProfileStorageService
         .setGlobalFilters("shop", {
             browser: {
@@ -62,12 +87,12 @@ test("stores and clears table-wide filters", async () => {
         });
 
     assert.equal(saved.revision, 4);
-    assert.deepEqual(saved.globalFilters.matches, [
+    assert.deepEqual(saved.restrictions.matches, [
         "Compendium.test.items.Item.a",
         "Compendium.test.items.Item.b"
     ]);
     assert.equal(
-        saved.globalFilters.browser.filters.documentClass,
+        saved.restrictions.browser.filters.documentClass,
         "Item"
     );
 
@@ -75,5 +100,19 @@ test("stores and clears table-wide filters", async () => {
         .setGlobalFilters("shop", null);
 
     assert.equal(cleared.revision, 5);
-    assert.equal(cleared.globalFilters, null);
+    assert.equal(cleared.restrictions, null);
+});
+
+test("stores direct objects as a separate local source", async () => {
+    const saved = await TableProfileStorageService
+        .setDirectUuids("shop", [
+            "Compendium.test.items.Item.b",
+            "Compendium.test.items.Item.a",
+            "Compendium.test.items.Item.a"
+        ]);
+
+    assert.deepEqual(saved.directUuids, [
+        "Compendium.test.items.Item.a",
+        "Compendium.test.items.Item.b"
+    ]);
 });

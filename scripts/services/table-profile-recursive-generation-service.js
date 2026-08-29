@@ -178,8 +178,9 @@ async function generateRecursive(application, profileId, originalGenerate, state
                 await TableProfileGenerationService
                     .generateDirect(
                         profile,
-                        buildDirectContentGenerationSources(
-                            profile
+                        await buildDirectContentGenerationSources(
+                            profile,
+                            application.browserApp
                         ),
                         children
                     );

@@ -112,17 +112,17 @@ Untranslated copies may still appear within these groups for comparison, but one
 
 ### Table Manager
 
-Click **Manage tables** in the Compendium Browser to open the Manager. Creating a table only asks for a name; reusable categories and linked tables can then be added from its actions menu.
+Click **Manage tables** in the Compendium Browser to open the Manager. Creating a table only asks for a name; it can then be composed from reusable Categories, direct objects, and linked tables through its actions menu.
 
-The **Content** block presents every category and linked table as an expandable branch. Categories expose their grouping, weights, and object rules. Linked tables reproduce the original structure as a read-only view, while only the relationship weight remains editable from the parent table.
+The **Content** block brings Categories, direct objects, and linked tables together. Categories and direct objects are configurable local sources. Linked tables reproduce their original structure as a read-only view, while only the relationship weight remains editable from the parent table.
 
 The **Categories** tab uses the same compact expandable layout. Each Category contains one or more **Filter groups**: criteria inside a group are combined with AND, while sibling groups are combined with OR. The Category deduplicates the resulting union by UUID, and tables reuse that complete Category as an inclusion source.
 
 The `+` button under **Filter groups** opens an editor synchronized with the Compendium Browser. Filter, search, tab, and mode changes immediately refresh the represented criteria, count, and document preview. Saving persists the criteria; the match list is only a preview cache and is recalculated from those criteria. Zero-match groups are supported.
 
-Storage migration from v6 to v7 preserves every existing identifier and table relation. Each previous flat Category becomes a Category with one same-named group carrying its criteria, matches, and inclusions unchanged. Categories are never merged and no arbitrary grouping is invented. Existing complete backups and table bundles remain importable; new exports use the explicit hierarchy.
+Storage migration from v6 to v7 preserves every existing identifier and table relation. Each previous flat Category becomes a Category with one same-named group carrying its criteria, matches, and inclusions unchanged. Migration from v7 to v8 explicitly separates direct objects and converts former Global filters into restrictions. Categories are never merged and no arbitrary grouping is invented. Existing complete backups and table bundles remain importable; new exports use format 3.
 
-Each content table can also save **Global filters** from the Compendium Browser. They act as restrictions on the table's local sources and are intersected with its categories before weights are calculated or RollTables are generated. A linked table remains an opaque reference and retains its own configuration.
+Each content table can save **Table restrictions** from the Compendium Browser. They are intersected only with local sources—Categories and direct objects—before weights are calculated or RollTables are generated. Criteria are reevaluated during generation; stored matches are only a UI cache. A linked table remains an opaque reference: its parent stores only the relationship weight and never applies its restrictions to the child's internal content.
 
 Manager folders are a visual organization. When a table is generated for the first time, that structure is reproduced in the default world or compendium destination. Later updates keep the document in its current location; if the user manually moves it elsewhere, the Manager does not force it back. Technical subtables are stored below the root **Subtables** folder and mirror the Manager organization.
 

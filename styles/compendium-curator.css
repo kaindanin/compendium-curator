@@ -1573,6 +1573,21 @@
     padding-top: 0.55rem;
 }
 
+.cc-table-direct-object-preview {
+    display: grid;
+    gap: 0.2rem;
+
+    margin: 0.55rem 0 0;
+    padding: 0;
+}
+
+.cc-table-direct-object-preview > li {
+    padding: 0.35rem 0.5rem;
+
+    background: rgb(0 0 0 / 10%);
+    border-radius: 4px;
+}
+
 .cc-table-manager-filter-group-inspector
     .cc-dnd5e-document-list,
 .cc-table-manager-filter-group-inspector

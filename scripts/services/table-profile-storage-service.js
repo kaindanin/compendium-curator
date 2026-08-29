@@ -5,9 +5,9 @@ import {
 
 const TABLE_PROFILE_BUNDLE_TYPE =
     "compendium-curator-table-profile-bundle";
-const TABLE_PROFILE_BUNDLE_VERSION = 2;
+const TABLE_PROFILE_BUNDLE_VERSION = 3;
 const SUPPORTED_TABLE_PROFILE_BUNDLE_VERSIONS =
-    new Set([1, 2]);
+    new Set([1, 2, 3]);
 const TABLE_PROFILE_BUNDLE_LIMIT = 500;
 
 function getPortableUuidAvailability(uuid) {
@@ -63,6 +63,11 @@ function getImportedObjectAvailability(
 
         if (profile?.type !== "content")
             continue;
+
+        for (const uuid of profile.directUuids ?? []) {
+            if (uuid)
+                referenced.add(uuid);
+        }
 
         for (
             const filterGroupId
@@ -1738,7 +1743,7 @@ export class TableProfileStorageService {
 
         const storage = {
             ...source,
-            version: 7,
+            version: 8,
             profiles: {},
             folders:
                 foundry.utils.deepClone(
@@ -2009,12 +2014,20 @@ export class TableProfileStorageService {
                 ...new Set(filterGroupIds)
             ];
 
-            profile.globalFilters =
+            profile.directUuids =
+                this.#normalizeMatches(
+                    profile.directUuids ??
+                    profile.manualIncludes ?? []
+                );
+
+            profile.restrictions =
                 this.#normalizeGlobalFilters(
+                    profile.restrictions ??
                     profile.globalFilters
                 );
 
             delete profile.filterGroups;
+            delete profile.globalFilters;
             delete profile.manualIncludes;
 
             if (
@@ -2139,7 +2152,7 @@ export class TableProfileStorageService {
         );
 
         console.info(
-            "Compendium Curator | Perfiles de tabla migrados al formato v7."
+            "Compendium Curator | Perfiles de tabla migrados al formato v8."
         );
 
         return true;
@@ -2678,7 +2691,48 @@ export class TableProfileStorageService {
         return profile;
     }
 
-    static async setGlobalFilters(
+    static async setDirectUuids(
+        profileId,
+        uuids
+    ) {
+        const storage = foundry.utils.deepClone(
+            this.getStorage()
+        );
+        const profile = storage.profiles?.[profileId];
+
+        if (
+            !profile ||
+            profile.version !== 2 ||
+            profile.type !== "content"
+        ) {
+            throw new Error("TABLE_PROFILE_NOT_FOUND");
+        }
+
+        const directUuids = this.#normalizeMatches(uuids);
+
+        if (
+            foundry.utils.equals(
+                profile.directUuids ?? [],
+                directUuids
+            )
+        ) {
+            return this.#hydrateProfile(profile, storage);
+        }
+
+        profile.directUuids = directUuids;
+        profile.revision =
+            Number(profile.revision ?? 1) + 1;
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return this.#hydrateProfile(profile, storage);
+    }
+
+    static async setTableRestrictions(
         profileId,
         draft = null
     ) {
@@ -2695,7 +2749,7 @@ export class TableProfileStorageService {
             throw new Error("TABLE_PROFILE_NOT_FOUND");
         }
 
-        const globalFilters = draft
+        const restrictions = draft
             ? this.#normalizeGlobalFilters({
                 browser: draft.browser,
                 matches: draft.matches,
@@ -2703,20 +2757,20 @@ export class TableProfileStorageService {
             })
             : null;
 
-        if (draft && !globalFilters) {
-            throw new Error("INVALID_TABLE_GLOBAL_FILTERS");
+        if (draft && !restrictions) {
+            throw new Error("INVALID_TABLE_RESTRICTIONS");
         }
 
         if (
             foundry.utils.equals(
-                profile.globalFilters ?? null,
-                globalFilters
+                profile.restrictions ?? null,
+                restrictions
             )
         ) {
             return this.#hydrateProfile(profile, storage);
         }
 
-        profile.globalFilters = globalFilters;
+        profile.restrictions = restrictions;
         profile.revision =
             Number(profile.revision ?? 1) + 1;
 
@@ -2727,6 +2781,16 @@ export class TableProfileStorageService {
         );
 
         return this.#hydrateProfile(profile, storage);
+    }
+
+    static async setGlobalFilters(
+        profileId,
+        draft = null
+    ) {
+        return this.setTableRestrictions(
+            profileId,
+            draft
+        );
     }
 
     static async setFilterGroupManualIncludes(
@@ -4766,6 +4830,9 @@ export class TableProfileStorageService {
                 !Array.isArray(
                     profile.filterGroupIds ?? []
                 ) ||
+                !Array.isArray(
+                    profile.directUuids ?? []
+                ) ||
                 (
                     profile.children !== undefined &&
                     !Array.isArray(
@@ -5314,7 +5381,7 @@ export class TableProfileStorageService {
             );
         }
 
-        storage.version = 6;
+        storage.version = 8;
         storage.profiles ??= {};
         storage.filterGroups ??= {};
 

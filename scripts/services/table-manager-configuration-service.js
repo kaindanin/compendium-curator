@@ -218,6 +218,30 @@ function validateProfileStructure(tableProfiles) {
             ) ||
             !validatePortableUuidList(
                 profile.manualExcludes ?? []
+            ) ||
+            !validatePortableUuidList(
+                profile.directUuids ??
+                profile.manualIncludes ?? []
+            ) ||
+            (
+                (profile.restrictions ?? profile.globalFilters) != null &&
+                (
+                    !isPlainObject(
+                        profile.restrictions ?? profile.globalFilters
+                    ) ||
+                    !isPlainObject(
+                        (profile.restrictions ?? profile.globalFilters)
+                            ?.browser
+                    ) ||
+                    !isPlainObject(
+                        (profile.restrictions ?? profile.globalFilters)
+                            ?.browser?.filters
+                    ) ||
+                    !validatePortableUuidList(
+                        (profile.restrictions ?? profile.globalFilters)
+                            ?.matches ?? []
+                    )
+                )
             )
         ) {
             throw new Error(

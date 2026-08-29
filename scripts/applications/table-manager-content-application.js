@@ -10,8 +10,8 @@ import {
     setTableChildEnabled
 } from "../services/table-profile-relations-service.js";
 import {
-    TableFilterGroupApplication
-} from "./table-filter-group-application.js";
+    TableProfileDirectObjectsApplication
+} from "./table-profile-direct-objects-application.js";
 
 const {
     ApplicationV2,
@@ -59,7 +59,7 @@ export class TableManagerContentApplication
         this.browserApp =
             managerApp?.browserApp ?? null;
         this.profileId = profileId;
-        this._filterGroupCreator = null;
+        this._directObjects = null;
         this._managerCloseHook =
             Hooks.on(
                 "closeApplicationV2",
@@ -87,8 +87,8 @@ export class TableManagerContentApplication
             height: 560
         },
         actions: {
-            createCurrentFilters:
-                this.#onCreateCurrentFilters,
+            manageDirectObjects:
+                this.#onManageDirectObjects,
             save: this.#onSave,
             cancel: this.#onCancel
         }
@@ -122,20 +122,16 @@ export class TableManagerContentApplication
             "Manage content"
         );
         context.intro = text(
-            "Selecciona las categorías y las otras tablas que forman parte de esta tabla.",
-            "Select the categories and other tables that belong to this table."
+            "Selecciona las Categorías, gestiona los objetos directos y enlaza las otras tablas que forman parte de esta tabla.",
+            "Select Categories, manage direct objects, and link the other tables that belong to this table."
         );
         context.filterGroupsLabel = text(
-            "Grupos de filtros",
-            "Filter groups"
+            "Categorías",
+            "Categories"
         );
         context.otherTablesLabel = text(
             "Otras tablas",
             "Other tables"
-        );
-        context.addCurrentFiltersLabel = text(
-            "Crear grupo con los filtros actuales",
-            "Create group from current filters"
         );
         context.noOtherTablesLabel = text(
             "No hay otras tablas disponibles.",
@@ -234,12 +230,14 @@ export class TableManagerContentApplication
         context.selectedTableCount =
             context.tables.filter(
                 table => table.checked
-            ).length;
+                ).length;
+        context.directObjectCount =
+            profile.directUuids?.length ?? 0;
         context.selectedSummary =
             context.supportsFilterGroups
                 ? text(
-                    `${context.selectedGroupCount} grupos · ${context.selectedTableCount} tablas`,
-                    `${context.selectedGroupCount} groups · ${context.selectedTableCount} tables`
+                    `${context.selectedGroupCount} categorías · ${context.directObjectCount} objetos directos · ${context.selectedTableCount} tablas`,
+                    `${context.selectedGroupCount} categories · ${context.directObjectCount} direct objects · ${context.selectedTableCount} tables`
                 )
                 : text(
                     `${context.selectedTableCount} tablas`,
@@ -247,6 +245,23 @@ export class TableManagerContentApplication
                 );
 
         return context;
+    }
+
+    static async #onManageDirectObjects(event) {
+        event.preventDefault();
+
+        if (this._directObjects?.rendered) {
+            this._directObjects.bringToFront();
+            return;
+        }
+
+        this._directObjects =
+            new TableProfileDirectObjectsApplication(
+                this.browserApp,
+                this.managerApp,
+                this.profileId
+            );
+        this._directObjects.render({ force: true });
     }
 
     async _onRender(context, options) {
@@ -276,8 +291,8 @@ export class TableManagerContentApplication
             summary.textContent =
                 context.supportsFilterGroups
                     ? text(
-                        `${groupCount} grupos · ${tableCount} tablas`,
-                        `${groupCount} groups · ${tableCount} tables`
+                        `${groupCount} categorías · ${context.directObjectCount} objetos directos · ${tableCount} tablas`,
+                        `${groupCount} categories · ${context.directObjectCount} direct objects · ${tableCount} tables`
                     )
                     : text(
                         `${tableCount} tablas`,
@@ -298,37 +313,6 @@ export class TableManagerContentApplication
             );
         }
 
-    }
-
-    async _openFilterGroupCreator() {
-        if (
-            this._filterGroupCreator?.rendered
-        ) {
-            this._filterGroupCreator
-                .bringToFront();
-            return;
-        }
-
-        this._filterGroupCreator =
-            new TableFilterGroupApplication(
-                this.browserApp,
-                this,
-                this.profileId,
-                {
-                    createMode: true
-                }
-            );
-
-        this._filterGroupCreator.render({
-            force: true
-        });
-    }
-
-    static async #onCreateCurrentFilters(
-        event
-    ) {
-        event.preventDefault();
-        await this._openFilterGroupCreator();
     }
 
     static async #onSave(event, target) {
@@ -464,13 +448,11 @@ export class TableManagerContentApplication
     }
 
     async _preClose(options) {
-        if (
-            this._filterGroupCreator?.rendered
-        ) {
-            await this._filterGroupCreator.close();
+        if (this._directObjects?.rendered) {
+            await this._directObjects.close();
         }
 
-        this._filterGroupCreator = null;
+        this._directObjects = null;
 
         if (this._managerCloseHook !== null) {
             Hooks.off(

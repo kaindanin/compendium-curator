@@ -343,11 +343,21 @@ function ownSources(profile, filterGroups) {
         StorageService.getHiddenUuids()
     );
     const excluded = new Set(profile?.manualExcludes ?? []);
+    const restrictions =
+        profile?.restrictions ??
+        profile?.globalFilters ?? null;
+    const allowed = restrictions
+        ? new Set(restrictions.matches ?? [])
+        : null;
     const excludeZeroPrice = profile?.itemRules?.excludeZeroPrice === true;
     const ids = [...new Set(profile.filterGroupIds ?? [])];
     const sources = [];
 
-    const eligible = uuids => prepareDnd5eIndexedEntries(uuids)
+    const eligible = uuids => prepareDnd5eIndexedEntries(
+        allowed
+            ? uuids.filter(uuid => allowed.has(uuid))
+            : uuids
+    )
         .filter(entry => entry.available !== false &&
             !hidden.has(entry.uuid) && !excluded.has(entry.uuid) &&
             (!excludeZeroPrice || entry.documentName !== "Item" || entry.hasPositivePrice));
@@ -355,10 +365,7 @@ function ownSources(profile, filterGroups) {
         const filterGroup = filterGroups?.[id];
         if (!filterGroup) continue;
         const entries = dedupe(
-            eligible([
-                ...(filterGroup.matches ?? []),
-                ...(filterGroup.manualIncludes ?? [])
-            ])
+            eligible(filterGroup.matches ?? [])
                 .map(entry => ({
                     ...entry,
                     origins: [filterGroup.name]
@@ -369,10 +376,46 @@ function ownSources(profile, filterGroups) {
         sources.push({
             key,
             icon: "fas fa-filter",
-            kind: text("Grupo", "Group"),
+            kind: text("Categoría", "Category"),
             name: filterGroup.name,
             entries,
             groups: groupedEntries(entries, profile, criterion),
+            criterion,
+            weight: null
+        });
+    }
+
+    if ((profile?.directUuids ?? []).length) {
+        const entries = dedupe(
+            eligible(profile.directUuids)
+                .map(entry => ({
+                    ...entry,
+                    origins: [text(
+                        "Objetos directos",
+                        "Direct objects"
+                    )]
+                }))
+        );
+        const key = "direct";
+        const criterion = sourceCriterion(profile, key);
+
+        sources.push({
+            key,
+            icon: "fas fa-thumbtack",
+            kind: text(
+                "Objetos directos",
+                "Direct objects"
+            ),
+            name: text(
+                "Objetos directos",
+                "Direct objects"
+            ),
+            entries,
+            groups: groupedEntries(
+                entries,
+                profile,
+                criterion
+            ),
             criterion,
             weight: null
         });

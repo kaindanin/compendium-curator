@@ -1,0 +1,94 @@
+<div class="cc-table-profile-exclusions">
+    <header class="cc-table-profile-exclusions-header">
+        <h2>{{profileName}}</h2>
+        <p class="hint">
+            {{localize "COMPENDIUM_CURATOR.DirectObjectsHint"}}
+        </p>
+    </header>
+
+    <div class="cc-table-profile-exclusion-results">
+        {{#if hasCandidates}}
+            <section class="inventory-element cc-dnd5e-document-list">
+                <section class="items-list browser-results">
+                    <div class="items-section card">
+                        <div class="items-header header">
+                            <h3 class="item-name">
+                                {{localize "DND5E.CompendiumBrowser.Column.Results"}}
+                            </h3>
+                            <div class="item-header item-source">
+                                {{localize "DND5E.CompendiumBrowser.Column.Source"}}
+                            </div>
+                            <div class="item-header item-controls"></div>
+                        </div>
+
+                        <ol class="item-list unlist">
+                            {{#each candidates}}
+                                <li
+                                    class="item cc-dnd5e-document-entry"
+                                    data-uuid="{{uuid}}"
+                                >
+                                    <div class="item-row">
+                                        <div
+                                            class="item-name rollable"
+                                            role="button"
+                                            data-cc-open-document
+                                        >
+                                            {{#if img}}
+                                                <img
+                                                    class="item-image gold-icon"
+                                                    loading="lazy"
+                                                    src="{{img}}"
+                                                    alt="{{name}}"
+                                                    draggable="false"
+                                                >
+                                            {{/if}}
+                                            <div class="name name-stacked">
+                                                <span class="title">{{name}}</span>
+                                                {{#if subtitle}}
+                                                    <span class="subtitle">{{localize subtitle}}</span>
+                                                {{/if}}
+                                            </div>
+                                        </div>
+
+                                        <div class="item-detail item-source {{#unless source}}empty{{/unless}}">
+                                            {{#if source}}
+                                                <span class="condensed">{{source}}</span>
+                                            {{/if}}
+                                        </div>
+
+                                        <div class="item-detail item-controls">
+                                            <dnd5e-checkbox
+                                                class="cc-table-profile-direct-object-checkbox"
+                                                data-uuid="{{uuid}}"
+                                                {{#if included}}checked{{/if}}
+                                            ></dnd5e-checkbox>
+                                        </div>
+                                    </div>
+                                </li>
+                            {{/each}}
+                        </ol>
+                    </div>
+                </section>
+            </section>
+        {{else}}
+            <p class="hint">
+                {{localize "COMPENDIUM_CURATOR.NoMatchingObjects"}}
+            </p>
+        {{/if}}
+    </div>
+
+    <footer class="cc-table-profile-exclusions-footer">
+        <button type="button" data-action="cancel">
+            <i class="fas fa-xmark"></i>
+            {{localize "COMPENDIUM_CURATOR.TableDefaultsCancel"}}
+        </button>
+        <button
+            type="button"
+            data-action="save"
+            {{#unless hasCandidates}}disabled{{/unless}}
+        >
+            <i class="fas fa-floppy-disk"></i>
+            {{localize "COMPENDIUM_CURATOR.TableDefaultsSave"}}
+        </button>
+    </footer>
+</div>

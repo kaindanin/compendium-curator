@@ -2050,12 +2050,13 @@ export class TableProfileService {
 
     }
 
-    static async getProfilePreview(
+    static async resolveLocalContentSources(
         app,
         profile,
         {
             applyManualIncludes = true,
-            applyManualExcludes = true
+            applyManualExcludes = true,
+            applyRestrictions = true
         } = {}
     ) {
         const filterGroups =
@@ -2065,16 +2066,64 @@ export class TableProfileService {
                 ? profile.filterGroups
                 : [];
 
-        const candidatesByUuid =
-            new Map();
+        const hiddenUuids = new Set(
+            StorageService.getHiddenUuids()
+        );
+        const manualExcludes = new Set(
+            profile?.manualExcludes ?? []
+        );
+        const restrictions =
+            profile?.restrictions ??
+            profile?.globalFilters ?? null;
+        let restrictionUuids = null;
 
-        const occurrencesByUuid =
-            new Map();
+        if (applyRestrictions && restrictions) {
+            const filters = restrictions?.browser?.filters;
+            let restrictionCandidates = [];
 
-        const groups = [];
+            if (
+                filters &&
+                typeof filters === "object" &&
+                !Array.isArray(filters)
+            ) {
+                restrictionCandidates = await this
+                    .getBrowserCandidates(app, filters);
+            }
+            else {
+                restrictionCandidates = (
+                    await Promise.all(
+                        (restrictions.matches ?? [])
+                            .map(uuid => fromUuid(uuid))
+                    )
+                ).filter(Boolean);
+            }
 
-        let totalMatches = 0;
+            restrictionUuids = new Set(
+                restrictionCandidates
+                    .map(candidate => candidate?.uuid)
+                    .filter(Boolean)
+            );
+        }
+
+        const sources = [];
+        const rawCandidatesByUuid = new Map();
         let manualIncludedCount = 0;
+
+        const includeCandidate = (
+            map,
+            candidate
+        ) => {
+            const uuid = String(
+                candidate?.uuid ?? ""
+            ).trim();
+
+            if (!uuid || hiddenUuids.has(uuid))
+                return false;
+
+            map.set(uuid, candidate);
+            rawCandidatesByUuid.set(uuid, candidate);
+            return true;
+        };
 
         for (const filterGroup of filterGroups) {
 
@@ -2084,10 +2133,6 @@ export class TableProfileService {
                 ? filterGroup.groups
                 : [filterGroup];
             const groupCandidates = new Map();
-            const hiddenUuids = new Set(
-                StorageService.getHiddenUuids()
-            );
-
             /*
              * AND se resuelve dentro de cada conjunto de
              * criterios mediante CompendiumBrowser.fetch.
@@ -2102,7 +2147,7 @@ export class TableProfileService {
                 if (
                     filters &&
                     typeof filters === "object" &&
-                    Object.keys(filters).length
+                    !Array.isArray(filters)
                 ) {
                     candidates = await this
                         .getBrowserCandidates(
@@ -2128,17 +2173,8 @@ export class TableProfileService {
                     );
                 }
 
-                for (const candidate of candidates) {
-                    if (
-                        candidate?.uuid &&
-                        !hiddenUuids.has(candidate.uuid)
-                    ) {
-                        groupCandidates.set(
-                            candidate.uuid,
-                            candidate
-                        );
-                    }
-                }
+                for (const candidate of candidates)
+                    includeCandidate(groupCandidates, candidate);
 
                 if (!applyManualIncludes)
                     continue;
@@ -2159,63 +2195,98 @@ export class TableProfileService {
                         continue;
                     }
 
-                    groupCandidates.set(
-                        document.uuid,
-                        document
-                    );
-                    manualIncludedCount++;
+                    if (
+                        includeCandidate(
+                            groupCandidates,
+                            document
+                        )
+                    ) {
+                        manualIncludedCount++;
+                    }
                 }
             }
 
-            const uniqueGroupCandidates =
-                [
-                    ...groupCandidates.values()
-                ];
-
-            totalMatches +=
-                uniqueGroupCandidates.length;
-
-            groups.push({
-                id:
-                    filterGroup.id,
-
-                name:
-                    filterGroup.name,
-
-                count:
-                    uniqueGroupCandidates.length
+            sources.push({
+                id: filterGroup.id,
+                key: `filter:${filterGroup.id}`,
+                kind: "category",
+                name: filterGroup.name,
+                candidates: groupCandidates
             });
-
-            for (
-                const candidate
-                of uniqueGroupCandidates
-            ) {
-
-                const uuid =
-                    candidate.uuid;
-
-                occurrencesByUuid.set(
-                    uuid,
-                    (
-                        occurrencesByUuid.get(
-                            uuid
-                        ) ?? 0
-                    ) + 1
-                );
-
-                candidatesByUuid.set(
-                    uuid,
-                    candidate
-                );
-
-            }
-
         }
 
-        let candidates =
-            [
-                ...candidatesByUuid.values()
+        const directCandidates = new Map();
+
+        for (const uuid of profile?.directUuids ?? []) {
+            const document = await fromUuid(uuid);
+            includeCandidate(directCandidates, document);
+        }
+
+        if ((profile?.directUuids ?? []).length) {
+            sources.push({
+                id: "direct",
+                key: "direct",
+                kind: "direct",
+                name: game.i18n.localize(
+                    "COMPENDIUM_CURATOR.DirectObjects"
+                ),
+                candidates: directCandidates
+            });
+        }
+
+        const restrictionExcludedUuids = new Set();
+        const manuallyExcludedUuids = new Set();
+        const candidatesByUuid = new Map();
+        const occurrencesByUuid = new Map();
+        const groups = [];
+        let totalMatches = 0;
+
+        for (const source of sources) {
+            for (const [uuid] of source.candidates) {
+                if (
+                    restrictionUuids &&
+                    !restrictionUuids.has(uuid)
+                ) {
+                    source.candidates.delete(uuid);
+                    restrictionExcludedUuids.add(uuid);
+                    continue;
+                }
+
+                if (
+                    applyManualExcludes &&
+                    manualExcludes.has(uuid)
+                ) {
+                    source.candidates.delete(uuid);
+                    manuallyExcludedUuids.add(uuid);
+                }
+            }
+
+            const candidates = [
+                ...source.candidates.values()
             ];
+
+            totalMatches += candidates.length;
+            groups.push({
+                id: source.id,
+                key: source.key,
+                kind: source.kind,
+                name: source.name,
+                count: candidates.length
+            });
+
+            for (const candidate of candidates) {
+                const uuid = candidate.uuid;
+                occurrencesByUuid.set(
+                    uuid,
+                    (occurrencesByUuid.get(uuid) ?? 0) + 1
+                );
+                candidatesByUuid.set(uuid, candidate);
+            }
+        }
+
+        const candidates = [
+            ...candidatesByUuid.values()
+        ];
 
         const duplicateEntriesRemoved =
             Math.max(
@@ -2231,32 +2302,58 @@ export class TableProfileService {
                 count => count > 1
             ).length;
 
-        const manualExcludes =
-            new Set(
-                profile?.manualExcludes ?? []
+        candidates.sort(
+            (a, b) => String(a.name ?? "")
+                .localeCompare(
+                    String(b.name ?? ""),
+                    game.i18n.lang,
+                    { sensitivity: "base" }
+                )
+        );
+
+        return {
+            sources: sources.map(source => ({
+                id: source.id,
+                key: source.key,
+                kind: source.kind,
+                name: source.name,
+                candidates: [
+                    ...source.candidates.values()
+                ]
+            })),
+            groups,
+            candidates,
+            totalMatches,
+            duplicateEntriesRemoved,
+            overlappingObjects,
+            manualIncludedCount,
+            manualExcludedCount:
+                manuallyExcludedUuids.size,
+            restrictionExcludedCount:
+                restrictionExcludedUuids.size,
+            hasRestrictions:
+                restrictionUuids !== null,
+            restrictionMatchCount:
+                restrictionUuids?.size ?? 0,
+            rawUniqueCount:
+                rawCandidatesByUuid.size,
+            uniqueCount:
+                candidates.length
+        };
+    }
+
+    static async getProfilePreview(
+        app,
+        profile,
+        options = {}
+    ) {
+        const resolved = await this
+            .resolveLocalContentSources(
+                app,
+                profile,
+                options
             );
-
-        const manualExcludedCount =
-            applyManualExcludes
-                ? candidates.filter(
-                    candidate =>
-                        manualExcludes.has(
-                            candidate.uuid
-                        )
-                ).length
-                : 0;
-
-        if (applyManualExcludes) {
-
-            candidates =
-                candidates.filter(
-                    candidate =>
-                        !manualExcludes.has(
-                            candidate.uuid
-                        )
-                );
-
-        }
+        const candidates = resolved.candidates;
 
         const rarityCounts =
             new Map();
@@ -2332,36 +2429,9 @@ export class TableProfileService {
 
         }
 
-        candidates.sort(
-            (a, b) =>
-                String(a.name ?? "")
-                    .localeCompare(
-                        String(b.name ?? ""),
-                        game.i18n.lang,
-                        {
-                            sensitivity: "base"
-                        }
-                    )
-        );
-
         return {
-            groups,
-
-            totalMatches,
-
-            uniqueCount:
-                candidates.length,
-
-            duplicateEntriesRemoved,
-
-            overlappingObjects,
-
-            manualIncludedCount,
-
-            manualExcludedCount,
-
+            ...resolved,
             rarityGroups,
-
             candidates
         };
 

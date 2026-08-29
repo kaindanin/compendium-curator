@@ -54,7 +54,9 @@ globalThis.game = {
         can: () => true
     },
     i18n: {
-        format: (_key, data) => `${data.name} copy`
+        format: (_key, data) => `${data.name} copy`,
+        localize: key => key,
+        lang: "es"
     },
     modules: new Map([["compendium-curator", {
         version: "0.4.0"
@@ -69,6 +71,7 @@ globalThis.game = {
     }
 };
 globalThis.fromUuidSync = () => null;
+globalThis.fromUuid = async () => null;
 
 const {
     TableProfileStorageService
@@ -86,7 +89,7 @@ test("migrates each legacy category into one deterministic group", async () => {
         TableProfileStorageService.getStorage();
     const category = normalized.filterGroups.magic;
 
-    assert.equal(normalized.version, 7);
+    assert.equal(normalized.version, 8);
     assert.equal(category.name, "Magia");
     assert.equal(category.groups.length, 1);
     assert.equal(category.groups[0].id, "magic-legacy");
@@ -113,7 +116,7 @@ test("migrates each legacy category into one deterministic group", async () => {
             .migrateStorage(),
         true
     );
-    assert.equal(storage.version, 7);
+    assert.equal(storage.version, 8);
     assert.equal(storage.filterGroups.magic.browser, undefined);
     assert.equal(storage.filterGroups.magic.matches, undefined);
 });
@@ -178,11 +181,11 @@ test("stores zero-match groups and validates names inside their category", async
     );
 });
 
-test("exports the category hierarchy with bundle version 2", () => {
+test("exports the category hierarchy with bundle version 3", () => {
     const bundle = TableProfileStorageService
         .exportProfileBundle("shop");
 
-    assert.equal(bundle.version, 2);
+    assert.equal(bundle.version, 3);
     assert.ok(Array.isArray(
         bundle.filterGroups.magic.groups
     ));
@@ -304,5 +307,107 @@ test("combines groups with OR and deduplicates categories by UUID", async () => 
     finally {
         TableProfileService.getBrowserCandidates =
             original;
+    }
+});
+
+test("restricts categories and direct objects without reading linked tables", async () => {
+    const originalCandidates =
+        TableProfileService.getBrowserCandidates;
+    const originalFromUuid = globalThis.fromUuid;
+    const documents = {
+        a: {
+            uuid: "Compendium.test.items.Item.a",
+            name: "A",
+            system: { rarity: "common" }
+        },
+        b: {
+            uuid: "Compendium.test.items.Item.b",
+            name: "B",
+            system: { rarity: "common" }
+        },
+        c: {
+            uuid: "Compendium.test.items.Item.c",
+            name: "C",
+            system: { rarity: "rare" }
+        },
+        linked: {
+            uuid: "Compendium.test.items.Item.linked",
+            name: "Linked",
+            system: { rarity: "legendary" }
+        }
+    };
+
+    TableProfileService.getBrowserCandidates =
+        async (_app, filters) => ({
+            category: [documents.a, documents.b],
+            restriction: [documents.b, documents.c]
+        })[filters.marker] ?? [];
+    globalThis.fromUuid = async uuid =>
+        Object.values(documents).find(
+            document => document.uuid === uuid
+        ) ?? null;
+
+    try {
+        const preview = await TableProfileService
+            .getProfilePreview({}, {
+                filterGroups: [{
+                    id: "weapons",
+                    name: "Armas",
+                    groups: [{
+                        browser: {
+                            filters: {
+                                marker: "category"
+                            }
+                        }
+                    }]
+                }],
+                directUuids: [
+                    documents.b.uuid,
+                    documents.c.uuid
+                ],
+                restrictions: {
+                    browser: {
+                        filters: {
+                            marker: "restriction"
+                        }
+                    },
+                    matches: [documents.a.uuid]
+                },
+                children: [{
+                    profileId: "linked-table",
+                    enabled: true,
+                    weight: 50
+                }],
+                manualExcludes: []
+            });
+
+        assert.deepEqual(
+            preview.groups.map(group => [
+                group.kind,
+                group.count
+            ]),
+            [
+                ["category", 1],
+                ["direct", 2]
+            ]
+        );
+        assert.deepEqual(
+            preview.candidates.map(candidate => candidate.uuid),
+            [documents.b.uuid, documents.c.uuid]
+        );
+        assert.equal(preview.restrictionExcludedCount, 1);
+        assert.equal(preview.duplicateEntriesRemoved, 1);
+        assert.equal(
+            preview.candidates.some(
+                candidate =>
+                    candidate.uuid === documents.linked.uuid
+            ),
+            false
+        );
+    }
+    finally {
+        TableProfileService.getBrowserCandidates =
+            originalCandidates;
+        globalThis.fromUuid = originalFromUuid;
     }
 });

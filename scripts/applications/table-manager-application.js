@@ -2,6 +2,7 @@ import { TableProfileEditorApplication } from "./table-profile-editor-applicatio
 import { TableProfileStorageService } from "../services/table-profile-storage-service.js";
 import { TableFilterGroupApplication } from "./table-filter-group-application.js";
 import { TableProfileExclusionsApplication } from "./table-profile-exclusions-application.js";
+import { TableProfileDirectObjectsApplication } from "./table-profile-direct-objects-application.js";
 import { TableFilterGroupInclusionsApplication } from "./table-profile-inclusions-application.js";
 import { TableGroupingRangeApplication } from "./table-grouping-range-application.js";
 import { TableManualGroupingApplication } from "./table-manual-grouping-application.js";
@@ -1603,51 +1604,56 @@ function updateRenderedProfileStatus(
         );
 }
 
-function buildContentInspector(profile) {
+function buildContentInspector(
+    profile,
+    resolvedContent = null
+) {
     const hiddenUuids = new Set(
         StorageService.getHiddenUuids()
     );
 
-    const finalUuids = new Set();
+    const categoryUuids = new Set();
+    const directUuids = new Set(
+        profile?.directUuids ?? []
+    );
 
-    for (
-        const group
-        of profile?.filterGroups ?? []
-    ) {
-        for (
-            const uuid
-            of [
-                ...(group?.matches ?? []),
-                ...(group?.manualIncludes ?? [])
-            ]
-        ) {
-            if (
-                uuid &&
-                !hiddenUuids.has(uuid)
-            ) {
-                finalUuids.add(uuid);
-            }
+    for (const group of profile?.filterGroups ?? []) {
+        for (const uuid of group?.matches ?? []) {
+            if (uuid && !hiddenUuids.has(uuid))
+                categoryUuids.add(uuid);
         }
     }
 
-    const categoryObjectCount = finalUuids.size;
-    const hasGlobalFilters = Boolean(
-        profile?.globalFilters
-    );
+    const restrictions =
+        profile?.restrictions ??
+        profile?.globalFilters ?? null;
+    const hasGlobalFilters = Boolean(restrictions);
+    const finalUuids = resolvedContent
+        ? new Set(
+            resolvedContent.candidates
+                .map(candidate => candidate.uuid)
+                .filter(Boolean)
+        )
+        : new Set([
+            ...categoryUuids,
+            ...directUuids
+        ]);
+    const sourceObjectCount = finalUuids.size;
 
-    if (hasGlobalFilters) {
-        const globalMatches = new Set(
-            profile.globalFilters.matches ?? []
+    if (!resolvedContent && hasGlobalFilters) {
+        const restrictionMatches = new Set(
+            restrictions.matches ?? []
         );
 
         for (const uuid of finalUuids) {
-            if (!globalMatches.has(uuid))
+            if (!restrictionMatches.has(uuid))
                 finalUuids.delete(uuid);
         }
     }
 
-    const globalFilterExcludedCount =
-        categoryObjectCount - finalUuids.size;
+    const globalFilterExcludedCount = resolvedContent
+        ? resolvedContent.restrictionExcludedCount
+        : sourceObjectCount - finalUuids.size;
 
     for (
         const uuid
@@ -1925,7 +1931,8 @@ function buildContentInspector(profile) {
         isGrouped,
         hasGlobalFilters,
         globalFilterMatchCount:
-            profile?.globalFilters?.matches?.length ?? 0,
+            resolvedContent?.restrictionMatchCount ??
+            restrictions?.matches?.length ?? 0,
         globalFilterExcludedCount,
         hasGlobalFilterExclusions:
             globalFilterExcludedCount > 0,
@@ -1965,6 +1972,19 @@ function buildContentInspector(profile) {
                 }
             ),
         finalCount: activeCount,
+        categoryObjectCount:
+            categoryUuids.size,
+        directObjectCount:
+            directUuids.size,
+        hasDirectObjects:
+            directUuids.size > 0,
+        directObjects:
+            prepareDnd5eIndexedEntries(
+                [...directUuids]
+            ).slice(0, CONTENT_INSPECTOR_ENTRY_LIMIT),
+        directObjectsTruncated:
+            directUuids.size >
+                CONTENT_INSPECTOR_ENTRY_LIMIT,
         sourceCount: finalUuids.size,
         totalWeight,
         unavailableCount:
@@ -1991,22 +2011,41 @@ function profileHasPotentialObjects(profile) {
         StorageService.getHiddenUuids()
     );
 
-    return (profile?.filterGroups ?? []).some(group =>
-        [
-            ...(group?.matches ?? []),
-            ...(group?.manualIncludes ?? [])
-        ].some(uuid =>
+    const candidates = [
+        ...(profile?.filterGroups ?? [])
+            .flatMap(group => group?.matches ?? []),
+        ...(profile?.directUuids ?? [])
+    ];
+    const restrictions =
+        profile?.restrictions ??
+        profile?.globalFilters ?? null;
+    const allowed = restrictions
+        ? new Set(restrictions.matches ?? [])
+        : null;
+
+    return candidates.some(uuid =>
             uuid &&
             !excluded.has(uuid) &&
-            !hidden.has(uuid)
-        )
+            !hidden.has(uuid) &&
+            (!allowed || allowed.has(uuid))
     );
 }
 
-async function generateProfileTables(profile) {
+async function generateProfileTables(
+    profile,
+    browserApp
+) {
     if (profile.type === "content") {
+        const resolved = await TableProfileService
+            .resolveLocalContentSources(
+                browserApp,
+                profile
+            );
         const inspector =
-            buildContentInspector(profile);
+            buildContentInspector(
+                profile,
+                resolved
+            );
 
         if (!inspector.hasObjects) {
             throw new Error(
@@ -2184,6 +2223,7 @@ export class TableManagerApplication
         this._filterGroupEditor = null;
         this._filterCriteriaEditor = null;
         this._profileExclusions = null;
+        this._directObjects = null;
         this._filterGroupInclusions = null;
         this._groupingRangeEditor = null;
         this._manualGroupingEditor = null;
@@ -2220,7 +2260,10 @@ export class TableManagerApplication
                     );
                 }
 
-                return generateProfileTables(profile);
+                return generateProfileTables(
+                    profile,
+                    this.browserApp
+                );
             }
         );
     }
@@ -2284,6 +2327,7 @@ export class TableManagerApplication
             "_filterGroupEditor",
             "_filterCriteriaEditor",
             "_profileExclusions",
+            "_directObjects",
             "_groupingRangeEditor",
             "_manualGroupingEditor"
         ];
@@ -2345,10 +2389,10 @@ export class TableManagerApplication
             clearGlobalFilters: this.#onClearGlobalFilters,
             editGroupingRanges: this.#onEditGroupingRanges,
             editManualGroups: this.#onEditManualGroups,
-            addCurrentFilters: this.#onAddCurrentFilters,
             filterGroupInclusions:
                 this.#onFilterGroupInclusions,
             manualExclusions: this.#onManualExclusions,
+            directObjects: this.#onDirectObjects,
             generateProfile: this.#onGenerateProfile,
             openGeneratedTable: this.#onOpenGeneratedTable,
             drawGeneratedTable: this.#onDrawGeneratedTable,
@@ -2586,13 +2630,17 @@ export class TableManagerApplication
                     inspector.globalFilterDisplay =
                         TableProfileService.getFilterDisplayGroups(
                             this.browserApp,
-                            profile.globalFilters?.browser?.filters ?? {}
+                            (
+                                profile.restrictions ??
+                                profile.globalFilters
+                            )?.browser?.filters ?? {}
                         );
                     inspector.hasGlobalFilterDisplay =
                         inspector.globalFilterDisplay.length > 0;
                     inspector.globalFilterBrowserDetails =
                         getGlobalFilterBrowserDetails(
                             this.browserApp,
+                            profile.restrictions ??
                             profile.globalFilters
                         );
                 }
@@ -2617,6 +2665,9 @@ export class TableManagerApplication
                     summary,
                     childCount,
                     filterGroupCount,
+                    hasLocalSources:
+                        filterGroupCount > 0 ||
+                        (profile.directUuids?.length ?? 0) > 0,
                     filterGroups,
                     inspector,
                     nestedInspector,
@@ -4025,6 +4076,7 @@ export class TableManagerApplication
             "_filterGroupEditor",
             "_filterCriteriaEditor",
             "_profileExclusions",
+            "_directObjects",
             "_filterGroupInclusions",
             "_groupingRangeEditor",
             "_manualGroupingEditor"
@@ -4591,7 +4643,7 @@ export class TableManagerApplication
                 .createContentDraft(this.browserApp);
 
             await TableProfileStorageService
-                .setGlobalFilters(profileId, draft);
+                .setTableRestrictions(profileId, draft);
 
             this._openContentInspectors.add(profileId);
             ui.notifications.info(
@@ -4627,7 +4679,11 @@ export class TableManagerApplication
         const profile = TableProfileStorageService
             .getProfiles()?.[profileId];
 
-        if (!profile?.globalFilters?.browser)
+        const restrictions =
+            profile?.restrictions ??
+            profile?.globalFilters;
+
+        if (!restrictions?.browser)
             return;
 
         target.disabled = true;
@@ -4636,7 +4692,7 @@ export class TableManagerApplication
             const loaded = await TableProfileService
                 .loadBrowserFilters(
                     this.browserApp,
-                    profile.globalFilters.browser
+                    restrictions.browser
                 );
 
             ui.notifications[loaded ? "info" : "warn"](
@@ -4664,7 +4720,7 @@ export class TableManagerApplication
             return;
 
         await TableProfileStorageService
-            .setGlobalFilters(profileId, null);
+            .setTableRestrictions(profileId, null);
 
         this._openContentInspectors.add(profileId);
         ui.notifications.info(
@@ -4785,32 +4841,6 @@ export class TableManagerApplication
         });
     }
 
-    static async #onAddCurrentFilters(event, target) {
-        const profileId = target
-            .closest("[data-profile-id]")
-            ?.dataset?.profileId;
-
-        if (!profileId)
-            return;
-
-        if (this._filterGroupEditor?.rendered) {
-            if (this._filterGroupEditor.profileId === profileId) {
-                this._filterGroupEditor.bringToFront();
-                return;
-            }
-
-            await this._filterGroupEditor.close();
-        }
-
-        this._filterGroupEditor = new TableFilterGroupApplication(
-            this.browserApp,
-            this,
-            profileId
-        );
-
-        this._filterGroupEditor.render({ force: true });
-    }
-
     static async #onFilterGroupInclusions(
         event,
         target
@@ -4874,6 +4904,35 @@ export class TableManagerApplication
         );
 
         this._profileExclusions.render({ force: true });
+    }
+
+    static async #onDirectObjects(event, target) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
+
+        if (!profileId)
+            return;
+
+        if (this._directObjects?.rendered) {
+            if (this._directObjects.profileId === profileId) {
+                this._directObjects.bringToFront();
+                return;
+            }
+
+            await this._directObjects.close();
+        }
+
+        this._directObjects =
+            new TableProfileDirectObjectsApplication(
+                this.browserApp,
+                this,
+                profileId
+            );
+        this._directObjects.render({ force: true });
     }
 
     static async #onGenerateProfile(event, target) {
@@ -5491,7 +5550,8 @@ export class TableManagerApplication
         this.render({ force: true });
 
         const applications = [
-            this._profileExclusions
+            this._profileExclusions,
+            this._directObjects
         ];
 
         for (const application of applications) {
@@ -5647,6 +5707,7 @@ export class TableManagerApplication
             "_filterGroupEditor",
             "_filterCriteriaEditor",
             "_profileExclusions",
+            "_directObjects",
             "_groupingRangeEditor",
             "_manualGroupingEditor"
         ];
@@ -6515,7 +6576,8 @@ export class TableManagerApplication
         this.render({ force: true });
 
         const applications = [
-            this._profileExclusions
+            this._profileExclusions,
+            this._directObjects
         ];
 
         for (const application of applications) {

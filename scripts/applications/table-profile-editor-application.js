@@ -14,6 +14,8 @@ function createEmptyTableProfile(name) {
         name,
         revision: 1,
         filterGroupIds: [],
+        directUuids: [],
+        restrictions: null,
         manualExcludes: [],
         contentLayout: {
             mode: "direct",

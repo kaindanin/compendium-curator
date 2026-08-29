@@ -6,6 +6,9 @@ import {
     TableProfileStorageService
 } from "./table-profile-storage-service.js";
 import {
+    TableProfileService
+} from "./table-profile-service.js";
+import {
     StorageService
 } from "./storage-service.js";
 import {
@@ -1009,6 +1012,15 @@ function ownSources(
     filterGroups
 ) {
     const sources = [];
+    const restrictions =
+        profile?.restrictions ??
+        profile?.globalFilters ?? null;
+    const allowed = restrictions
+        ? new Set(restrictions.matches ?? [])
+        : null;
+    const restrict = uuids => allowed
+        ? uuids.filter(uuid => allowed.has(uuid))
+        : uuids;
 
     for (
         const filterGroupId
@@ -1025,10 +1037,7 @@ function ownSources(
         const entries = dedupe(
             eligibleEntries(
                 profile,
-                [
-                    ...(filterGroup.matches ?? []),
-                    ...(filterGroup.manualIncludes ?? [])
-                ]
+                restrict(filterGroup.matches ?? [])
             )
                 .map(entry => ({
                     ...entry,
@@ -1049,10 +1058,10 @@ function ownSources(
         sources.push({
             key,
             sourceId: filterGroupId,
-            type: "filter",
+            type: "category",
             editable: true,
             icon: "fas fa-filter",
-            kind: text("Grupo", "Group"),
+            kind: text("Categoría", "Category"),
             name: filterGroup.name,
             entries,
             groups,
@@ -1065,6 +1074,59 @@ function ownSources(
             weight: positiveNumber(
                 sourceRecord(profile, key)
                     ?.weight,
+                1
+            ),
+            effectiveShare: 0
+        });
+    }
+
+    if ((profile?.directUuids ?? []).length) {
+        const entries = dedupe(
+            eligibleEntries(
+                profile,
+                restrict(profile.directUuids ?? [])
+            ).map(entry => ({
+                ...entry,
+                origins: [
+                    game.i18n.localize(
+                        "COMPENDIUM_CURATOR.DirectObjects"
+                    )
+                ]
+            }))
+        );
+        const key = "direct";
+        const criterion = sourceCriterion(
+            profile,
+            key
+        );
+
+        sources.push({
+            key,
+            sourceId: "direct",
+            type: "direct",
+            editable: true,
+            icon: "fas fa-thumbtack",
+            kind: game.i18n.localize(
+                "COMPENDIUM_CURATOR.DirectObjects"
+            ),
+            name: game.i18n.localize(
+                "COMPENDIUM_CURATOR.DirectObjects"
+            ),
+            entries,
+            groups: buildEditableGroups(
+                entries,
+                profile,
+                key,
+                criterion
+            ),
+            criterion,
+            ranges: sourceRanges(
+                profile,
+                key,
+                criterion
+            ),
+            weight: positiveNumber(
+                sourceRecord(profile, key)?.weight,
                 1
             ),
             effectiveShare: 0
@@ -1191,14 +1253,50 @@ function decorateSourcePercentages(sources) {
     }
 }
 
-export function buildDirectContentGenerationSources(
+export async function buildDirectContentGenerationSources(
     profile,
+    browserApp,
     filterGroups =
         TableProfileStorageService.getFilterGroups()
 ) {
+    const resolved = await TableProfileService
+        .resolveLocalContentSources(
+            browserApp,
+            profile
+        );
+    const resolvedFilterGroups = {};
+    const resolvedProfile = {
+        ...profile,
+        filterGroupIds: [],
+        directUuids: [],
+        restrictions: null,
+        globalFilters: null,
+        manualExcludes: []
+    };
+
+    for (const source of resolved.sources) {
+        const uuids = source.candidates
+            .map(candidate => candidate.uuid)
+            .filter(Boolean);
+
+        if (source.kind === "category") {
+            resolvedProfile.filterGroupIds.push(source.id);
+            resolvedFilterGroups[source.id] = {
+                id: source.id,
+                name: source.name,
+                matches: uuids
+            };
+        }
+        else if (source.kind === "direct") {
+            resolvedProfile.directUuids = uuids;
+        }
+    }
+
     const sources = ownSources(
-        profile,
-        filterGroups
+        resolvedProfile,
+        Object.keys(resolvedFilterGroups).length
+            ? resolvedFilterGroups
+            : filterGroups
     );
 
     decorateSourcePercentages(sources);
