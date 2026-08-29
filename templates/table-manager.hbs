@@ -14,10 +14,6 @@
                 {{localize "COMPENDIUM_CURATOR.ImportTableProfile"}}
             </button>
 
-            <button type="button" data-action="configureDefaults">
-                <i class="fas fa-gear"></i>
-                {{localize "COMPENDIUM_CURATOR.TableDefaults"}}
-            </button>
         </div>
     </header>
 
@@ -593,6 +589,128 @@
                                                 }}
                                             </p>
                                         {{/if}}
+
+                                        <details
+                                            class="cc-table-filter-detail-block cc-table-global-filters"
+                                            {{#if inspector.hasGlobalFilters}}open{{/if}}
+                                        >
+                                            <summary class="cc-table-section-summary">
+                                                <span>
+                                                    <i class="fas fa-chevron-down"></i>
+                                                    <i class="fas fa-filter"></i>
+                                                    {{localize "COMPENDIUM_CURATOR.GlobalFilters"}}
+                                                </span>
+                                                {{#if inspector.hasGlobalFilters}}
+                                                    <strong>
+                                                        {{localize
+                                                            "COMPENDIUM_CURATOR.GlobalFilterMatchCount"
+                                                            count=inspector.globalFilterMatchCount
+                                                        }}
+                                                    </strong>
+                                                {{/if}}
+                                            </summary>
+
+                                            <div class="cc-table-manager-filter-group-section">
+                                                <div class="cc-table-manager-actions">
+                                                    <button
+                                                        type="button"
+                                                        data-action="saveGlobalFilters"
+                                                    >
+                                                        <i class="fas fa-camera"></i>
+                                                        {{localize "COMPENDIUM_CURATOR.SaveCurrentGlobalFilters"}}
+                                                    </button>
+
+                                                    {{#if inspector.hasGlobalFilters}}
+                                                        <button
+                                                            type="button"
+                                                            data-action="loadGlobalFilters"
+                                                        >
+                                                            <i class="fas fa-filter-circle-dollar"></i>
+                                                            {{localize "COMPENDIUM_CURATOR.LoadGlobalFilters"}}
+                                                        </button>
+
+                                                        <button
+                                                            type="button"
+                                                            data-action="clearGlobalFilters"
+                                                        >
+                                                            <i class="fas fa-filter-circle-xmark"></i>
+                                                            {{localize "COMPENDIUM_CURATOR.ClearGlobalFilters"}}
+                                                        </button>
+                                                    {{/if}}
+                                                </div>
+
+                                                {{#if inspector.hasGlobalFilters}}
+                                                    <div class="cc-table-filter-details-blocks">
+                                                        {{#each inspector.globalFilterBrowserDetails}}
+                                                            <div class="cc-table-filter-detail-choice">
+                                                                <span>{{label}}</span>
+                                                                <strong>{{value}}</strong>
+                                                            </div>
+                                                        {{/each}}
+                                                    </div>
+
+                                                    {{#if inspector.hasGlobalFilterDisplay}}
+                                                        <div class="cc-table-filter-details-blocks">
+                                                            {{#each inspector.globalFilterDisplay}}
+                                                                <div class="cc-table-filter-detail-block">
+                                                                    <div class="cc-table-filter-detail-heading">
+                                                                        <strong>{{label}}</strong>
+                                                                        {{#if single}}
+                                                                            {{#if filterState}}
+                                                                                <filter-state
+                                                                                    class="cc-table-filter-detail-state"
+                                                                                    value="{{value}}"
+                                                                                    disabled
+                                                                                ></filter-state>
+                                                                            {{else}}
+                                                                                <span class="cc-table-filter-detail-state">{{value}}</span>
+                                                                            {{/if}}
+                                                                        {{/if}}
+                                                                    </div>
+
+                                                                    {{#unless single}}
+                                                                        <div class="cc-table-filter-detail-choices">
+                                                                            {{#each entries}}
+                                                                                <div class="cc-table-filter-detail-choice">
+                                                                                    <span>{{label}}</span>
+                                                                                    {{#if filterState}}
+                                                                                        <filter-state
+                                                                                            class="cc-table-filter-detail-state"
+                                                                                            value="{{value}}"
+                                                                                            disabled
+                                                                                        ></filter-state>
+                                                                                    {{else}}
+                                                                                        <strong>{{value}}</strong>
+                                                                                    {{/if}}
+                                                                                </div>
+                                                                            {{/each}}
+                                                                        </div>
+                                                                    {{/unless}}
+                                                                </div>
+                                                            {{/each}}
+                                                        </div>
+                                                    {{else}}
+                                                        <p class="hint">
+                                                            {{localize "COMPENDIUM_CURATOR.NoOtherSavedFilters"}}
+                                                        </p>
+                                                    {{/if}}
+
+                                                    {{#if inspector.hasGlobalFilterExclusions}}
+                                                        <p class="hint cc-table-item-rule-result">
+                                                            <i class="fas fa-filter-circle-xmark"></i>
+                                                            {{localize
+                                                                "COMPENDIUM_CURATOR.GlobalFilterExcludedCount"
+                                                                count=inspector.globalFilterExcludedCount
+                                                            }}
+                                                        </p>
+                                                    {{/if}}
+                                                {{else}}
+                                                    <p class="hint">
+                                                        {{localize "COMPENDIUM_CURATOR.GlobalFiltersHint"}}
+                                                    </p>
+                                                {{/if}}
+                                            </div>
+                                        </details>
 
                                         <details
                                             class="cc-table-filter-detail-block cc-table-item-rules"

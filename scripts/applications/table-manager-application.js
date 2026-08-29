@@ -1,5 +1,4 @@
 import { TableProfileEditorApplication } from "./table-profile-editor-application.js";
-import { TableDefaultsApplication } from "./table-defaults-application.js";
 import { TableProfileStorageService } from "../services/table-profile-storage-service.js";
 import { TableFilterGroupApplication } from "./table-filter-group-application.js";
 import { TableProfileExclusionsApplication } from "./table-profile-exclusions-application.js";
@@ -905,6 +904,50 @@ function getInspectorGroupingLabel(criterion) {
     );
 }
 
+function getGlobalFilterBrowserDetails(
+    app,
+    globalFilters
+) {
+    const browser = globalFilters?.browser;
+
+    if (!browser)
+        return [];
+
+    const details = [];
+    const tabId = String(browser.tab ?? "").trim();
+
+    if (tabId) {
+        const tab = app?.element?.querySelector(
+            `[data-application-part="tabs"] [data-tab="${CSS.escape(tabId)}"]`
+        );
+        const value = String(
+            tab?.getAttribute("aria-label") ??
+            tab?.getAttribute("data-tooltip") ??
+            tabId
+        ).trim();
+
+        details.push({
+            label: game.i18n.localize(
+                "COMPENDIUM_CURATOR.BrowserTab"
+            ),
+            value
+        });
+    }
+
+    details.push({
+        label: game.i18n.localize(
+            "COMPENDIUM_CURATOR.BrowserMode"
+        ),
+        value: game.i18n.localize(
+            browser.advanced
+                ? "COMPENDIUM_CURATOR.AdvancedMode"
+                : "COMPENDIUM_CURATOR.BasicMode"
+        )
+    });
+
+    return details;
+}
+
 function getInspectorGroupingKey(
     uuid,
     criterion,
@@ -1587,6 +1630,25 @@ function buildContentInspector(profile) {
         }
     }
 
+    const categoryObjectCount = finalUuids.size;
+    const hasGlobalFilters = Boolean(
+        profile?.globalFilters
+    );
+
+    if (hasGlobalFilters) {
+        const globalMatches = new Set(
+            profile.globalFilters.matches ?? []
+        );
+
+        for (const uuid of finalUuids) {
+            if (!globalMatches.has(uuid))
+                finalUuids.delete(uuid);
+        }
+    }
+
+    const globalFilterExcludedCount =
+        categoryObjectCount - finalUuids.size;
+
     for (
         const uuid
         of profile?.manualExcludes ?? []
@@ -1861,6 +1923,12 @@ function buildContentInspector(profile) {
         isUniform,
         isIndividual,
         isGrouped,
+        hasGlobalFilters,
+        globalFilterMatchCount:
+            profile?.globalFilters?.matches?.length ?? 0,
+        globalFilterExcludedCount,
+        hasGlobalFilterExclusions:
+            globalFilterExcludedCount > 0,
         groupingCriterion,
         isGroupingRarity:
             groupingCriterion === "rarity",
@@ -2113,7 +2181,6 @@ export class TableManagerApplication
 
         this.browserApp = browserApp;
         this._profileEditor = null;
-        this._defaultsEditor = null;
         this._filterGroupEditor = null;
         this._filterCriteriaEditor = null;
         this._profileExclusions = null;
@@ -2265,7 +2332,9 @@ export class TableManagerApplication
                 this.#onGenerateVisibleProfiles,
             createProfile: this.#onCreateProfile,
             importProfileBundle: this.#onImportProfileBundle,
-            configureDefaults: this.#onConfigureDefaults,
+            saveGlobalFilters: this.#onSaveGlobalFilters,
+            loadGlobalFilters: this.#onLoadGlobalFilters,
+            clearGlobalFilters: this.#onClearGlobalFilters,
             editGroupingRanges: this.#onEditGroupingRanges,
             editManualGroups: this.#onEditManualGroups,
             addCurrentFilters: this.#onAddCurrentFilters,
@@ -2504,6 +2573,22 @@ export class TableManagerApplication
                     inspectorProfileIds.has(profile.id)
                     ? buildContentInspector(profile)
                     : null;
+
+                if (inspector) {
+                    inspector.globalFilterDisplay =
+                        TableProfileService.getFilterDisplayGroups(
+                            this.browserApp,
+                            profile.globalFilters?.browser?.filters ?? {}
+                        );
+                    inspector.hasGlobalFilterDisplay =
+                        inspector.globalFilterDisplay.length > 0;
+                    inspector.globalFilterBrowserDetails =
+                        getGlobalFilterBrowserDetails(
+                            this.browserApp,
+                            profile.globalFilters
+                        );
+                }
+
                 const nestedInspector = isNested
                     ? {
                         children: nestedChildren,
@@ -3924,7 +4009,6 @@ export class TableManagerApplication
 
         const applications = [
             "_profileEditor",
-            "_defaultsEditor",
             "_filterGroupEditor",
             "_filterCriteriaEditor",
             "_profileExclusions",
@@ -4170,14 +4254,105 @@ export class TableManagerApplication
         this._profileEditor.scheduleRefresh();
     }
 
-    static #onConfigureDefaults() {
-        if (this._defaultsEditor?.rendered) {
-            this._defaultsEditor.bringToFront();
-            return;
-        }
+    static async #onSaveGlobalFilters(event, target) {
+        event.preventDefault();
 
-        this._defaultsEditor = new TableDefaultsApplication();
-        this._defaultsEditor.render({ force: true });
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
+
+        if (!profileId)
+            return;
+
+        target.disabled = true;
+
+        try {
+            const draft = await TableProfileService
+                .createContentDraft(this.browserApp);
+
+            await TableProfileStorageService
+                .setGlobalFilters(profileId, draft);
+
+            this._openContentInspectors.add(profileId);
+            ui.notifications.info(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.GlobalFiltersSaved"
+                )
+            );
+            this.render({ force: true });
+        }
+        catch (error) {
+            console.error(
+                "Compendium Curator | Error guardando filtros globales.",
+                error
+            );
+            ui.notifications.error(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.GlobalFiltersSaveFailed"
+                )
+            );
+        }
+        finally {
+            if (target.isConnected)
+                target.disabled = false;
+        }
+    }
+
+    static async #onLoadGlobalFilters(event, target) {
+        event.preventDefault();
+
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
+        const profile = TableProfileStorageService
+            .getProfiles()?.[profileId];
+
+        if (!profile?.globalFilters?.browser)
+            return;
+
+        target.disabled = true;
+
+        try {
+            const loaded = await TableProfileService
+                .loadBrowserFilters(
+                    this.browserApp,
+                    profile.globalFilters.browser
+                );
+
+            ui.notifications[loaded ? "info" : "warn"](
+                game.i18n.localize(
+                    loaded
+                        ? "COMPENDIUM_CURATOR.GlobalFiltersLoaded"
+                        : "COMPENDIUM_CURATOR.GlobalFiltersLoadFailed"
+                )
+            );
+        }
+        finally {
+            if (target.isConnected)
+                target.disabled = false;
+        }
+    }
+
+    static async #onClearGlobalFilters(event, target) {
+        event.preventDefault();
+
+        const profileId = target
+            .closest("[data-profile-id]")
+            ?.dataset?.profileId;
+
+        if (!profileId)
+            return;
+
+        await TableProfileStorageService
+            .setGlobalFilters(profileId, null);
+
+        this._openContentInspectors.add(profileId);
+        ui.notifications.info(
+            game.i18n.localize(
+                "COMPENDIUM_CURATOR.GlobalFiltersCleared"
+            )
+        );
+        this.render({ force: true });
     }
 
     static async #onEditGroupingRanges(

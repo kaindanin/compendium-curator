@@ -5,7 +5,22 @@ export const STORAGE_CHANGED_HOOK = `${MODULE_ID}.storageChanged`;
 export const TABLE_DEFAULTS_SETTING = "tableDefaults";
 export const TABLE_PROFILES_SETTING = "tableProfiles";
 
-export function registerSettings() {
+export function registerSettings({ tableDefaultsMenuType } = {}) {
+
+    if (tableDefaultsMenuType) {
+        game.settings.registerMenu(
+            MODULE_ID,
+            "tableDefaultsMenu",
+            {
+                name: "COMPENDIUM_CURATOR.TableDefaultsTitle",
+                label: "COMPENDIUM_CURATOR.TableDefaultsOpen",
+                hint: "COMPENDIUM_CURATOR.TableDefaultsHint",
+                icon: "fas fa-table-list",
+                type: tableDefaultsMenuType,
+                restricted: true
+            }
+        );
+    }
 
     game.settings.register(
         MODULE_ID,

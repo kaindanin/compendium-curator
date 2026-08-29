@@ -16,7 +16,7 @@ Olvídate de invertir horas creando y organizando compendios personalizados solo
 * Restaurar entradas ocultas.
 * Seleccionar varias entradas mediante casillas.
 * Seleccionar todas las entradas visibles mediante una casilla general.
-* Mostrar temporalmente las entradas ocultas.
+* Filtrar entradas ocultas con el control nativo de tres estados del Navegador de Compendios.
 * Identificar visualmente las entradas ocultas.
 * Crear y eliminar perfiles de configuración.
 * Mantener listas de entradas ocultas independientes para cada perfil.
@@ -36,8 +36,9 @@ Olvídate de invertir horas creando y organizando compendios personalizados solo
 * Crear tablas de contenido y tablas compuestas desde el propio Navegador de Compendios.
 * Organizar visualmente las tablas en carpetas y reproducir esa estructura en su primera generación.
 * Seleccionar, generar, mover o eliminar varios perfiles de tabla a la vez, incluida la generación por carpeta.
-* Consultar los grupos como tarjetas compactas desplegables y organizarlos en carpetas visuales independientes.
-* Configurar grupos, pesos, reglas de objetos, exclusiones y tablas enlazadas desde una única vista.
+* Consultar las categorías reutilizables como tarjetas compactas desplegables y organizarlas en carpetas visuales independientes.
+* Aplicar filtros globales a todas las categorías de una tabla y revisarlos en su vista previa.
+* Configurar categorías, pesos, reglas de objetos, exclusiones y tablas enlazadas desde una única vista.
 * Exportar una tabla o realizar una copia completa del Gestor con sus carpetas y valores predeterminados.
 
 ## Requisitos
@@ -78,19 +79,19 @@ La casilla situada en la cabecera de la columna permite seleccionar o deseleccio
 
 ### Entradas ocultas
 
-Pulsa **Ocultos** para mostrar temporalmente las entradas que están ocultas.
-
-Estas entradas aparecerán atenuadas. Al desactivar la opción volverán a desaparecer del navegador.
+Usa **Ocultos** dentro de los filtros normales del Navegador de Compendios. Emplea el mismo control de tres estados de D&D5e: verde muestra solo entradas ocultas, neutro muestra ambas y rojo excluye las ocultas. Las entradas ocultas siguen apareciendo atenuadas cuando son visibles.
 
 ### Duplicados
 
 Pulsa **Duplicados** para mostrar únicamente las entradas cuyo nombre original coincide con otra entrada dentro de los resultados actuales del Navegador de Compendios.
 
+El análisis solo se ejecuta cuando lo solicitas. Mientras trabaja, el botón se convierte en **Cancelar** y el resto del navegador queda bloqueado temporalmente. Cambiar de pestaña, búsqueda, tipo o filtro desactiva el modo Duplicados en vez de volver a calcularlo automáticamente.
+
 El filtro respeta la categoría, búsqueda, fuentes y demás filtros activos del navegador.
 
 Las copias duplicadas se agrupan para facilitar su comparación. Cuando existen traducciones, estas aparecen primero dentro del grupo.
 
-Si **Ocultos** está desactivado, las entradas ocultas no participan en la detección de duplicados. Al activarlo, también se tienen en cuenta y aparecen atenuadas como de costumbre.
+El filtro de tres estados **Ocultos** también decide qué entradas ocultas participan en la detección de duplicados.
 
 #### Prioridad de fuentes
 
@@ -110,15 +111,17 @@ Las copias sin traducir pueden aparecer dentro de estos grupos para facilitar la
 
 ### Gestor de tablas
 
-Pulsa **Gestionar tablas** en el Navegador de Compendios para abrir el Gestor. Una tabla nueva solo pide un nombre; después puedes añadirle grupos de filtros y tablas enlazadas desde su menú de acciones.
+Pulsa **Gestionar tablas** en el Navegador de Compendios para abrir el Gestor. Una tabla nueva solo pide un nombre; después puedes añadirle categorías reutilizables y tablas enlazadas desde su menú de acciones.
 
-El bloque **Contenido** reúne cada grupo y tabla enlazada como una rama desplegable. Los grupos permiten configurar su agrupación, pesos y reglas. Las tablas enlazadas muestran la estructura original en modo de solo lectura y únicamente permiten cambiar el peso de la relación desde la tabla padre.
+El bloque **Contenido** reúne cada categoría y tabla enlazada como una rama desplegable. Las categorías permiten configurar su agrupación, pesos y reglas. Las tablas enlazadas muestran la estructura original en modo de solo lectura y únicamente permiten cambiar el peso de la relación desde la tabla padre.
 
-La pestaña **Grupos** usa el mismo diseño compacto y desplegable, con los filtros guardados, los objetos coincidentes y el uso en tablas dentro de cada tarjeta. Sus carpetas son independientes y únicamente visuales; nunca crean ni mueven RollTables generadas.
+La pestaña **Categorías** usa el mismo diseño compacto y desplegable, con los filtros guardados, los objetos coincidentes y el uso en tablas dentro de cada tarjeta. Sus carpetas son independientes y únicamente visuales; nunca crean ni mueven RollTables generadas.
+
+Cada tabla de contenido también puede guardar **Filtros globales** desde el Navegador de Compendios. Se cruzan con todas sus categorías antes de calcular pesos o generar RollTables. La vista previa desplegada muestra la pestaña y el modo guardados, los estados de filtro y cuántos objetos de las categorías fueron descartados.
 
 Las carpetas del Gestor son una organización visual. La primera vez que se genera una tabla, esa estructura se replica en el mundo o compendio predeterminado. Las actualizaciones posteriores conservan el documento en su ubicación actual; si el usuario lo mueve manualmente a otro lugar, el Gestor no lo devuelve a la fuerza. Las subtablas técnicas se guardan bajo la carpeta raíz **Subtablas**, reflejando la organización del Gestor.
 
-El menú de configuración permite exportar o restaurar una copia completa con perfiles, grupos, carpetas y valores predeterminados. La exportación de una sola tabla conserva sus dependencias, pero se importa en la raíz y no arrastra su carpeta visual de origen.
+El menú de configuración permite exportar o restaurar una copia completa con perfiles, categorías, carpetas y valores predeterminados. La exportación de una sola tabla conserva sus dependencias, pero se importa en la raíz y no arrastra su carpeta visual de origen. Los valores predeterminados se editan desde **Ajustes de la partida → Configurar ajustes → Compendium Curator**.
 
 ### Perfiles
 

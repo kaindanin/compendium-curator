@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- Added table-wide Compendium Browser filters that apply to every linked category and remain visible in the expanded table preview.
+- Added direct access to table defaults from Foundry's module settings.
+
+### Improvements
+
+- Renamed reusable filter groups to categories throughout the interface while preserving the existing storage format for compatibility.
+- Moved the hidden-entry control into the native Compendium Browser filters as a three-state include, ignore, or exclude filter.
+- Simplified the Curator toolbar and removed the duplicate defaults shortcut from the Table Manager.
+- Duplicate detection now runs only on explicit request, can be cancelled, and automatically turns off when browser filters change.
+- Cached hidden entries and invalidated translated duplicate metadata when source documents change.
+
+### Reliability
+
+- Added cancellation checks between duplicate-loading and document-resolution batches.
+- Added automated coverage for saving, normalizing, and clearing table-wide filters.
+
 ## 0.4.0
 
 ### New

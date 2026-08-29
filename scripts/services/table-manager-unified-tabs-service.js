@@ -135,7 +135,7 @@ function simplifyManagerChrome(
     );
     replaceTabContents(
         groupsTab,
-        text("Grupos", "Groups"),
+        text("Categorías", "Categories"),
         Object.keys(filterGroups).length
     );
 

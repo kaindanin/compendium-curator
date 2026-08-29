@@ -122,8 +122,8 @@ export class TableManagerContentApplication
             "Manage content"
         );
         context.intro = text(
-            "Selecciona los grupos de filtros y las otras tablas que forman parte de esta tabla.",
-            "Select the filter groups and other tables that belong to this table."
+            "Selecciona las categorías y las otras tablas que forman parte de esta tabla.",
+            "Select the categories and other tables that belong to this table."
         );
         context.filterGroupsLabel = text(
             "Grupos de filtros",

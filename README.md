@@ -16,7 +16,7 @@ Forget about spending hours creating and organizing custom compendiums just to c
 * Restore hidden entries.
 * Select multiple entries using checkboxes.
 * Select all visible entries with a master checkbox.
-* Temporarily display hidden entries.
+* Filter hidden entries with the Compendium Browser's native three-state control.
 * Visually identify hidden entries.
 * Create and delete configuration profiles.
 * Maintain independent hidden-entry lists for each profile.
@@ -37,8 +37,9 @@ Forget about spending hours creating and organizing custom compendiums just to c
 * Create content and composite tables directly from the Compendium Browser.
 * Visually organize tables into folders and reproduce that structure on first generation.
 * Select, generate, move, or delete several table profiles at once, including folder-level generation.
-* Browse filter groups as compact expandable cards and organize them in independent visual folders.
-* Configure groups, weights, object rules, exclusions, and linked tables from one view.
+* Browse reusable categories as compact expandable cards and organize them in independent visual folders.
+* Apply table-wide filters across every category and inspect them in the table preview.
+* Configure categories, weights, object rules, exclusions, and linked tables from one view.
 * Export one table or create a complete Manager backup with folders and defaults.
 
 ## Requirements
@@ -79,19 +80,19 @@ The checkbox in the column header selects or deselects all entries matching the 
 
 ### Hidden Entries
 
-Click **Hidden** to temporarily display entries that are currently hidden.
-
-Hidden entries appear faded. Disabling the option removes them from the browser again.
+Use **Hidden** inside the regular Compendium Browser filters. It uses the same three-state control as D&D5e: green shows only hidden entries, neutral shows both, and red excludes hidden entries. Hidden entries remain faded whenever they are visible.
 
 ### Duplicates
 
 Click **Duplicates** to display only entries whose original name matches another entry within the current Compendium Browser results.
 
+The analysis runs only when requested. While it is running, the button becomes **Cancel** and the rest of the browser is temporarily locked. Changing a browser tab, search, type, or filter turns duplicate mode off instead of recalculating it automatically.
+
 The filter respects the current category, search, sources, and other active browser filters.
 
 Duplicate copies are grouped together to make comparison easier. When translations are available, translated copies are shown first within the group.
 
-When **Hidden** is disabled, hidden entries do not participate in duplicate detection. Enabling it includes hidden entries as well, and they appear faded as usual.
+The three-state **Hidden** filter also controls which hidden entries participate in duplicate detection.
 
 #### Source Priority
 
@@ -111,15 +112,17 @@ Untranslated copies may still appear within these groups for comparison, but one
 
 ### Table Manager
 
-Click **Manage tables** in the Compendium Browser to open the Manager. Creating a table only asks for a name; filter groups and linked tables can then be added from its actions menu.
+Click **Manage tables** in the Compendium Browser to open the Manager. Creating a table only asks for a name; reusable categories and linked tables can then be added from its actions menu.
 
-The **Content** block presents every group and linked table as an expandable branch. Groups expose their grouping, weights, and object rules. Linked tables reproduce the original structure as a read-only view, while only the relationship weight remains editable from the parent table.
+The **Content** block presents every category and linked table as an expandable branch. Categories expose their grouping, weights, and object rules. Linked tables reproduce the original structure as a read-only view, while only the relationship weight remains editable from the parent table.
 
-The **Groups** tab uses the same compact expandable layout, with saved filters, matching objects, and table usage inline. Its folders are independent and visual only; they never create or move generated RollTables.
+The **Categories** tab uses the same compact expandable layout, with saved filters, matching objects, and table usage inline. Its folders are independent and visual only; they never create or move generated RollTables.
+
+Each content table can also save **Global filters** from the Compendium Browser. They are intersected with every linked category before weights are calculated or RollTables are generated. The expanded preview shows the stored browser tab, mode, filter states, and how many category objects were excluded.
 
 Manager folders are a visual organization. When a table is generated for the first time, that structure is reproduced in the default world or compendium destination. Later updates keep the document in its current location; if the user manually moves it elsewhere, the Manager does not force it back. Technical subtables are stored below the root **Subtables** folder and mirror the Manager organization.
 
-The configuration menu can export or restore a complete backup containing profiles, groups, folders, and defaults. Exporting a single table retains its dependencies, but imports it at the root without carrying over its visual source folder.
+The configuration menu can export or restore a complete backup containing profiles, categories, folders, and defaults. Exporting a single table retains its dependencies, but imports it at the root without carrying over its visual source folder. Table defaults are edited from **Game Settings → Configure Settings → Compendium Curator**.
 
 ### Profiles
 

@@ -602,8 +602,8 @@ function configureDirect(application, profile, profiles, filterGroups, row, prev
     const hint = distribution.querySelector(":scope > p.hint");
     if (hint) {
         hint.textContent = text(
-            "El contenido se divide primero por sus grupos de filtros y tablas enlazadas. Cada bloque tiene su propia agrupación.",
-            "Content is split first by its filter groups and linked tables. Each block has its own grouping."
+            "El contenido se divide primero por sus categorías y tablas enlazadas. Cada bloque tiene su propia agrupación.",
+            "Content is split first by its categories and linked tables. Each block has its own grouping."
         );
     }
 
@@ -630,8 +630,8 @@ function configureDirect(application, profile, profiles, filterGroups, row, prev
     wrapper.style.cssText = "display:flex;flex-direction:column;gap:0.55rem;";
     wrapper.innerHTML = `
         <p class="hint" style="margin:0;">${esc(text(
-            "Cada grupo de filtros y cada tabla enlazada es un bloque independiente. Abre cada bloque para elegir su agrupación.",
-            "Each filter group and linked table is an independent block. Open each block to choose its grouping."
+            "Cada categoría y cada tabla enlazada es un bloque independiente. Abre cada bloque para elegir su agrupación.",
+            "Each category and linked table is an independent block. Open each block to choose its grouping."
         ))}</p>
         ${sources.length
             ? sources.map(renderSource).join("")

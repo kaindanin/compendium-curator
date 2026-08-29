@@ -1,5 +1,8 @@
 import { debug } from "./debug.js";
 import { registerSettings } from "./settings.js";
+import {
+    TableDefaultsApplication
+} from "./applications/table-defaults-application.js";
 import { registerCompendiumBrowserHooks } from "./hooks/compendium-browser.js";
 import { StorageService } from "./services/storage-service.js";
 import { ensureDnd5eDistributionIndexes } from "./ui/dnd5e-document-list.js";
@@ -47,7 +50,9 @@ Hooks.once("init", () => {
 
     debug("INIT");
 
-    registerSettings();
+    registerSettings({
+        tableDefaultsMenuType: TableDefaultsApplication
+    });
     registerCompendiumBrowserHooks();
     registerItemPilesIntegration();
     registerTableManagerSynchronization();

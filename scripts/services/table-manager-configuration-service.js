@@ -824,8 +824,8 @@ async function restoreConfigurationBundle(
                         ))}:</strong>
                         ${preview.profileCount}<br>
                         <strong>${escape(text(
-                            "Grupos de filtros",
-                            "Filter groups"
+                            "Categorías",
+                            "Categories"
                         ))}:</strong>
                         ${preview.filterGroupCount}<br>
                         <strong>${escape(text(
@@ -834,8 +834,8 @@ async function restoreConfigurationBundle(
                         ))}:</strong>
                         ${preview.folderCount}<br>
                         <strong>${escape(text(
-                            "Carpetas de grupos",
-                            "Filter group folders"
+                            "Carpetas de categorías",
+                            "Category folders"
                         ))}:</strong>
                         ${preview.filterGroupFolderCount}
                     </p>
@@ -1047,15 +1047,7 @@ function installConfigurationMenu(
         actions.querySelector(
             '[data-action="importProfileBundle"]'
         );
-    const defaultsButton =
-        actions.querySelector(
-            '[data-action="configureDefaults"]'
-        );
-
     legacyImportButton?.remove();
-
-    if (defaultsButton)
-        defaultsButton.hidden = true;
 
     for (
         const stale
@@ -1159,27 +1151,9 @@ function installConfigurationMenu(
         }
     );
 
-    const separator = document.createElement("div");
-    separator.className = "cc-profile-menu-separator";
-
-    const defaultsMenuButton = createMenuButton(
-        "fas fa-sliders",
-        text(
-            "Valores predeterminados",
-            "Defaults"
-        ),
-        event => {
-            event.preventDefault();
-            closeMenu();
-            defaultsButton?.click();
-        }
-    );
-
     menu.append(
         exportButton,
-        importButton,
-        separator,
-        defaultsMenuButton
+        importButton
     );
 
     toggle.addEventListener(

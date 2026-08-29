@@ -181,6 +181,17 @@
     display: none;
 }
 
+.cc-duplicate-calculating
+    :is(button, input, select, filter-state):not(.cc-duplicates-button) {
+    opacity: .45;
+    cursor: wait;
+}
+
+.cc-duplicate-calculating .cc-duplicates-button {
+    position: relative;
+    z-index: 2;
+}
+
 /* ==========================================================================
    Duplicate Priority Dialog
    ========================================================================== */

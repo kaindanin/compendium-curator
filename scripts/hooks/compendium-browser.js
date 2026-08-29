@@ -43,6 +43,20 @@ function format(key, data) {
 
 export function registerCompendiumBrowserHooks() {
 
+    for (const documentName of [ "Item", "Actor" ]) {
+
+        for (const operation of [ "create", "update", "delete" ]) {
+
+            Hooks.on(`${operation}${documentName}`, document => {
+
+                invalidateDuplicateCaches(document?.uuid);
+
+            });
+
+        }
+
+    }
+
     Hooks.on("renderApplicationV2", app => {
 
         restrictCheckboxItemTooltips(app.element);
@@ -117,6 +131,10 @@ function refreshOpenCompendiumBrowsers() {
 
         }
 
+        app._ccHiddenUuids = new Set(
+            StorageService.getHiddenUuids()
+        );
+
         refreshCompendiumBrowser(app);
 
     }
@@ -131,7 +149,7 @@ function refreshCompendiumBrowser(app) {
      */
     if (!canCurate()) {
 
-        app._ccShowHidden = false;
+        app._ccHiddenFilter = -1;
         app._ccCuratorMode = false;
 
         app.element
@@ -145,17 +163,16 @@ function refreshCompendiumBrowser(app) {
     if (canCurate())
         createModeToolbar(app);
 
+    if (canCurate())
+        createHiddenFilter(app);
+
+    if (canCurate())
+        registerDuplicateFilterDeactivation(app);
+
     updateCuratorMode(app);
 
     if (canCurate())
         refreshToolbar(app);
-
-    if (
-        canCurate() &&
-        app._ccDuplicatesOnly
-    ) {
-        scheduleDuplicateRefresh(app);
-    }
 
 }
 
@@ -173,7 +190,10 @@ function waitForPaint() {
 
 function onRenderCompendiumBrowser(app) {
 
-    app._ccShowHidden ??= false;
+    app._ccHiddenFilter ??= -1;
+    app._ccHiddenUuids ??= new Set(
+        StorageService.getHiddenUuids()
+    );
     app._ccCuratorMode ??= false;
 
     app._ccDuplicatesOnly ??= false;
@@ -202,19 +222,12 @@ function onRenderCompendiumBrowser(app) {
         };
 
     /*
-    * Un render completo puede haber cambiado los resultados
-    * del navegador. Si el filtro de duplicados sigue activo,
-    * invalidamos inmediatamente el cálculo anterior.
-    */
-    if (app._ccDuplicatesOnly) {
-
-        app._ccDuplicateGeneration++;
-
-        app._ccDuplicatesReady = false;
-        app._ccDuplicateUuids = new Set();
-        app._ccCalculatingDuplicates = true;
-
-    }
+     * Un render completo indica que el navegador ha cambiado
+     * de tipo, pestaña o filtros. Duplicados es deliberadamente
+     * una acción manual y nunca se recalcula a espaldas del usuario.
+     */
+    if (app._ccDuplicatesOnly)
+        deactivateDuplicateMode(app);
 
     app._ccResultsFullyLoaded = false;
     app._ccLoadingAllResults ??= false;
@@ -226,7 +239,7 @@ function onRenderCompendiumBrowser(app) {
      */
     if (!canCurate()) {
 
-        app._ccShowHidden = false;
+        app._ccHiddenFilter = -1;
         app._ccCuratorMode = false;
 
         app.element
@@ -242,23 +255,18 @@ function onRenderCompendiumBrowser(app) {
     if (canCurate())
         createModeToolbar(app);
 
+    if (canCurate())
+        createHiddenFilter(app);
+
+    if (canCurate())
+        registerDuplicateFilterDeactivation(app);
+
     updateCuratorMode(app);
 
     if (canCurate())
         refreshToolbar(app);
 
-    if (
-        canCurate() &&
-        app._ccDuplicatesOnly
-    ) {
-
-        refreshDuplicatesButton(app);
-        refreshMasterCheckbox(app);
-        refreshLoadingIndicator(app);
-
-        scheduleDuplicateRefresh(app);
-
-    }
+    refreshDuplicateBusyState(app);
 
     refreshTableProfilePreview(app);
 
@@ -341,9 +349,9 @@ function observeCompendiumResults(app) {
             app._ccResultsFullyLoaded = false;
 
             if (app._ccDuplicatesOnly)
-                scheduleDuplicateRefresh(app);
-            else
-                scheduleVisibleResultsFill(app);
+                deactivateDuplicateMode(app, { restoreOrder: true });
+
+            scheduleVisibleResultsFill(app);
 
         }
 
@@ -470,7 +478,8 @@ function updateItem(app, item) {
     item.querySelector(".cc-checkbox")?.remove();
 
     const uuid = item.dataset.uuid;
-    const hidden = StorageService.isHidden(uuid);
+    const hidden = app._ccHiddenUuids?.has(uuid) ??
+        StorageService.isHidden(uuid);
 
     item.classList.toggle(
         "cc-hidden-entry",
@@ -478,7 +487,11 @@ function updateItem(app, item) {
     );
 
     const hiddenByProfile =
-        hidden && !app._ccShowHidden;
+        app._ccHiddenFilter === 1
+            ? !hidden
+            : app._ccHiddenFilter === -1
+                ? hidden
+                : false;
 
     const hiddenByDuplicates =
         app._ccDuplicatesOnly &&
@@ -594,6 +607,24 @@ function normalizeDuplicateName(name) {
 
 }
 
+function invalidateDuplicateCaches(uuid = null) {
+
+    if (!uuid) {
+
+        duplicateIdentityCache.clear();
+        duplicateTranslationCache.clear();
+        duplicateTranslatedNameCache.clear();
+
+        return;
+
+    }
+
+    duplicateIdentityCache.delete(uuid);
+    duplicateTranslationCache.delete(uuid);
+    duplicateTranslatedNameCache.delete(uuid);
+
+}
+
 async function getDuplicateIdentity(uuid) {
 
     if (
@@ -664,7 +695,7 @@ async function getDuplicateIdentity(uuid) {
 
 }
 
-async function calculateDuplicateUuids(app) {
+async function calculateDuplicateUuids(app, generation) {
 
     const items = Array.from(
         app.element.querySelectorAll(
@@ -678,12 +709,17 @@ async function calculateDuplicateUuids(app) {
      */
     const candidates = items.filter(item => {
 
-        if (app._ccShowHidden)
-            return true;
-
-        return !StorageService.isHidden(
+        const hidden = app._ccHiddenUuids?.has(
             item.dataset.uuid
-        );
+        ) ?? StorageService.isHidden(item.dataset.uuid);
+
+        if (app._ccHiddenFilter === 1)
+            return hidden;
+
+        if (app._ccHiddenFilter === -1)
+            return !hidden;
+
+        return true;
 
     });
 
@@ -701,6 +737,13 @@ async function calculateDuplicateUuids(app) {
         index += batchSize
     ) {
 
+        if (
+            !app._ccDuplicatesOnly ||
+            app._ccDuplicateGeneration !== generation
+        ) {
+            return null;
+        }
+
         const batch =
             candidates.slice(
                 index,
@@ -717,6 +760,13 @@ async function calculateDuplicateUuids(app) {
                         )
                 }))
             );
+
+        if (
+            !app._ccDuplicatesOnly ||
+            app._ccDuplicateGeneration !== generation
+        ) {
+            return null;
+        }
 
         for (const { uuid, identity } of identities) {
 
@@ -1134,11 +1184,12 @@ async function refreshDuplicateFilter(app) {
     refreshDuplicatesButton(app);
     refreshMasterCheckbox(app);
     refreshLoadingIndicator(app);
+    refreshDuplicateBusyState(app);
 
     await waitForPaint();
 
     const loaded =
-        await ensureAllResultsLoaded(app);
+        await ensureAllResultsLoaded(app, generation);
 
     if (
         !loaded ||
@@ -1167,6 +1218,7 @@ async function refreshDuplicateFilter(app) {
             refreshDuplicateActions(app);
             refreshToolbar(app);
             refreshLoadingIndicator(app);
+            refreshDuplicateBusyState(app);
 
         }
 
@@ -1175,9 +1227,10 @@ async function refreshDuplicateFilter(app) {
     }
 
     const duplicateUuids =
-        await calculateDuplicateUuids(app);
+        await calculateDuplicateUuids(app, generation);
 
     if (
+        !duplicateUuids ||
         !app._ccDuplicatesOnly ||
         app._ccDuplicateGeneration !== generation
     ) {
@@ -1197,26 +1250,37 @@ async function refreshDuplicateFilter(app) {
     refreshDuplicateActions(app);
     refreshToolbar(app);
     refreshLoadingIndicator(app);
+    refreshDuplicateBusyState(app);
 
     return true;
 
 }
 
-function scheduleDuplicateRefresh(app) {
+function deactivateDuplicateMode(
+    app,
+    { restoreOrder = false } = {}
+) {
 
-    clearTimeout(
-        app._ccDuplicateRefreshTimer
-    );
+    clearTimeout(app._ccDuplicateRefreshTimer);
 
-    if (!app._ccDuplicatesOnly)
-        return;
+    app._ccDuplicateGeneration =
+        Number(app._ccDuplicateGeneration ?? 0) + 1;
+    app._ccDuplicatesOnly = false;
+    app._ccDuplicatesReady = false;
+    app._ccDuplicateUuids = new Set();
+    app._ccTranslationConflictsOnly = false;
+    app._ccTranslationConflictUuids = new Set();
+    app._ccCalculatingDuplicates = false;
 
-    app._ccDuplicateRefreshTimer =
-        setTimeout(() => {
+    if (restoreOrder)
+        restoreDuplicateItemOrder(app, true);
 
-            void refreshDuplicateFilter(app);
-
-        }, 100);
+    updateCuratorMode(app);
+    refreshDuplicatesButton(app);
+    refreshDuplicateActions(app);
+    refreshToolbar(app);
+    refreshLoadingIndicator(app);
+    refreshDuplicateBusyState(app);
 
 }
 
@@ -1371,7 +1435,7 @@ function scheduleVisibleResultsFill(app) {
      * necesarios mediante su propio proceso.
      */
     if (
-        app._ccShowHidden ||
+        app._ccHiddenFilter === 0 ||
         app._ccDuplicatesOnly ||
         app._ccResultsFullyLoaded ||
         app._ccLoadingAllResults
@@ -1391,7 +1455,7 @@ function scheduleVisibleResultsFill(app) {
 async function ensureVisibleResultsFilled(app) {
 
     if (
-        app._ccShowHidden ||
+        app._ccHiddenFilter === 0 ||
         app._ccDuplicatesOnly ||
         app._ccResultsFullyLoaded
     ) {
@@ -1483,7 +1547,7 @@ async function ensureVisibleResultsFilled(app) {
                  * dejamos de rellenar la lista.
                  */
                 if (
-                    app._ccShowHidden ||
+                    app._ccHiddenFilter === 0 ||
                     app._ccDuplicatesOnly ||
                     app._ccLoadingAllResults
                 ) {
@@ -1616,7 +1680,7 @@ async function ensureVisibleResultsFilled(app) {
 
 }
 
-async function ensureAllResultsLoaded(app) {
+async function ensureAllResultsLoaded(app, generation) {
 
     if (app._ccFillVisiblePromise)
         await app._ccFillVisiblePromise;
@@ -1664,6 +1728,16 @@ async function ensureAllResultsLoaded(app) {
                 itemList.isConnected
             ) {
 
+                if (
+                    generation !== undefined &&
+                    (
+                        !app._ccDuplicatesOnly ||
+                        app._ccDuplicateGeneration !== generation
+                    )
+                ) {
+                    return false;
+                }
+
                 const previousCount =
                     itemList.querySelectorAll(
                         ":scope > .item[data-uuid]"
@@ -1695,6 +1769,16 @@ async function ensureAllResultsLoaded(app) {
 
                 const loadedBatch =
                     await batchPromise;
+
+                if (
+                    generation !== undefined &&
+                    (
+                        !app._ccDuplicatesOnly ||
+                        app._ccDuplicateGeneration !== generation
+                    )
+                ) {
+                    return false;
+                }
 
                 if (!loadedBatch) {
 
@@ -2716,11 +2800,6 @@ function createModeToolbar(app) {
                 ${localize("Curator")}
             </button>
 
-            <button type="button" class="cc-hidden-button">
-                <i class="fa-solid fa-eye-slash"></i>
-                ${localize("Hidden")}
-            </button>
-
             <button type="button" class="cc-duplicates-button">
                 <i class="fa-solid fa-copy"></i>
                 ${localize("Duplicates")}
@@ -2740,7 +2819,6 @@ function createModeToolbar(app) {
     `;
 
     const curatorButton = toolbar.querySelector(".cc-curator-button");
-    const hiddenButton = toolbar.querySelector(".cc-hidden-button");
     const duplicatesButton = toolbar.querySelector(".cc-duplicates-button");
     const tableManagerButton = toolbar.querySelector(".cc-table-manager-button");
     const publicProfileButton = toolbar.querySelector(".cc-profile-public");
@@ -2762,67 +2840,23 @@ function createModeToolbar(app) {
 
     });
 
-    hiddenButton.addEventListener("click", async () => {
-
-        app._ccShowHidden = !app._ccShowHidden;
-
-        /*
-        * Al cambiar la visibilidad, limpiamos la selección
-        * para evitar mantener entradas seleccionadas que ya
-        * no aparecen en pantalla.
-        */
-        clearSelection(app);
-
-        refreshHiddenButton(hiddenButton, app);
-
-        if (app._ccDuplicatesOnly) {
-
-            await refreshDuplicateFilter(app);
-
-        }
-        else {
-
-            updateCuratorMode(app);
-            refreshToolbar(app);
-
-        }
-
-    });
-
     duplicatesButton.addEventListener(
         "click",
         async () => {
 
-            app._ccDuplicatesOnly =
-                !app._ccDuplicatesOnly;
+            if (app._ccDuplicatesOnly) {
 
-            clearSelection(app);
-
-            if (!app._ccDuplicatesOnly) {
-
-                /*
-                * Invalida cualquier cálculo que pudiera
-                * seguir ejecutándose.
-                */
-                app._ccDuplicateGeneration++;
-
-                app._ccDuplicatesReady = false;
-                app._ccDuplicateUuids = new Set();
-                app._ccTranslationConflictsOnly = false;
-                app._ccTranslationConflictUuids = new Set();
-                app._ccCalculatingDuplicates = false;
-
-                restoreDuplicateItemOrder(app, true);
-
-                updateCuratorMode(app);
-                refreshDuplicatesButton(app);
-                refreshDuplicateActions(app);
-                refreshToolbar(app);
-                refreshLoadingIndicator(app);
+                deactivateDuplicateMode(app, {
+                    restoreOrder: true
+                });
 
                 return;
 
             }
+
+            app._ccDuplicatesOnly = true;
+
+            clearSelection(app);
 
             refreshDuplicatesButton(app);
 
@@ -3557,13 +3591,165 @@ function createModeToolbar(app) {
     });
 
     refreshCuratorButton(curatorButton, app);
-    refreshHiddenButton(hiddenButton, app);
     refreshDuplicatesButton(app);
     refreshDuplicateActions(app);
 
     container.appendChild(toolbar);
 
     return toolbar;
+
+}
+
+function createHiddenFilter(app) {
+
+    const filters = app.element.querySelector(
+        '[data-application-part="filters"]'
+    );
+
+    if (!filters)
+        return null;
+
+    let filter = filters.querySelector(
+        ".cc-hidden-filter"
+    );
+
+    if (!filter) {
+
+        filter = document.createElement("div");
+        filter.className =
+            "filter filter-boolean cc-hidden-filter";
+        filter.dataset.filterId = "ccHidden";
+        filter.innerHTML = `
+            <span>
+                <filter-state
+                    aria-label="${localize("Hidden")}">
+                </filter-state>
+                <label>${localize("Hidden")}</label>
+            </span>
+        `;
+
+        const firstBoolean = filters.querySelector(
+            ".filter.filter-boolean"
+        );
+
+        const list = firstBoolean?.parentElement ?? filters;
+        list.appendChild(filter);
+
+        filter.querySelector("filter-state")
+            .addEventListener("change", event => {
+
+                const value = Number(event.currentTarget.value);
+
+                app._ccHiddenFilter =
+                    [ -1, 0, 1 ].includes(value)
+                        ? value
+                        : -1;
+
+                app._ccHiddenUuids = new Set(
+                    StorageService.getHiddenUuids()
+                );
+
+                if (app._ccDuplicatesOnly) {
+                    deactivateDuplicateMode(app, {
+                        restoreOrder: true
+                    });
+                }
+
+                clearSelection(app);
+                updateCuratorMode(app);
+                refreshToolbar(app);
+                refreshHiddenFilter(app);
+
+            });
+
+    }
+
+    refreshHiddenFilter(app);
+
+    return filter;
+
+}
+
+function registerDuplicateFilterDeactivation(app) {
+
+    const element = app.element;
+
+    if (!element || app._ccFilterGuardElement === element)
+        return;
+
+    if (
+        app._ccFilterGuardElement &&
+        app._ccFilterGuard
+    ) {
+        for (const type of [ "click", "input", "change" ]) {
+            app._ccFilterGuardElement.removeEventListener(
+                type,
+                app._ccFilterGuard,
+                true
+            );
+        }
+    }
+
+    app._ccFilterGuard ??= event => {
+
+        if (
+            !app._ccDuplicatesOnly ||
+            app._ccCalculatingDuplicates
+        ) {
+            return;
+        }
+
+        const target = event.target.closest?.(`
+            [data-application-part="tabs"] [data-tab],
+            [data-application-part="types"] [data-action="setType"],
+            [data-application-part="filters"] filter-state,
+            [data-application-part="filters"] input,
+            [data-application-part="filters"] select,
+            [data-application-part="filters"] button,
+            [data-application-part="search"] input,
+            [data-application-part="search"] button
+        `);
+
+        if (!target || target.closest(".cc-hidden-filter"))
+            return;
+
+        deactivateDuplicateMode(app, {
+            restoreOrder: true
+        });
+
+    };
+
+    for (const type of [ "click", "input", "change" ]) {
+        element.addEventListener(
+            type,
+            app._ccFilterGuard,
+            true
+        );
+    }
+
+    app._ccFilterGuardElement = element;
+
+}
+
+function refreshHiddenFilter(app) {
+
+    const state = app.element.querySelector(
+        ".cc-hidden-filter filter-state"
+    );
+
+    if (!state)
+        return;
+
+    state.value = String(app._ccHiddenFilter ?? -1);
+
+    const suffix =
+        app._ccHiddenFilter === 1
+            ? localize("HiddenOnly")
+            : app._ccHiddenFilter === 0
+                ? localize("HiddenAll")
+                : localize("HiddenExcluded");
+
+    state.title = `${localize("Hidden")}: ${suffix}`;
 
 }
 
@@ -3961,25 +4147,6 @@ function refreshCuratorButton(button, app) {
 
 }
 
-function refreshHiddenButton(button, app) {
-
-    button.classList.toggle(
-        "active",
-        app._ccShowHidden
-    );
-
-    button.innerHTML = app._ccShowHidden
-        ? `
-            <i class="fa-solid fa-eye"></i>
-            ${localize("HiddenVisible")}
-        `
-        : `
-            <i class="fa-solid fa-eye-slash"></i>
-            ${localize("Hidden")}
-        `;
-
-}
-
 function refreshDuplicatesButton(app) {
 
     const button =
@@ -3990,12 +4157,7 @@ function refreshDuplicatesButton(app) {
     if (!button)
         return;
 
-    const busy =
-        app._ccLoadingAllResults ||
-        app._ccCalculatingDuplicates ||
-        app._ccSelectingAll;
-
-    button.disabled = busy;
+    button.disabled = app._ccSelectingAll === true;
 
     button.classList.toggle(
         "active",
@@ -4003,7 +4165,12 @@ function refreshDuplicatesButton(app) {
     );
 
     button.innerHTML =
-        app._ccDuplicatesOnly
+        app._ccCalculatingDuplicates
+            ? `
+                <i class="fa-solid fa-xmark"></i>
+                ${localize("CancelDuplicateCalculation")}
+            `
+            : app._ccDuplicatesOnly
             ? `
                 <i class="fa-solid fa-copy"></i>
                 ${localize("DuplicatesActive")}
@@ -4012,6 +4179,74 @@ function refreshDuplicatesButton(app) {
                 <i class="fa-solid fa-copy"></i>
                 ${localize("Duplicates")}
             `;
+
+}
+
+function refreshDuplicateBusyState(app) {
+
+    const element = app.element;
+
+    if (!element)
+        return;
+
+    const busy = app._ccCalculatingDuplicates === true;
+
+    element.classList.toggle(
+        "cc-duplicate-calculating",
+        busy
+    );
+
+    if (app._ccBusyGuardElement !== element) {
+
+        if (
+            app._ccBusyGuardElement &&
+            app._ccBusyGuard
+        ) {
+            for (const type of [
+                "click",
+                "contextmenu",
+                "input",
+                "change",
+                "keydown"
+            ]) {
+                app._ccBusyGuardElement.removeEventListener(
+                    type,
+                    app._ccBusyGuard,
+                    true
+                );
+            }
+        }
+
+        app._ccBusyGuard ??= event => {
+
+            if (!app._ccCalculatingDuplicates)
+                return;
+
+            if (event.target.closest?.(".cc-duplicates-button"))
+                return;
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+
+        };
+
+        for (const type of [
+            "click",
+            "contextmenu",
+            "input",
+            "change",
+            "keydown"
+        ]) {
+            element.addEventListener(
+                type,
+                app._ccBusyGuard,
+                true
+            );
+        }
+
+        app._ccBusyGuardElement = element;
+
+    }
 
 }
 

@@ -383,6 +383,45 @@ export class TableProfileStorageService {
         return matches;
     }
 
+    static #normalizeGlobalFilters(value) {
+
+        if (
+            !value ||
+            typeof value !== "object" ||
+            Array.isArray(value)
+        ) {
+            return null;
+        }
+
+        const browser =
+            value.browser &&
+            typeof value.browser === "object" &&
+            !Array.isArray(value.browser)
+                ? foundry.utils.deepClone(value.browser)
+                : null;
+
+        if (
+            !browser?.filters ||
+            typeof browser.filters !== "object" ||
+            Array.isArray(browser.filters)
+        ) {
+            return null;
+        }
+
+        const refreshedAt = Number(value.refreshedAt);
+
+        return {
+            browser,
+            matches: this.#normalizeMatches(value.matches),
+            refreshedAt:
+                Number.isFinite(refreshedAt) &&
+                refreshedAt > 0
+                    ? refreshedAt
+                    : Date.now()
+        };
+
+    }
+
     static #normalizePositiveInteger(
         value,
         fallback = null
@@ -1792,6 +1831,11 @@ export class TableProfileStorageService {
                 ...new Set(filterGroupIds)
             ];
 
+            profile.globalFilters =
+                this.#normalizeGlobalFilters(
+                    profile.globalFilters
+                );
+
             delete profile.filterGroups;
             delete profile.manualIncludes;
 
@@ -2201,6 +2245,57 @@ export class TableProfileStorageService {
         );
 
         return profile;
+    }
+
+    static async setGlobalFilters(
+        profileId,
+        draft = null
+    ) {
+        const storage = foundry.utils.deepClone(
+            this.getStorage()
+        );
+        const profile = storage.profiles?.[profileId];
+
+        if (
+            !profile ||
+            profile.version !== 2 ||
+            profile.type === "nested"
+        ) {
+            throw new Error("TABLE_PROFILE_NOT_FOUND");
+        }
+
+        const globalFilters = draft
+            ? this.#normalizeGlobalFilters({
+                browser: draft.browser,
+                matches: draft.matches,
+                refreshedAt: Date.now()
+            })
+            : null;
+
+        if (draft && !globalFilters) {
+            throw new Error("INVALID_TABLE_GLOBAL_FILTERS");
+        }
+
+        if (
+            foundry.utils.equals(
+                profile.globalFilters ?? null,
+                globalFilters
+            )
+        ) {
+            return this.#hydrateProfile(profile, storage);
+        }
+
+        profile.globalFilters = globalFilters;
+        profile.revision =
+            Number(profile.revision ?? 1) + 1;
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return this.#hydrateProfile(profile, storage);
     }
 
     static async setFilterGroupManualIncludes(
