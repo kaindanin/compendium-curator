@@ -2331,6 +2331,14 @@ export class TableManagerApplication
             generateVisibleProfiles:
                 this.#onGenerateVisibleProfiles,
             createProfile: this.#onCreateProfile,
+            createCategoryFilterGroup:
+                this.#onCreateCategoryFilterGroup,
+            editCategoryFilterGroup:
+                this.#onEditCategoryFilterGroup,
+            duplicateCategoryFilterGroup:
+                this.#onDuplicateCategoryFilterGroup,
+            deleteCategoryFilterGroup:
+                this.#onDeleteCategoryFilterGroup,
             importProfileBundle: this.#onImportProfileBundle,
             saveGlobalFilters: this.#onSaveGlobalFilters,
             loadGlobalFilters: this.#onLoadGlobalFilters,
@@ -2691,93 +2699,89 @@ export class TableManagerApplication
                         )
                     );
 
-                const filteredUuids = new Set(
-                    filterGroup.matches ?? []
-                );
-                const manualIncludeCount = new Set(
-                    (filterGroup.manualIncludes ?? [])
-                        .filter(uuid =>
-                            !filteredUuids.has(uuid)
-                        )
-                ).size;
-                const matchCount =
-                    filteredUuids.size +
-                    manualIncludeCount;
                 const useCount = usedBy.length;
                 const detailsOpen =
                     this._openFilterGroups.has(
                         filterGroup.id
                     );
-                const matchUuids = [
-                    ...new Set([
-                        ...(filterGroup.matches ?? []),
-                        ...(filterGroup.manualIncludes ?? [])
-                    ])
-                ];
-                const manualIncludes = new Set(
-                    filterGroup.manualIncludes ?? []
-                );
-                const displayFilters = detailsOpen
-                    ? TableProfileService
-                        .getFilterDisplayGroups(
-                            this.browserApp,
-                            filterGroup.browser?.filters ?? {}
-                        )
-                    : [];
-                const matches = detailsOpen
-                    ? prepareDnd5eIndexedEntries(
-                        matchUuids
-                    )
-                        .map(entry => ({
+                const categoryUuids = new Set();
+                const categoryGroups = Array.from(
+                    filterGroup.groups ?? []
+                ).map(group => {
+                    const groupKey =
+                        `${filterGroup.id}:${group.id}`;
+                    const groupOpen =
+                        this._openFilterGroupSections.has(
+                            groupKey
+                        );
+                    const manualIncludes = new Set(
+                        group.manualIncludes ?? []
+                    );
+                    const matchUuids = [
+                        ...new Set([
+                            ...(group.matches ?? []),
+                            ...manualIncludes
+                        ])
+                    ];
+
+                    for (const uuid of matchUuids)
+                        categoryUuids.add(uuid);
+
+                    const displayFilters = groupOpen
+                        ? TableProfileService
+                            .getFilterDisplayGroups(
+                                this.browserApp,
+                                group.browser?.filters ?? {}
+                            )
+                        : [];
+                    const matches = groupOpen
+                        ? prepareDnd5eIndexedEntries(
+                            matchUuids
+                        ).map(entry => ({
                             ...entry,
                             manuallyIncluded:
                                 manualIncludes.has(
                                     entry.uuid
                                 )
                         }))
-                    : [];
+                        : [];
+
+                    return {
+                        id: group.id,
+                        name: group.name,
+                        matchCount: matchUuids.length,
+                        detailsOpen: groupOpen,
+                        displayFilters,
+                        hasFilters:
+                            displayFilters.length > 0,
+                        matches,
+                        hasMatches:
+                            matchUuids.length > 0
+                    };
+                });
+                const matchCount = categoryUuids.size;
 
                 return {
                     id: filterGroup.id,
                     name: filterGroup.name,
                     matchCount,
+                    groupCount: categoryGroups.length,
+                    groups: categoryGroups,
                     useCount,
                     usedBy,
                     detailsOpen,
-                    filtersOpen:
-                        this._openFilterGroupSections.has(
-                            `${filterGroup.id}:filters`
-                        ),
-                    contentOpen:
-                        this._openFilterGroupSections.has(
-                            `${filterGroup.id}:content`
-                        ),
                     usageOpen:
                         this._openFilterGroupSections.has(
                             `${filterGroup.id}:usage`
                         ),
-                    displayFilters,
-                    hasFilters:
-                        displayFilters.length > 0,
-                    matches,
-                    hasMatches: matches.length > 0,
-                    manualIncludedCount:
-                        manualIncludes.size,
-                    matchesLabel: game.i18n.format(
-                        manualIncludeCount
-                            ? "COMPENDIUM_CURATOR.FilterGroupObjectsWithManual"
-                            : "COMPENDIUM_CURATOR.CurrentFilterMatches",
-                        {
-                            count: matchCount,
-                            manual:
-                                manualIncludeCount
-                        }
-                    ),
                     usageLabel: `${useCount} ${game.i18n.localize(
                         "COMPENDIUM_CURATOR.TableProfiles"
                     ).toLocaleLowerCase()}`,
                     searchText: [
                         filterGroup.name,
+                        ...categoryGroups.map(
+                            group => group.name
+                        ),
                         ...usedBy.map(profile => profile.name)
                     ]
                         .filter(Boolean)
@@ -3966,10 +3970,19 @@ export class TableManagerApplication
                 this._openFilterGroupSections.add(key);
 
             details.addEventListener("toggle", () => {
-                if (details.open)
+                if (details.open) {
+                    const wasLoaded =
+                        this._openFilterGroupSections
+                            .has(key);
                     this._openFilterGroupSections.add(key);
-                else
+
+                    if (!wasLoaded) {
+                        this.render({ force: true });
+                    }
+                }
+                else {
                     this._openFilterGroupSections.delete(key);
+                }
             });
         }
 
@@ -4072,12 +4085,61 @@ export class TableManagerApplication
 
     static async #onCreateProfile() {
         if (this._activeTab === "filters") {
-            const storedGroup =
-                await TableFilterGroupApplication
-                    .createFromCurrentFilters(this.browserApp);
+            const result = await foundry.applications.api
+                .DialogV2.input({
+                    window: {
+                        title: game.i18n.localize(
+                            "COMPENDIUM_CURATOR.CreateCategory"
+                        )
+                    },
+                    content: `
+                        <div class="form-group">
+                            <label>${game.i18n.localize(
+                                "COMPENDIUM_CURATOR.CategoryName"
+                            )}</label>
+                            <div class="form-fields">
+                                <input type="text" name="categoryName" autocomplete="off" autofocus>
+                            </div>
+                        </div>
+                    `,
+                    ok: {
+                        label: game.i18n.localize(
+                            "COMPENDIUM_CURATOR.Create"
+                        )
+                    },
+                    rejectClose: false,
+                    modal: true
+                });
 
-            if (storedGroup)
-                this.render({ force: true });
+            const name = String(
+                result?.categoryName ?? ""
+            ).trim();
+
+            if (!result || !name)
+                return;
+
+            if (
+                TableProfileStorageService
+                    .isFilterGroupNameTaken(
+                        null,
+                        name
+                    )
+            ) {
+                ui.notifications.warn(
+                    game.i18n.localize(
+                        "COMPENDIUM_CURATOR.CategoryNameTaken"
+                    )
+                );
+                return;
+            }
+
+            await TableProfileStorageService
+                .createFilterGroup({
+                    name,
+                    groups: []
+                });
+
+            this.render({ force: true });
 
             return;
         }
@@ -4092,6 +4154,264 @@ export class TableManagerApplication
 
         this._profileEditor.prepareForCreate();
         this._profileEditor.render({ force: true });
+    }
+
+    static async #onCreateCategoryFilterGroup(
+        event,
+        target
+    ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const categoryId = target.closest(
+            "[data-filter-group-id]"
+        )?.dataset?.filterGroupId;
+
+        if (!categoryId)
+            return;
+
+        await TableFilterGroupApplication
+            .createFromCurrentFilters(
+                this.browserApp,
+                categoryId,
+                this
+            );
+    }
+
+    static async #onEditCategoryFilterGroup(
+        event,
+        target
+    ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const categoryId = target.closest(
+            "[data-filter-group-id]"
+        )?.dataset?.filterGroupId;
+        const groupId = target.closest(
+            "[data-category-filter-group-id]"
+        )?.dataset?.categoryFilterGroupId;
+        const group = TableProfileStorageService
+            .getCategoryFilterGroup(
+                categoryId,
+                groupId
+            );
+
+        if (!group)
+            return;
+
+        if (this._filterCriteriaEditor?.rendered) {
+            if (
+                this._filterCriteriaEditor.categoryId ===
+                    categoryId &&
+                this._filterCriteriaEditor.filterGroupId ===
+                    groupId
+            ) {
+                this._filterCriteriaEditor.bringToFront();
+                return;
+            }
+
+            await this._filterCriteriaEditor.close();
+        }
+
+        const loaded = await TableProfileService
+            .loadBrowserFilters(
+                this.browserApp,
+                group.browser
+            );
+
+        if (loaded !== true) {
+            if (loaded === false) {
+                ui.notifications.warn(
+                    game.i18n.localize(
+                        "COMPENDIUM_CURATOR.FilterGroupFiltersLoadFailed"
+                    )
+                );
+            }
+            return;
+        }
+
+        this._filterCriteriaEditor =
+            new TableFilterGroupApplication(
+                this.browserApp,
+                this,
+                null,
+                {
+                    categoryId,
+                    editFilterGroupId: groupId
+                }
+            );
+        this.browserApp
+            ._ccFilterGroupCriteriaEditor =
+                this._filterCriteriaEditor;
+        this._filterCriteriaEditor.render({ force: true });
+    }
+
+    static async #onDuplicateCategoryFilterGroup(
+        event,
+        target
+    ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const categoryId = target.closest(
+            "[data-filter-group-id]"
+        )?.dataset?.filterGroupId;
+        const groupId = target.closest(
+            "[data-category-filter-group-id]"
+        )?.dataset?.categoryFilterGroupId;
+        const group = TableProfileStorageService
+            .getCategoryFilterGroup(
+                categoryId,
+                groupId
+            );
+
+        if (!group)
+            return;
+
+        const baseName = game.i18n.format(
+            "COMPENDIUM_CURATOR.FilterGroupCopyName",
+            { group: group.name }
+        );
+        let suggestedName = baseName;
+        let index = 2;
+
+        while (
+            TableProfileStorageService
+                .isCategoryGroupNameTaken(
+                    categoryId,
+                    suggestedName
+                )
+        ) {
+            suggestedName = `${baseName} (${index})`;
+            index++;
+        }
+
+        const result = await foundry.applications.api
+            .DialogV2.input({
+                window: {
+                    title: game.i18n.localize(
+                        "COMPENDIUM_CURATOR.DuplicateCategoryGroup"
+                    )
+                },
+                content: `
+                    <div class="form-group">
+                        <label>${game.i18n.localize(
+                            "COMPENDIUM_CURATOR.FilterGroupName"
+                        )}</label>
+                        <div class="form-fields">
+                            <input type="text" name="filterGroupName" value="${foundry.utils.escapeHTML(suggestedName)}" autocomplete="off" autofocus>
+                        </div>
+                    </div>
+                `,
+                ok: {
+                    label: game.i18n.localize(
+                        "COMPENDIUM_CURATOR.Duplicate"
+                    )
+                },
+                rejectClose: false,
+                modal: true
+            });
+        const name = String(
+            result?.filterGroupName ?? ""
+        ).trim();
+
+        if (!result || !name)
+            return;
+
+        if (
+            TableProfileStorageService
+                .isCategoryGroupNameTaken(
+                    categoryId,
+                    name
+                )
+        ) {
+            ui.notifications.warn(
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.FilterGroupNameTakenInCategory"
+                )
+            );
+            return;
+        }
+
+        await TableProfileStorageService
+            .duplicateCategoryFilterGroup(
+                categoryId,
+                groupId,
+                name
+            );
+        this.render({ force: true });
+        this._refreshApplicationsForFilterGroup(
+            categoryId
+        );
+    }
+
+    static async #onDeleteCategoryFilterGroup(
+        event,
+        target
+    ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const categoryId = target.closest(
+            "[data-filter-group-id]"
+        )?.dataset?.filterGroupId;
+        const groupId = target.closest(
+            "[data-category-filter-group-id]"
+        )?.dataset?.categoryFilterGroupId;
+        const group = TableProfileStorageService
+            .getCategoryFilterGroup(
+                categoryId,
+                groupId
+            );
+
+        if (!group)
+            return;
+
+        const confirmed = await foundry.applications.api
+            .DialogV2.confirm({
+                classes: TABLE_DIALOG_CLASSES,
+                window: {
+                    title: game.i18n.localize(
+                        "COMPENDIUM_CURATOR.DeleteCategoryGroup"
+                    )
+                },
+                content: `<p>${game.i18n.format(
+                    "COMPENDIUM_CURATOR.DeleteCategoryGroupConfirm",
+                    {
+                        name: foundry.utils.escapeHTML(
+                            group.name
+                        )
+                    }
+                )}</p>`,
+                rejectClose: false,
+                modal: true
+            });
+
+        if (!confirmed)
+            return;
+
+        await TableProfileStorageService
+            .deleteCategoryFilterGroup(
+                categoryId,
+                groupId
+            );
+
+        if (
+            this._filterCriteriaEditor?.rendered &&
+            this._filterCriteriaEditor.categoryId ===
+                categoryId &&
+            this._filterCriteriaEditor.filterGroupId ===
+                groupId
+        ) {
+            await this._filterCriteriaEditor.close();
+            this._filterCriteriaEditor = null;
+        }
+
+        this.render({ force: true });
+        this._refreshApplicationsForFilterGroup(
+            categoryId
+        );
     }
 
     static #onExportProfileBundle(event, target) {
@@ -5385,7 +5705,7 @@ export class TableManagerApplication
 
         const label = document.createElement("label");
         label.textContent = game.i18n.localize(
-            "COMPENDIUM_CURATOR.FilterGroupName"
+            "COMPENDIUM_CURATOR.CategoryName"
         );
 
         const input = document.createElement("input");
@@ -5425,7 +5745,7 @@ export class TableManagerApplication
         if (!name) {
             ui.notifications.warn(
                 game.i18n.localize(
-                    "COMPENDIUM_CURATOR.FilterGroupNameRequired"
+                    "COMPENDIUM_CURATOR.CategoryNameRequired"
                 )
             );
             return;
@@ -5443,7 +5763,7 @@ export class TableManagerApplication
         ) {
             ui.notifications.warn(
                 game.i18n.localize(
-                    "COMPENDIUM_CURATOR.FilterGroupNameTaken"
+                    "COMPENDIUM_CURATOR.CategoryNameTaken"
                 )
             );
             return;
@@ -5506,7 +5826,7 @@ export class TableManagerApplication
 
         const label = document.createElement("label");
         label.textContent = game.i18n.localize(
-            "COMPENDIUM_CURATOR.FilterGroupName"
+            "COMPENDIUM_CURATOR.CategoryName"
         );
 
         const input = document.createElement("input");
@@ -5543,7 +5863,7 @@ export class TableManagerApplication
         if (!name) {
             ui.notifications.warn(
                 game.i18n.localize(
-                    "COMPENDIUM_CURATOR.FilterGroupNameRequired"
+                    "COMPENDIUM_CURATOR.CategoryNameRequired"
                 )
             );
             return;
@@ -5557,7 +5877,7 @@ export class TableManagerApplication
         ) {
             ui.notifications.warn(
                 game.i18n.localize(
-                    "COMPENDIUM_CURATOR.FilterGroupNameTaken"
+                    "COMPENDIUM_CURATOR.CategoryNameTaken"
                 )
             );
             return;

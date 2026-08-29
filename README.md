@@ -116,9 +116,13 @@ Click **Manage tables** in the Compendium Browser to open the Manager. Creating 
 
 The **Content** block presents every category and linked table as an expandable branch. Categories expose their grouping, weights, and object rules. Linked tables reproduce the original structure as a read-only view, while only the relationship weight remains editable from the parent table.
 
-The **Categories** tab uses the same compact expandable layout, with saved filters, matching objects, and table usage inline. Its folders are independent and visual only; they never create or move generated RollTables.
+The **Categories** tab uses the same compact expandable layout. Each Category contains one or more **Filter groups**: criteria inside a group are combined with AND, while sibling groups are combined with OR. The Category deduplicates the resulting union by UUID, and tables reuse that complete Category as an inclusion source.
 
-Each content table can also save **Global filters** from the Compendium Browser. They are intersected with every linked category before weights are calculated or RollTables are generated. The expanded preview shows the stored browser tab, mode, filter states, and how many category objects were excluded.
+The `+` button under **Filter groups** opens an editor synchronized with the Compendium Browser. Filter, search, tab, and mode changes immediately refresh the represented criteria, count, and document preview. Saving persists the criteria; the match list is only a preview cache and is recalculated from those criteria. Zero-match groups are supported.
+
+Storage migration from v6 to v7 preserves every existing identifier and table relation. Each previous flat Category becomes a Category with one same-named group carrying its criteria, matches, and inclusions unchanged. Categories are never merged and no arbitrary grouping is invented. Existing complete backups and table bundles remain importable; new exports use the explicit hierarchy.
+
+Each content table can also save **Global filters** from the Compendium Browser. They act as restrictions on the table's local sources and are intersected with its categories before weights are calculated or RollTables are generated. A linked table remains an opaque reference and retains its own configuration.
 
 Manager folders are a visual organization. When a table is generated for the first time, that structure is reproduced in the default world or compendium destination. Later updates keep the document in its current location; if the user manually moves it elsewhere, the Manager does not force it back. Technical subtables are stored below the root **Subtables** folder and mirror the Manager organization.
 

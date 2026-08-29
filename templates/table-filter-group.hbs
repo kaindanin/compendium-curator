@@ -46,8 +46,6 @@
             </header>
 
 
-            {{#unless isEditMode}}
-
                 <section class="cc-table-profile-editor-section">
 
                 <div
@@ -87,8 +85,6 @@
                 </div>
 
                 </section>
-
-            {{/unless}}
 
 
             <section>
@@ -452,7 +448,7 @@
                 {{#if isPreviewLoading}}
                     disabled
                 {{else}}
-                    {{#unless hasMatches}}
+                    {{#unless nameValid}}
                         disabled
                     {{/unless}}
                 {{/if}}
@@ -537,17 +533,6 @@
 
                 {{/if}}
 
-
-                <button
-                    type="button"
-                    data-action="createCurrentFilters"
-                >
-                    <i class="fas fa-plus"></i>
-
-                    {{localize
-                        "COMPENDIUM_CURATOR.AddCurrentFilters"
-                    }}
-                </button>
 
             {{else}}
 

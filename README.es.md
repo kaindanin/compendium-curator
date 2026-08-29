@@ -115,9 +115,13 @@ Pulsa **Gestionar tablas** en el Navegador de Compendios para abrir el Gestor. U
 
 El bloque **Contenido** reúne cada categoría y tabla enlazada como una rama desplegable. Las categorías permiten configurar su agrupación, pesos y reglas. Las tablas enlazadas muestran la estructura original en modo de solo lectura y únicamente permiten cambiar el peso de la relación desde la tabla padre.
 
-La pestaña **Categorías** usa el mismo diseño compacto y desplegable, con los filtros guardados, los objetos coincidentes y el uso en tablas dentro de cada tarjeta. Sus carpetas son independientes y únicamente visuales; nunca crean ni mueven RollTables generadas.
+La pestaña **Categorías** usa el mismo diseño compacto y desplegable. Cada Categoría contiene uno o más **Grupos de filtros**: los criterios dentro de un grupo se combinan con AND y los grupos hermanos se combinan con OR. La Categoría deduplica por UUID la unión resultante y las tablas reutilizan esa Categoría completa como fuente de inclusión.
 
-Cada tabla de contenido también puede guardar **Filtros globales** desde el Navegador de Compendios. Se cruzan con todas sus categorías antes de calcular pesos o generar RollTables. La vista previa desplegada muestra la pestaña y el modo guardados, los estados de filtro y cuántos objetos de las categorías fueron descartados.
+El botón `+` de **Grupos de filtros** abre un editor sincronizado con el Navegador de Compendios. Los cambios de filtros, búsqueda, pestaña o modo actualizan en vivo los criterios representados, el contador y la lista previa. Al guardar se conservan los criterios; la lista de coincidencias solo actúa como caché de vista previa y se vuelve a calcular desde esos criterios. Se admiten grupos con cero coincidencias.
+
+La migración de almacenamiento v6 a v7 conserva cada identificador y relación existente. Cada antigua Categoría plana se convierte en una Categoría con un único grupo del mismo nombre y con sus criterios, coincidencias e inclusiones intactos. No se mezclan Categorías ni se inventan agrupaciones entre ellas. Las copias completas y los paquetes de tabla antiguos siguen siendo importables; las nuevas exportaciones usan la jerarquía explícita.
+
+Cada tabla de contenido también puede guardar **Filtros globales** desde el Navegador de Compendios. Funcionan como restricciones de las fuentes locales de la tabla: se cruzan con sus categorías antes de calcular pesos o generar RollTables. Una tabla enlazada continúa tratándose como una referencia opaca y conserva su propia configuración.
 
 Las carpetas del Gestor son una organización visual. La primera vez que se genera una tabla, esa estructura se replica en el mundo o compendio predeterminado. Las actualizaciones posteriores conservan el documento en su ubicación actual; si el usuario lo mueve manualmente a otro lugar, el Gestor no lo devuelve a la fuerza. Las subtablas técnicas se guardan bajo la carpeta raíz **Subtablas**, reflejando la organización del Gestor.
 

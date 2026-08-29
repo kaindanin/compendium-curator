@@ -4,7 +4,8 @@ import {
 
 const TABLE_PROFILE_BUNDLE_TYPE =
     "compendium-curator-table-profile-bundle";
-const TABLE_PROFILE_BUNDLE_VERSION = 1;
+const SUPPORTED_TABLE_PROFILE_BUNDLE_VERSIONS =
+    new Set([1, 2]);
 const TABLE_PROFILE_BUNDLE_LIMIT = 500;
 
 function normalizeComparableName(value) {
@@ -24,7 +25,8 @@ function assertBundle(bundle) {
 
     if (
         bundle?.type !== TABLE_PROFILE_BUNDLE_TYPE ||
-        bundle?.version !== TABLE_PROFILE_BUNDLE_VERSION ||
+        !SUPPORTED_TABLE_PROFILE_BUNDLE_VERSIONS
+            .has(Number(bundle?.version)) ||
         !profiles ||
         typeof profiles !== "object" ||
         Array.isArray(profiles) ||
@@ -157,11 +159,64 @@ function assertBundle(bundle) {
             !sourceId ||
             !filterGroup ||
             !String(filterGroup.name ?? "").trim() ||
-            !Array.isArray(filterGroup.matches)
+            (
+                Number(bundle?.version) >= 2 &&
+                !Array.isArray(filterGroup.groups)
+            ) ||
+            (
+                Number(bundle?.version) === 1 &&
+                !Array.isArray(filterGroup.matches)
+            )
         ) {
             throw new Error(
                 "INVALID_TABLE_PROFILE_BUNDLE"
             );
+        }
+
+        if (Number(bundle?.version) >= 2) {
+            const ids = new Set();
+            const names = new Set();
+
+            if (
+                filterGroup.groups.length >
+                    TABLE_PROFILE_BUNDLE_LIMIT
+            ) {
+                throw new Error(
+                    "INVALID_TABLE_PROFILE_BUNDLE"
+                );
+            }
+
+            for (const group of filterGroup.groups) {
+                const id = String(
+                    group?.id ?? ""
+                ).trim();
+                const name = String(
+                    group?.name ?? ""
+                ).trim();
+                const comparableName =
+                    normalizeComparableName(name);
+
+                if (
+                    !group ||
+                    typeof group !== "object" ||
+                    Array.isArray(group) ||
+                    !id ||
+                    !name ||
+                    ids.has(id) ||
+                    names.has(comparableName) ||
+                    !Array.isArray(group.matches) ||
+                    !Array.isArray(
+                        group.manualIncludes ?? []
+                    )
+                ) {
+                    throw new Error(
+                        "INVALID_TABLE_PROFILE_BUNDLE"
+                    );
+                }
+
+                ids.add(id);
+                names.add(comparableName);
+            }
         }
     }
 
@@ -232,23 +287,31 @@ function collectReferencedUuids(
             const filterGroup =
                 filterGroups?.[filterGroupId];
 
-            for (const uuid of filterGroup?.matches ?? []) {
-                const value =
-                    String(uuid ?? "").trim();
+            const groups = Array.isArray(
+                filterGroup?.groups
+            )
+                ? filterGroup.groups
+                : [filterGroup];
 
-                if (value)
-                    referenced.add(value);
-            }
+            for (const group of groups) {
+                for (const uuid of group?.matches ?? []) {
+                    const value =
+                        String(uuid ?? "").trim();
 
-            for (
-                const uuid
-                of filterGroup?.manualIncludes ?? []
-            ) {
-                const value =
-                    String(uuid ?? "").trim();
+                    if (value)
+                        referenced.add(value);
+                }
 
-                if (value)
-                    referenced.add(value);
+                for (
+                    const uuid
+                    of group?.manualIncludes ?? []
+                ) {
+                    const value =
+                        String(uuid ?? "").trim();
+
+                    if (value)
+                        referenced.add(value);
+                }
             }
         }
     }

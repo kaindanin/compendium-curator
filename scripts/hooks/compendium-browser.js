@@ -3740,7 +3740,12 @@ function refreshHiddenFilter(app) {
     if (!state)
         return;
 
-    state.value = String(app._ccHiddenFilter ?? -1);
+    const value = String(app._ccHiddenFilter ?? -1);
+
+    // D&D5e's filter-state setter dispatches a change event. Avoid writing the
+    // same value again from that handler or the custom hidden filter recurses.
+    if (String(state.value) !== value)
+        state.value = value;
 
     const suffix =
         app._ccHiddenFilter === 1

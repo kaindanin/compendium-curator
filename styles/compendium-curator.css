@@ -1507,6 +1507,72 @@
     margin-top: 0;
 }
 
+.cc-table-manager-filter-group-heading-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.cc-table-category-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.cc-table-category-group {
+    padding: 0.35rem 0.5rem;
+
+    background: rgb(0 0 0 / 16%);
+    border: 1px solid rgb(255 255 255 / 7%);
+    border-radius: 4px;
+}
+
+.cc-table-category-group > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+
+    min-height: 30px;
+
+    cursor: pointer;
+    list-style: none;
+}
+
+.cc-table-category-group > summary::-webkit-details-marker {
+    display: none;
+}
+
+.cc-table-category-group > summary > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.cc-table-category-group > summary button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 26px;
+    height: 26px;
+    min-height: 26px;
+    margin: 0;
+    padding: 0;
+
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+
+.cc-table-category-group-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+
+    padding-top: 0.55rem;
+}
+
 .cc-table-manager-filter-group-inspector
     .cc-dnd5e-document-list,
 .cc-table-manager-filter-group-inspector

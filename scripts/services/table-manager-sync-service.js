@@ -62,41 +62,49 @@ async function synchronizeFilterGroups(manager) {
                     .getFilterGroups()
             );
 
-            for (const group of groups) {
-                const filters =
-                    group?.browser?.filters;
+            for (const category of groups) {
+                for (
+                    const group
+                    of category?.groups ?? []
+                ) {
+                    const filters =
+                        group?.browser?.filters;
 
-                if (!filters)
-                    continue;
+                    if (!filters)
+                        continue;
 
-                const candidates =
-                    await TableProfileService
-                        .getBrowserCandidates(
-                            manager.browserApp,
-                            filters
-                        );
+                    const candidates =
+                        await TableProfileService
+                            .getBrowserCandidates(
+                                manager.browserApp,
+                                filters
+                            );
 
-                const matches = normalizeMatches(
-                    candidates.map(
-                        candidate => candidate.uuid
-                    )
-                );
-                const previous = normalizeMatches(
-                    group.matches
-                );
-
-                if (matchesEqual(matches, previous))
-                    continue;
-
-                await TableProfileStorageService
-                    .updateFilterGroupMatches(
-                        null,
-                        group.id,
-                        matches,
-                        filters
+                    const matches = normalizeMatches(
+                        candidates.map(
+                            candidate => candidate.uuid
+                        )
+                    );
+                    const previous = normalizeMatches(
+                        group.matches
                     );
 
-                changed = true;
+                    if (matchesEqual(matches, previous))
+                        continue;
+
+                    await TableProfileStorageService
+                        .updateCategoryFilterGroup(
+                            category.id,
+                            group.id,
+                            {
+                                name: group.name,
+                                browser: group.browser,
+                                matches
+                            }
+                        );
+
+                    changed = true;
+                }
             }
 
             return changed;

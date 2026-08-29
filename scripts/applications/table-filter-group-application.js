@@ -61,6 +61,10 @@ export class TableFilterGroupApplication
                 options.editFilterGroupId ?? ""
             ).trim() || null;
 
+        const categoryId = String(
+            options.categoryId ?? ""
+        ).trim() || null;
+
         const editMode =
             Boolean(editFilterGroupId);
 
@@ -70,6 +74,7 @@ export class TableFilterGroupApplication
 
         delete applicationOptions.createMode;
         delete applicationOptions.editFilterGroupId;
+        delete applicationOptions.categoryId;
 
         if (createMode || editMode) {
 
@@ -99,6 +104,7 @@ export class TableFilterGroupApplication
         this.browserApp = browserApp;
         this.managerApp = managerApp;
         this.profileId = profileId ?? null;
+        this.categoryId = categoryId;
         this.isCreateMode = createMode;
         this.isEditMode = editMode;
         this.isDraftMode =
@@ -256,8 +262,6 @@ export class TableFilterGroupApplication
             height: 520
         },
         actions: {
-            createCurrentFilters:
-                this.#onCreateCurrentFilters,
             create:
                 this.#onCreate,
             update:
@@ -280,7 +284,8 @@ export class TableFilterGroupApplication
 
     static async createFromCurrentFilters(
         browserApp,
-        profileId = null
+        categoryId,
+        managerApp = null
     ) {
 
         const current =
@@ -289,8 +294,7 @@ export class TableFilterGroupApplication
         if (current?.rendered) {
 
             if (
-                current.profileId ===
-                    (profileId ?? null)
+                current.categoryId === categoryId
             ) {
                 current.bringToFront();
                 return null;
@@ -303,10 +307,12 @@ export class TableFilterGroupApplication
         const creator =
             new TableFilterGroupApplication(
                 browserApp,
-                browserApp?._ccTableManager ?? null,
-                profileId,
+                managerApp ??
+                    browserApp?._ccTableManager ?? null,
+                null,
                 {
-                    createMode: true
+                    createMode: true,
+                    categoryId
                 }
             );
 
@@ -422,11 +428,28 @@ export class TableFilterGroupApplication
 
             createButton.disabled =
                 this._previewLoading ||
-                !this._previewSnapshot
-                    ?.hasMatches;
+                !this._previewSnapshot ||
+                !this._isDraftNameValid();
 
         }
 
+    }
+
+
+    _isDraftNameValid() {
+        const name = String(
+            this._draftName ?? ""
+        ).trim();
+
+        return Boolean(name) &&
+            !TableProfileStorageService
+                .isCategoryGroupNameTaken(
+                    this.categoryId,
+                    name,
+                    this.isEditMode
+                        ? this.filterGroupId
+                        : null
+                );
     }
 
 
@@ -531,6 +554,52 @@ export class TableFilterGroupApplication
                                 ?.filters ?? {}
                         );
 
+                const browserTab = String(
+                    draft?.browser?.tab ?? ""
+                ).trim();
+                const tabControl = browserTab
+                    ? this.browserApp?.element
+                        ?.querySelector(
+                            `[data-application-part="tabs"] [data-tab="${CSS.escape(browserTab)}"]`
+                        )
+                    : null;
+
+                if (browserTab) {
+                    filterGroups.unshift({
+                        key: "browserTab",
+                        label: game.i18n.localize(
+                            "COMPENDIUM_CURATOR.BrowserTab"
+                        ),
+                        single: true,
+                        filterState: false,
+                        value: String(
+                            tabControl?.getAttribute(
+                                "aria-label"
+                            ) ??
+                            tabControl?.getAttribute(
+                                "data-tooltip"
+                            ) ??
+                            browserTab
+                        ).trim(),
+                        entries: []
+                    });
+                }
+
+                filterGroups.unshift({
+                    key: "browserMode",
+                    label: game.i18n.localize(
+                        "COMPENDIUM_CURATOR.BrowserMode"
+                    ),
+                    single: true,
+                    filterState: false,
+                    value: game.i18n.localize(
+                        draft?.browser?.advanced
+                            ? "COMPENDIUM_CURATOR.AdvancedMode"
+                            : "COMPENDIUM_CURATOR.BasicMode"
+                    ),
+                    entries: []
+                });
+
                 /*
                  * Construimos las mismas filas visuales
                  * usadas por el resto de Curator, pero
@@ -632,16 +701,15 @@ export class TableFilterGroupApplication
                 : "create";
 
         context.draftSubmitLabel =
-            this.isEditMode
-                ? "COMPENDIUM_CURATOR.SaveChanges"
-                : "COMPENDIUM_CURATOR.Create";
+            "COMPENDIUM_CURATOR.Save";
 
         if (this.isDraftMode) {
 
             const editedGroup =
                 this.isEditMode
                     ? TableProfileStorageService
-                        .getFilterGroup(
+                        .getCategoryFilterGroup(
+                            this.categoryId,
                             this.filterGroupId
                         )
                     : null;
@@ -657,9 +725,15 @@ export class TableFilterGroupApplication
             context.exists = true;
 
             context.filterGroupName =
-                this.isEditMode
-                    ? editedGroup.name
-                    : this._draftName;
+                this._draftName ||
+                editedGroup?.name || "";
+
+            if (!this._draftName && editedGroup?.name) {
+                this._draftName = editedGroup.name;
+            }
+
+            context.nameValid =
+                this._isDraftNameValid();
 
             const profile =
                 this.profileId
@@ -761,8 +835,12 @@ export class TableFilterGroupApplication
                             selectedIds.has(group.id),
                         matchCount:
                             new Set([
-                                ...(group.matches ?? []),
-                                ...(group.manualIncludes ?? [])
+                                ...Array.from(
+                                    group.groups ?? []
+                                ).flatMap(filter => [
+                                    ...(filter.matches ?? []),
+                                    ...(filter.manualIncludes ?? [])
+                                ])
                             ]).size,
                         useCount
                     };
@@ -806,17 +884,17 @@ export class TableFilterGroupApplication
                     '[name="filterGroupName"]'
                 );
 
-            if (this.isCreateMode) {
-                nameInput?.addEventListener(
-                    "input",
-                    event => {
-                        this._draftName =
-                            String(
-                                event.target?.value ?? ""
-                            );
-                    }
-                );
-            }
+            nameInput?.addEventListener(
+                "input",
+                event => {
+                    this._draftName = String(
+                        event.target?.value ?? ""
+                    );
+                    this._setPreviewLoading(
+                        this._previewLoading
+                    );
+                }
+            );
 
             if (
                 this.isCreateMode &&
@@ -950,17 +1028,6 @@ export class TableFilterGroupApplication
     }
 
 
-    static async #onCreateCurrentFilters() {
-
-        await TableFilterGroupApplication
-            .createFromCurrentFilters(
-                this.browserApp,
-                this.profileId
-            );
-
-    }
-
-
     static async #onCreate() {
 
         if (!this.isCreateMode)
@@ -990,8 +1057,8 @@ export class TableFilterGroupApplication
 
         if (
             TableProfileStorageService
-                .isFilterGroupNameTaken(
-                    null,
+                .isCategoryGroupNameTaken(
+                    this.categoryId,
                     name
                 )
         ) {
@@ -1023,17 +1090,6 @@ export class TableFilterGroupApplication
         const draft =
             this._draft;
 
-        if (
-            (draft?.includedCount ?? 0) === 0
-        ) {
-            ui.notifications.warn(
-                game.i18n.localize(
-                    "COMPENDIUM_CURATOR.FilterGroupNoObjects"
-                )
-            );
-            return;
-        }
-
         const filterGroup = {
             name,
             browser:
@@ -1044,19 +1100,11 @@ export class TableFilterGroupApplication
 
         try {
 
-            if (this.profileId) {
-                await TableProfileStorageService
-                    .addFilterGroup(
-                        this.profileId,
-                        filterGroup
-                    );
-            }
-            else {
-                await TableProfileStorageService
-                    .createFilterGroup(
-                        filterGroup
-                    );
-            }
+            await TableProfileStorageService
+                .addCategoryFilterGroup(
+                    this.categoryId,
+                    filterGroup
+                );
 
         }
         catch (error) {
@@ -1106,22 +1154,24 @@ export class TableFilterGroupApplication
             return;
         }
 
-        if (
-            (this._draft.includedCount ?? 0) === 0
-        ) {
-            ui.notifications.warn(
-                game.i18n.localize(
-                    "COMPENDIUM_CURATOR.FilterGroupNoObjects"
-                )
-            );
+        const name = String(
+            this.element.querySelector(
+                '[name="filterGroupName"]'
+            )?.value ?? this._draftName ?? ""
+        ).trim();
+
+        if (!name || !this._isDraftNameValid())
             return;
-        }
 
         await TableProfileStorageService
-            .updateFilterGroupCriteria(
+            .updateCategoryFilterGroup(
+                this.categoryId,
                 this.filterGroupId,
-                this._draft.browser,
-                this._draft.matches
+                {
+                    name,
+                    browser: this._draft.browser,
+                    matches: this._draft.matches
+                }
             );
 
         await this.close();
@@ -1130,7 +1180,7 @@ export class TableFilterGroupApplication
 
         this.managerApp
             ?._refreshApplicationsForFilterGroup(
-                this.filterGroupId
+                this.categoryId
             );
 
         ui.notifications.info(

@@ -144,16 +144,49 @@ function validateProfileStructure(tableProfiles) {
         const [filterGroupId, filterGroup]
         of Object.entries(filterGroups)
     ) {
+        const groups = Array.isArray(
+            filterGroup?.groups
+        )
+            ? filterGroup.groups
+            : [filterGroup];
+        const groupIds = new Set();
+        const groupNames = new Set();
+        let validGroups = true;
+
+        for (const group of groups) {
+            const id = String(group?.id ?? "").trim();
+            const name = String(
+                group?.name ?? filterGroup?.name ?? ""
+            ).trim();
+            const comparableName =
+                normalizeComparableName(name);
+
+            if (
+                !isPlainObject(group) ||
+                !name ||
+                !validatePortableUuidList(
+                    group.matches ?? []
+                ) ||
+                !validatePortableUuidList(
+                    group.manualIncludes ?? []
+                ) ||
+                (id && groupIds.has(id)) ||
+                groupNames.has(comparableName)
+            ) {
+                validGroups = false;
+                break;
+            }
+
+            if (id)
+                groupIds.add(id);
+            groupNames.add(comparableName);
+        }
+
         if (
             !filterGroupId ||
             !isPlainObject(filterGroup) ||
             !String(filterGroup.name ?? "").trim() ||
-            !validatePortableUuidList(
-                filterGroup.matches ?? []
-            ) ||
-            !validatePortableUuidList(
-                filterGroup.manualIncludes ?? []
-            ) ||
+            !validGroups ||
             (
                 filterGroup.id !== undefined &&
                 String(filterGroup.id) !== filterGroupId
@@ -284,6 +317,28 @@ function normalizedRelation(profile) {
         .sort((a, b) =>
             a.profileId.localeCompare(b.profileId)
         );
+}
+
+function normalizedCategoryGroups(category) {
+    const groups = Array.isArray(category?.groups)
+        ? category.groups
+        : [{
+            id: null,
+            name: category?.name,
+            browser: category?.browser ?? {},
+            matches: category?.matches ?? [],
+            manualIncludes:
+                category?.manualIncludes ?? []
+        }];
+
+    return groups.map(group => ({
+        name: String(group?.name ?? "").trim(),
+        browser: group?.browser ?? {},
+        matches: [...(group?.matches ?? [])].sort(),
+        manualIncludes: [
+            ...(group?.manualIncludes ?? [])
+        ].sort()
+    }));
 }
 
 function sameJsonValue(left, right) {
@@ -731,12 +786,12 @@ export class TableManagerConfigurationService {
                     (storedGroup.folderId ?? null) !==
                         (String(importedGroup.folderId ?? "").trim() || null) ||
                     !sameJsonValue(
-                        storedGroup.matches ?? [],
-                        importedGroup.matches ?? []
-                    ) ||
-                    !sameJsonValue(
-                        storedGroup.manualIncludes ?? [],
-                        importedGroup.manualIncludes ?? []
+                        normalizedCategoryGroups(
+                            storedGroup
+                        ),
+                        normalizedCategoryGroups(
+                            importedGroup
+                        )
                     )
                 ) {
                     throw new Error(

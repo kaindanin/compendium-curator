@@ -5,7 +5,9 @@ import {
 
 const TABLE_PROFILE_BUNDLE_TYPE =
     "compendium-curator-table-profile-bundle";
-const TABLE_PROFILE_BUNDLE_VERSION = 1;
+const TABLE_PROFILE_BUNDLE_VERSION = 2;
+const SUPPORTED_TABLE_PROFILE_BUNDLE_VERSIONS =
+    new Set([1, 2]);
 const TABLE_PROFILE_BUNDLE_LIMIT = 500;
 
 function getPortableUuidAvailability(uuid) {
@@ -69,17 +71,19 @@ function getImportedObjectAvailability(
             const filterGroup =
                 storage.filterGroups?.[filterGroupId];
 
-            for (const uuid of filterGroup?.matches ?? []) {
-                if (uuid)
-                    referenced.add(uuid);
-            }
+            for (const group of filterGroup?.groups ?? []) {
+                for (const uuid of group?.matches ?? []) {
+                    if (uuid)
+                        referenced.add(uuid);
+                }
 
-            for (
-                const uuid
-                of filterGroup?.manualIncludes ?? []
-            ) {
-                if (uuid)
-                    referenced.add(uuid);
+                for (
+                    const uuid
+                    of group?.manualIncludes ?? []
+                ) {
+                    if (uuid)
+                        referenced.add(uuid);
+                }
             }
         }
     }
@@ -330,6 +334,32 @@ export class TableProfileStorageService {
         });
     }
 
+    static #isCategoryGroupNameTaken(
+        category,
+        name,
+        excludeId = null
+    ) {
+        const normalizedName =
+            this.#normalizeComparableName(name);
+
+        if (!normalizedName)
+            return false;
+
+        return Array.from(category?.groups ?? [])
+            .some(group => {
+                if (
+                    excludeId &&
+                    group?.id === excludeId
+                ) {
+                    return false;
+                }
+
+                return this.#normalizeComparableName(
+                    group?.name
+                ) === normalizedName;
+            });
+    }
+
     static #isFolderNameTakenInStorage(
         storage,
         name,
@@ -381,6 +411,143 @@ export class TableProfileStorageService {
 
         matches.sort();
         return matches;
+    }
+
+    static #normalizeCategoryGroup(
+        categoryId,
+        sourceGroup,
+        index = 0
+    ) {
+        const id = String(
+            sourceGroup?.id ??
+            `${categoryId}-group-${index + 1}`
+        ).trim() || `${categoryId}-group-${index + 1}`;
+        const name = String(
+            sourceGroup?.name ?? ""
+        ).trim();
+        const refreshedAt = Number(
+            sourceGroup?.refreshedAt
+        );
+
+        return {
+            id,
+            name,
+            revision: Math.max(
+                1,
+                Number(sourceGroup?.revision ?? 1) || 1
+            ),
+            browser: foundry.utils.deepClone(
+                sourceGroup?.browser ?? {}
+            ),
+            matches: this.#normalizeMatches(
+                sourceGroup?.matches
+            ),
+            manualIncludes: this.#normalizeMatches(
+                sourceGroup?.manualIncludes
+            ),
+            refreshedAt:
+                Number.isFinite(refreshedAt) &&
+                refreshedAt > 0
+                    ? refreshedAt
+                    : Date.now()
+        };
+    }
+
+    static #normalizeCategoryGroups(
+        categoryId,
+        sourceCategory
+    ) {
+        const sourceGroups = Array.isArray(
+            sourceCategory?.groups
+        )
+            ? sourceCategory.groups
+            : null;
+
+        /*
+         * Migración v6 -> v7. Cada antigua categoría
+         * plana se convierte, sin mezclar datos, en una
+         * categoría con un único grupo que conserva su
+         * nombre, criterios, coincidencias e inclusiones.
+         */
+        const groups = sourceGroups ?? [{
+            id: `${categoryId}-legacy`,
+            name: String(
+                sourceCategory?.name ?? ""
+            ).trim(),
+            browser: sourceCategory?.browser ?? {},
+            matches: sourceCategory?.matches ?? [],
+            manualIncludes:
+                sourceCategory?.manualIncludes ?? [],
+            refreshedAt: sourceCategory?.refreshedAt,
+            revision: sourceCategory?.revision ?? 1
+        }];
+        const normalized = [];
+        const usedIds = new Set();
+
+        for (const [index, sourceGroup] of groups.entries()) {
+            const group = this.#normalizeCategoryGroup(
+                categoryId,
+                sourceGroup,
+                index
+            );
+
+            if (!group.name)
+                continue;
+
+            let id = group.id;
+            let suffix = 2;
+
+            while (usedIds.has(id)) {
+                id = `${group.id}-${suffix}`;
+                suffix++;
+            }
+
+            group.id = id;
+            usedIds.add(id);
+            normalized.push(group);
+        }
+
+        return normalized;
+    }
+
+    static #getCategoryMatches(category) {
+        return this.#normalizeMatches(
+            Array.from(category?.groups ?? [])
+                .flatMap(group => [
+                    ...(group?.matches ?? []),
+                    ...(group?.manualIncludes ?? [])
+                ])
+        );
+    }
+
+    static #touchCategoryProfiles(
+        storage,
+        categoryId
+    ) {
+        const category =
+            storage.filterGroups?.[categoryId];
+
+        if (category) {
+            category.revision = Math.max(
+                1,
+                Number(category.revision ?? 1) || 1
+            ) + 1;
+        }
+
+        for (const profile of Object.values(
+            storage.profiles ?? {}
+        )) {
+            if (
+                Array.from(
+                    profile.filterGroupIds ?? []
+                ).includes(categoryId)
+            ) {
+                profile.revision = Math.max(
+                    1,
+                    Number(profile.revision ?? 1) || 1
+                ) + 1;
+            }
+        }
     }
 
     static #normalizeGlobalFilters(value) {
@@ -1291,20 +1458,36 @@ export class TableProfileStorageService {
             id,
             name,
             revision: 1,
-            browser:
-                foundry.utils.deepClone(
-                    filterGroup.browser ?? {}
-                ),
-            matches:
-                this.#normalizeMatches(
-                    filterGroup.matches
-                ),
-            manualIncludes:
-                this.#normalizeMatches(
-                    filterGroup.manualIncludes
-                ),
-            refreshedAt:
-                Date.now()
+            folderId:
+                String(
+                    filterGroup?.folderId ?? ""
+                ).trim() || null,
+            groups: this.#normalizeCategoryGroups(
+                id,
+                Array.isArray(filterGroup?.groups)
+                    ? filterGroup
+                    : (
+                        filterGroup?.browser
+                            ? {
+                                ...filterGroup,
+                                groups: [{
+                                    name,
+                                    browser:
+                                        filterGroup.browser,
+                                    matches:
+                                        filterGroup.matches,
+                                    manualIncludes:
+                                        filterGroup.manualIncludes,
+                                    refreshedAt:
+                                        filterGroup.refreshedAt
+                                }]
+                            }
+                            : {
+                                ...filterGroup,
+                                groups: []
+                            }
+                    )
+            )
         };
 
         storage.filterGroups[id] =
@@ -1555,7 +1738,7 @@ export class TableProfileStorageService {
 
         const storage = {
             ...source,
-            version: 6,
+            version: 7,
             profiles: {},
             folders:
                 foundry.utils.deepClone(
@@ -1692,8 +1875,10 @@ export class TableProfileStorageService {
             of Object.entries(storage.filterGroups)
         ) {
             storage.filterGroups[groupId] = {
-                ...sourceGroup,
                 id: groupId,
+                name: String(
+                    sourceGroup?.name ?? ""
+                ).trim(),
                 folderId:
                     storage.filterGroupFolders[
                         String(
@@ -1702,14 +1887,10 @@ export class TableProfileStorageService {
                     ]
                         ? String(sourceGroup.folderId).trim()
                         : null,
-                matches:
-                    this.#normalizeMatches(
-                        sourceGroup?.matches
-                    ),
-                manualIncludes:
-                    this.#normalizeMatches(
-                        sourceGroup?.manualIncludes
-                    ),
+                groups: this.#normalizeCategoryGroups(
+                    groupId,
+                    sourceGroup
+                ),
                 revision:
                     Number(
                         sourceGroup?.revision ?? 1
@@ -1805,22 +1986,19 @@ export class TableProfileStorageService {
                     usedGroupIds.add(groupId);
 
                     storage.filterGroups[groupId] = {
-                        ...foundry.utils.deepClone(
-                            sourceGroup
-                        ),
                         id: groupId,
-                        matches:
-                            this.#normalizeMatches(
-                                sourceGroup.matches
+                        name: String(
+                            sourceGroup.name ?? ""
+                        ).trim(),
+                        folderId: null,
+                        groups:
+                            this.#normalizeCategoryGroups(
+                                groupId,
+                                sourceGroup
                             ),
-                        manualIncludes:
-                            this.#normalizeMatches(
-                                sourceGroup.manualIncludes
-                            ),
-                        revision:
-                            Number(
-                                sourceGroup.revision ?? 1
-                            )
+                        revision: Number(
+                            sourceGroup.revision ?? 1
+                        )
                     };
 
                     filterGroupIds.push(groupId);
@@ -1914,11 +2092,20 @@ export class TableProfileStorageService {
                     ]
                 )
                 .filter(Boolean)
-                .map(filterGroup =>
-                    foundry.utils.deepClone(
-                        filterGroup
-                    )
-                );
+                .map(filterGroup => {
+                    const category =
+                        foundry.utils.deepClone(
+                            filterGroup
+                        );
+
+                    category.matches =
+                        this.#getCategoryMatches(
+                            category
+                        );
+                    category.manualIncludes = [];
+
+                    return category;
+                });
 
         return hydrated;
     }
@@ -1952,7 +2139,7 @@ export class TableProfileStorageService {
         );
 
         console.info(
-            "Compendium Curator | Perfiles de tabla migrados al formato v6."
+            "Compendium Curator | Perfiles de tabla migrados al formato v7."
         );
 
         return true;
@@ -2193,6 +2380,250 @@ export class TableProfileStorageService {
             name,
             excludeId
         );
+    }
+
+    static isCategoryGroupNameTaken(
+        categoryId,
+        name,
+        excludeId = null
+    ) {
+        const category = this.getStorage()
+            .filterGroups?.[categoryId];
+
+        if (!category)
+            return false;
+
+        return this.#isCategoryGroupNameTaken(
+            category,
+            name,
+            excludeId
+        );
+    }
+
+    static getCategoryFilterGroup(
+        categoryId,
+        groupId
+    ) {
+        const category = this.getStorage()
+            .filterGroups?.[categoryId];
+
+        return Array.from(category?.groups ?? [])
+            .find(group => group.id === groupId) ?? null;
+    }
+
+    static async addCategoryFilterGroup(
+        categoryId,
+        sourceGroup
+    ) {
+        const storage = foundry.utils.deepClone(
+            this.getStorage()
+        );
+        const category =
+            storage.filterGroups?.[categoryId];
+        const name = String(
+            sourceGroup?.name ?? ""
+        ).trim();
+
+        if (!category) {
+            throw new Error(
+                "TABLE_FILTER_GROUP_NOT_FOUND"
+            );
+        }
+
+        if (!name) {
+            throw new Error(
+                "FILTER_GROUP_NAME_REQUIRED"
+            );
+        }
+
+        if (
+            this.#isCategoryGroupNameTaken(
+                category,
+                name
+            )
+        ) {
+            throw new Error(
+                "FILTER_GROUP_NAME_TAKEN"
+            );
+        }
+
+        let id;
+        do {
+            id = foundry.utils.randomID();
+        }
+        while (
+            Array.from(category.groups ?? [])
+                .some(group => group.id === id)
+        );
+
+        const group = this.#normalizeCategoryGroup(
+            categoryId,
+            {
+                ...sourceGroup,
+                id,
+                name
+            },
+            category.groups?.length ?? 0
+        );
+
+        category.groups ??= [];
+        category.groups.push(group);
+        this.#touchCategoryProfiles(
+            storage,
+            categoryId
+        );
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return foundry.utils.deepClone(group);
+    }
+
+    static async updateCategoryFilterGroup(
+        categoryId,
+        groupId,
+        sourceGroup
+    ) {
+        const storage = foundry.utils.deepClone(
+            this.getStorage()
+        );
+        const category =
+            storage.filterGroups?.[categoryId];
+        const group = Array.from(
+            category?.groups ?? []
+        ).find(candidate => candidate.id === groupId);
+        const name = String(
+            sourceGroup?.name ?? group?.name ?? ""
+        ).trim();
+
+        if (!category || !group) {
+            throw new Error(
+                "TABLE_FILTER_GROUP_NOT_FOUND"
+            );
+        }
+
+        if (!name) {
+            throw new Error(
+                "FILTER_GROUP_NAME_REQUIRED"
+            );
+        }
+
+        if (
+            this.#isCategoryGroupNameTaken(
+                category,
+                name,
+                groupId
+            )
+        ) {
+            throw new Error(
+                "FILTER_GROUP_NAME_TAKEN"
+            );
+        }
+
+        const next = this.#normalizeCategoryGroup(
+            categoryId,
+            {
+                ...group,
+                ...sourceGroup,
+                id: groupId,
+                name,
+                revision:
+                    Number(group.revision ?? 1) + 1,
+                refreshedAt: Date.now()
+            }
+        );
+        const changed = !foundry.utils.equals(
+            group,
+            next
+        );
+
+        if (!changed)
+            return foundry.utils.deepClone(group);
+
+        category.groups = category.groups.map(
+            candidate => candidate.id === groupId
+                ? next
+                : candidate
+        );
+        this.#touchCategoryProfiles(
+            storage,
+            categoryId
+        );
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return foundry.utils.deepClone(next);
+    }
+
+    static async duplicateCategoryFilterGroup(
+        categoryId,
+        groupId,
+        name
+    ) {
+        const source = this.getCategoryFilterGroup(
+            categoryId,
+            groupId
+        );
+
+        if (!source) {
+            throw new Error(
+                "TABLE_FILTER_GROUP_NOT_FOUND"
+            );
+        }
+
+        return this.addCategoryFilterGroup(
+            categoryId,
+            {
+                ...foundry.utils.deepClone(source),
+                id: null,
+                name,
+                revision: 1
+            }
+        );
+    }
+
+    static async deleteCategoryFilterGroup(
+        categoryId,
+        groupId
+    ) {
+        const storage = foundry.utils.deepClone(
+            this.getStorage()
+        );
+        const category =
+            storage.filterGroups?.[categoryId];
+        const index = Array.from(
+            category?.groups ?? []
+        ).findIndex(group => group.id === groupId);
+
+        if (!category || index < 0) {
+            throw new Error(
+                "TABLE_FILTER_GROUP_NOT_FOUND"
+            );
+        }
+
+        const [removed] = category.groups.splice(
+            index,
+            1
+        );
+        this.#touchCategoryProfiles(
+            storage,
+            categoryId
+        );
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            storage
+        );
+
+        return foundry.utils.deepClone(removed);
     }
 
     static async setManualExcludes(
@@ -4284,8 +4715,8 @@ export class TableProfileStorageService {
         if (
             bundle?.type !==
                 TABLE_PROFILE_BUNDLE_TYPE ||
-            bundle?.version !==
-                TABLE_PROFILE_BUNDLE_VERSION ||
+            !SUPPORTED_TABLE_PROFILE_BUNDLE_VERSIONS
+                .has(Number(bundle?.version)) ||
             !sourceProfiles ||
             typeof sourceProfiles !== "object" ||
             Array.isArray(sourceProfiles) ||
@@ -4368,11 +4799,66 @@ export class TableProfileStorageService {
                 !sourceId ||
                 !filterGroup ||
                 !String(filterGroup.name ?? "").trim() ||
-                !Array.isArray(filterGroup.matches)
+                (
+                    Number(bundle?.version) >= 2 &&
+                    !Array.isArray(filterGroup.groups)
+                ) ||
+                (
+                    Number(bundle?.version) === 1 &&
+                    !Array.isArray(filterGroup.matches)
+                )
             ) {
                 throw new Error(
                     "INVALID_TABLE_PROFILE_BUNDLE"
                 );
+            }
+
+            if (Number(bundle?.version) >= 2) {
+                const ids = new Set();
+                const names = new Set();
+
+                if (
+                    filterGroup.groups.length >
+                        TABLE_PROFILE_BUNDLE_LIMIT
+                ) {
+                    throw new Error(
+                        "INVALID_TABLE_PROFILE_BUNDLE"
+                    );
+                }
+
+                for (const group of filterGroup.groups) {
+                    const id = String(
+                        group?.id ?? ""
+                    ).trim();
+                    const name = String(
+                        group?.name ?? ""
+                    ).trim();
+                    const comparableName =
+                        this.#normalizeComparableName(
+                            name
+                        );
+
+                    if (
+                        !group ||
+                        typeof group !== "object" ||
+                        Array.isArray(group) ||
+                        !id ||
+                        !name ||
+                        ids.has(id) ||
+                        names.has(comparableName) ||
+                        !Array.isArray(group.matches) ||
+                        !Array.isArray(
+                            group.manualIncludes ?? []
+                        )
+                    ) {
+                        throw new Error(
+                            "INVALID_TABLE_PROFILE_BUNDLE"
+                        );
+                    }
+
+                    ids.add(id);
+                    names.add(comparableName);
+                }
             }
         }
 
@@ -4568,8 +5054,27 @@ export class TableProfileStorageService {
     }
 
     static getFilterGroups() {
-        return this.getStorage()
+        const categories = this.getStorage()
             .filterGroups ?? {};
+
+        return Object.fromEntries(
+            Object.entries(categories).map(
+                ([categoryId, sourceCategory]) => {
+                    const category =
+                        foundry.utils.deepClone(
+                            sourceCategory
+                        );
+
+                    category.matches =
+                        this.#getCategoryMatches(
+                            category
+                        );
+                    category.manualIncludes = [];
+
+                    return [categoryId, category];
+                }
+            )
+        );
     }
 
     static getFilterGroup(filterGroupId) {

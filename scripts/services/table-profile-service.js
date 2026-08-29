@@ -1655,12 +1655,56 @@ export class TableProfileService {
         );
 
         const typeOrder = {
+            general: 0,
             boolean: 1,
             range: 2,
             set: 3
         };
 
         const groups = [];
+
+        const search = String(
+            currentFilters.name ?? ""
+        ).trim();
+
+        if (search) {
+            groups.push({
+                key: "name",
+                label: game.i18n.localize(
+                    "COMPENDIUM_CURATOR.BrowserSearch"
+                ),
+                sort: typeOrder.general,
+                index: -2,
+                single: true,
+                filterState: false,
+                value: search,
+                entries: []
+            });
+        }
+
+        if (currentFilters.types.size) {
+            const typeLabels = [
+                ...currentFilters.types
+            ].map(type =>
+                localizeBrowserLabel(
+                    config.typeLabels?.[type] ??
+                    type
+                )
+            );
+
+            groups.push({
+                key: "types",
+                label: game.i18n.localize(
+                    "COMPENDIUM_CURATOR.ObjectTypes"
+                ),
+                sort: typeOrder.general,
+                index: -1,
+                single: true,
+                filterState: false,
+                value: typeLabels.join(", "),
+                entries: []
+            });
+        }
 
         let definitionIndex = 0;
 
@@ -2034,92 +2078,79 @@ export class TableProfileService {
 
         for (const filterGroup of filterGroups) {
 
-            let candidates;
+            const categoryGroups = Array.isArray(
+                filterGroup?.groups
+            )
+                ? filterGroup.groups
+                : [filterGroup];
+            const groupCandidates = new Map();
+            const hiddenUuids = new Set(
+                StorageService.getHiddenUuids()
+            );
 
-            if (
-                Array.isArray(
-                    filterGroup.matches
-                )
-            ) {
+            /*
+             * AND se resuelve dentro de cada conjunto de
+             * criterios mediante CompendiumBrowser.fetch.
+             * Los grupos hermanos se unen aquí con OR y la
+             * categoría se deduplica siempre por UUID.
+             */
+            for (const categoryGroup of categoryGroups) {
+                const filters = categoryGroup
+                    ?.browser?.filters;
+                let candidates = [];
 
-                const hiddenUuids =
-                    new Set(
-                        StorageService
-                            .getHiddenUuids()
-                    );
-
-                const documents =
-                    await Promise.all(
-                        filterGroup.matches.map(
-                            uuid =>
-                                fromUuid(uuid)
-                        )
-                    );
-
-                candidates =
-                    documents.filter(
-                        document =>
-                            document?.uuid &&
-                            !hiddenUuids.has(
-                                document.uuid
-                            )
-                    );
-
-            } else {
-
-                /*
-                * Compatibilidad temporal con grupos
-                * creados antes del sistema de
-                * coincidencias guardadas.
-                */
-                const filters =
-                    filterGroup
-                        ?.browser
-                        ?.filters;
-
-                if (!filters)
-                    continue;
-
-                candidates =
-                    await this
+                if (
+                    filters &&
+                    typeof filters === "object" &&
+                    Object.keys(filters).length
+                ) {
+                    candidates = await this
                         .getBrowserCandidates(
                             app,
                             filters
                         );
+                }
+                else {
+                    /*
+                     * Solo para datos antiguos sin criterios
+                     * recuperables: conservamos su referencia
+                     * exacta en vez de inventar filtros.
+                     */
+                    const documents = await Promise.all(
+                        (categoryGroup?.matches ?? [])
+                            .map(uuid => fromUuid(uuid))
+                    );
 
-            }
+                    candidates = documents.filter(
+                        document =>
+                            document?.uuid &&
+                            !hiddenUuids.has(document.uuid)
+                    );
+                }
 
-            /*
-            * Protegemos también cada grupo
-            * individualmente frente a UUID
-            * repetidos.
-            */
-            const groupCandidates =
-                new Map();
+                for (const candidate of candidates) {
+                    if (
+                        candidate?.uuid &&
+                        !hiddenUuids.has(candidate.uuid)
+                    ) {
+                        groupCandidates.set(
+                            candidate.uuid,
+                            candidate
+                        );
+                    }
+                }
 
-            for (const candidate of candidates) {
-
-                groupCandidates.set(
-                    candidate.uuid,
-                    candidate
-                );
-
-            }
-
-            if (applyManualIncludes) {
-                const hiddenUuids = new Set(
-                    StorageService.getHiddenUuids()
-                );
+                if (!applyManualIncludes)
+                    continue;
 
                 for (
                     const uuid
-                    of filterGroup.manualIncludes ?? []
+                    of categoryGroup?.manualIncludes ?? []
                 ) {
                     if (groupCandidates.has(uuid))
                         continue;
 
-                    const document =
-                        await fromUuid(uuid);
+                    const document = await fromUuid(uuid);
 
                     if (
                         !document?.uuid ||

@@ -117,6 +117,63 @@ test("accepts a complete portable manager backup", () => {
     );
 });
 
+test("accepts categories with nested filter groups", () => {
+    const bundle = validBundle();
+    const category = bundle.data.tableProfiles
+        .filterGroups.magic;
+
+    bundle.data.tableProfiles.version = 7;
+    category.groups = [{
+        id: "weapons",
+        name: "Armas",
+        browser: {
+            filters: {
+                documentClass: "Item",
+                types: ["weapon"]
+            }
+        },
+        matches: [],
+        manualIncludes: []
+    }];
+    delete category.matches;
+    delete category.manualIncludes;
+
+    const result = TableManagerConfigurationService
+        .validateImportBundle(bundle);
+
+    assert.equal(
+        result.tableProfiles.filterGroups.magic
+            .groups[0].name,
+        "Armas"
+    );
+});
+
+test("rejects duplicate group names inside one category", () => {
+    const bundle = validBundle();
+    const category = bundle.data.tableProfiles
+        .filterGroups.magic;
+
+    category.groups = [{
+        id: "one",
+        name: "Armas",
+        matches: [],
+        manualIncludes: []
+    }, {
+        id: "two",
+        name: "ARMAS",
+        matches: [],
+        manualIncludes: []
+    }];
+    delete category.matches;
+    delete category.manualIncludes;
+
+    assert.throws(
+        () => TableManagerConfigurationService
+            .validateImportBundle(bundle),
+        /INVALID_TABLE_MANAGER/
+    );
+});
+
 test("rejects missing filter groups", () => {
     expectInvalid(storage => {
         storage.profiles.parent.filterGroupIds = [
