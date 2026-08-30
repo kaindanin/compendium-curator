@@ -685,13 +685,22 @@
                                             </summary>
 
                                             <div class="cc-table-item-rules-list">
-                                                <div class="cc-table-item-rule cc-table-manual-inclusions-rule">
-                                                    <i class="fas fa-thumbtack"></i>
+                                                <div class="cc-table-manual-inclusions-rule {{#if inspector.manualObjectCount}}has-inclusions{{/if}}">
+                                                    <span class="cc-table-manual-inclusions-icon">
+                                                        <i class="fas fa-thumbtack"></i>
+                                                    </span>
                                                     <span class="cc-table-item-rule-content">
-                                                        <strong>{{localize "COMPENDIUM_CURATOR.ManualInclusions"}}</strong>
+                                                        <span class="cc-table-manual-inclusions-title">
+                                                            <strong>{{localize "COMPENDIUM_CURATOR.ManualInclusions"}}</strong>
+                                                            <span class="cc-table-manual-inclusions-count">
+                                                                {{localize
+                                                                    "COMPENDIUM_CURATOR.GroupObjectCount"
+                                                                    count=inspector.manualObjectCount
+                                                                }}
+                                                            </span>
+                                                        </span>
                                                         <span class="hint">{{localize "COMPENDIUM_CURATOR.ProfileInclusionsHint"}}</span>
                                                     </span>
-                                                    <strong>{{inspector.manualObjectCount}}</strong>
                                                     <button type="button" data-action="profileInclusions">
                                                         <i class="fas fa-pen"></i>
                                                         {{localize "COMPENDIUM_CURATOR.ManageManualInclusions"}}

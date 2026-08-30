@@ -1764,7 +1764,7 @@ export class TableProfileStorageService {
 
         const storage = {
             ...source,
-            version: 9,
+            version: 10,
             profiles: {},
             folders:
                 foundry.utils.deepClone(
@@ -2058,15 +2058,26 @@ export class TableProfileStorageService {
             delete profile.manualIncludes;
 
             if (
-                profile.contentLayout?.sources &&
-                typeof profile.contentLayout.sources ===
-                    "object" &&
-                !Array.isArray(
-                    profile.contentLayout.sources
-                )
+                profile.contentLayout?.mode === "direct"
             ) {
-                delete profile.contentLayout
-                    .sources.manual;
+                const contentLayout =
+                    profile.contentLayout;
+
+                contentLayout.localMode =
+                    contentLayout.localMode === "flat"
+                        ? "flat"
+                        : "grouped";
+
+                if (
+                    !contentLayout.sources ||
+                    typeof contentLayout.sources !==
+                        "object" ||
+                    Array.isArray(contentLayout.sources)
+                ) {
+                    contentLayout.sources = {};
+                }
+
+                delete contentLayout.sources.manual;
             }
 
             this.#normalizeProfileDistribution(
@@ -2177,7 +2188,7 @@ export class TableProfileStorageService {
         );
 
         console.info(
-            "Compendium Curator | Perfiles de tabla migrados al formato v9."
+            "Compendium Curator | Perfiles de tabla migrados al formato v10."
         );
 
         return true;
@@ -5414,7 +5425,7 @@ export class TableProfileStorageService {
             );
         }
 
-        storage.version = 9;
+        storage.version = 10;
         storage.profiles ??= {};
         storage.filterGroups ??= {};
 

@@ -21,6 +21,8 @@ import {
 } from "../ui/dnd5e-document-list.js";
 
 const DIRECT_MODE = "direct";
+const LOCAL_MODE_FLAT = "flat";
+const LOCAL_MODE_GROUPED = "grouped";
 const PREVIEW_LIMIT = 150;
 const CRITERIA = [
     "none",
@@ -1138,6 +1140,63 @@ function ownSources(
     return sources;
 }
 
+function localContentMode(profile) {
+    return profile?.contentLayout?.localMode ===
+        LOCAL_MODE_FLAT
+        ? LOCAL_MODE_FLAT
+        : LOCAL_MODE_GROUPED;
+}
+
+function localSources(profile, filterGroups) {
+    const groupedSources = ownSources(
+        profile,
+        filterGroups
+    );
+
+    if (
+        localContentMode(profile) !==
+            LOCAL_MODE_FLAT
+    ) {
+        return groupedSources;
+    }
+
+    const entries = dedupe(
+        groupedSources.flatMap(source =>
+            source.entries ?? []
+        )
+    );
+    const key = "all";
+    const criterion = "none";
+
+    return [{
+        key,
+        sourceId: key,
+        type: "all",
+        editable: true,
+        lockedFlat: true,
+        numbered: false,
+        icon: "fas fa-layer-group",
+        kind: "",
+        name: game.i18n.localize(
+            "COMPENDIUM_CURATOR.ContentSourceAll"
+        ),
+        entries,
+        groups: buildEditableGroups(
+            entries,
+            profile,
+            key,
+            criterion
+        ),
+        criterion,
+        ranges: [],
+        weight: positiveNumber(
+            sourceRecord(profile, key)?.weight,
+            1
+        ),
+        effectiveShare: 0
+    }];
+}
+
 function tableSources(
     profile,
     profiles,
@@ -1289,12 +1348,15 @@ export async function buildDirectContentGenerationSources(
                 matches: uuids
             };
         }
-        else if (source.kind === "direct") {
+        else if (
+            source.kind === "direct" ||
+            source.kind === "manual"
+        ) {
             resolvedProfile.directUuids = uuids;
         }
     }
 
-    const sources = ownSources(
+    const sources = localSources(
         resolvedProfile,
         Object.keys(resolvedFilterGroups).length
             ? resolvedFilterGroups
@@ -1310,9 +1372,11 @@ function tableModeLabel(profile) {
         profile?.contentLayout?.mode ===
             DIRECT_MODE
     ) {
-        return text(
-            "Separar por contenido directo",
-            "Separate by direct content"
+        return game.i18n.localize(
+            localContentMode(profile) ===
+                LOCAL_MODE_FLAT
+                ? "COMPENDIUM_CURATOR.ContentDistributionFlat"
+                : "COMPENDIUM_CURATOR.ContentDistributionGrouped"
         );
     }
 
@@ -1337,12 +1401,53 @@ function buildReadOnlyDirectBranches(
 ) {
     const branches = [];
 
+    if (
+        localContentMode(child) ===
+            LOCAL_MODE_FLAT
+    ) {
+        const localEntries = dedupe(
+            eligibleEntries(
+                child,
+                [
+                    ...(child?.filterGroupIds ?? [])
+                        .flatMap(filterGroupId =>
+                            filterGroups?.[filterGroupId]
+                                ?.matches ?? []
+                        ),
+                    ...(child?.directUuids ?? [])
+                ]
+            )
+        );
+
+        branches.push({
+            key: "all",
+            name: game.i18n.localize(
+                "COMPENDIUM_CURATOR.ContentSourceAll"
+            ),
+            kind: "",
+            count: localEntries.length,
+            weight: positiveNumber(
+                sourceRecord(child, "all")?.weight,
+                1
+            ),
+            active: localEntries.length > 0,
+            share: 0
+        });
+    }
+
     for (
         const filterGroupId
         of [...new Set(
             child?.filterGroupIds ?? []
         )]
     ) {
+        if (
+            localContentMode(child) ===
+                LOCAL_MODE_FLAT
+        ) {
+            break;
+        }
+
         const filterGroup =
             filterGroups?.[filterGroupId];
 
@@ -1372,6 +1477,32 @@ function buildReadOnlyDirectBranches(
                 1
             ),
             active: entries.length > 0,
+            share: 0
+        });
+    }
+
+    if (
+        localContentMode(child) ===
+            LOCAL_MODE_GROUPED &&
+        (child?.directUuids ?? []).length
+    ) {
+        const manualCount = eligibleEntries(
+            child,
+            child.directUuids
+        ).length;
+
+        branches.push({
+            key: "direct",
+            name: game.i18n.localize(
+                "COMPENDIUM_CURATOR.ManualInclusions"
+            ),
+            kind: "",
+            count: manualCount,
+            weight: positiveNumber(
+                sourceRecord(child, "direct")?.weight,
+                1
+            ),
+            active: manualCount > 0,
             share: 0
         });
     }
@@ -2204,7 +2335,10 @@ function renderEditableSource(source) {
                 <span style="min-width:0;flex:1 1 auto;">
                     <i class="fas fa-chevron-down"></i>
                     <i class="${esc(source.icon)}"></i>
-                    <span class="hint">${esc(source.kind)}:</span>
+                    ${source.kind
+                        ? `<span class="hint">${esc(source.kind)}:</span>`
+                        : ""
+                    }
                     ${esc(source.name)}
                 </span>
                 <span class="hint">
@@ -2241,7 +2375,7 @@ function renderEditableSource(source) {
                     padding:0 0.55rem 0.55rem;
                 "
             >
-                <div
+                ${source.lockedFlat ? "" : `<div
                     class="cc-direct-configuration-row"
                     style="
                         display:grid;
@@ -2261,8 +2395,8 @@ function renderEditableSource(source) {
                     >
                         ${criterionOptions(source.criterion)}
                     </select>
-                </div>
-                ${renderRangeEditor(source)}
+                </div>`}
+                ${source.lockedFlat ? "" : renderRangeEditor(source)}
                 ${source.criterion === "none" ? "" : `<div
                     class="cc-table-filter-detail-choices"
                     style="display:flex;flex-direction:column;gap:0.35rem;"
@@ -2501,7 +2635,10 @@ function renderTableSource(source, tableView) {
                                     class="cc-table-filter-detail-choice"
                                     style="align-items:center;"
                                 >
-                                    <span class="hint">${esc(branch.kind)}:</span>
+                                    ${branch.kind
+                                        ? `<span class="hint">${esc(branch.kind)}:</span>`
+                                        : ""
+                                    }
                                     <span style="flex:1 1 auto;min-width:0;">
                                         ${esc(branch.name)}
                                     </span>
@@ -2531,6 +2668,7 @@ function renderTableSource(source, tableView) {
 }
 
 function renderEditor(
+    profile,
     sources,
     tableViews
 ) {
@@ -2549,6 +2687,34 @@ function renderEditor(
                 gap:0.55rem;
             "
         >
+            <div class="cc-table-content-distribution-mode">
+                <span class="cc-table-content-distribution-icon">
+                    <i class="fas fa-chart-simple"></i>
+                </span>
+                <span class="cc-table-content-distribution-copy">
+                    <strong>${esc(game.i18n.localize(
+                        "COMPENDIUM_CURATOR.DistributionMode"
+                    ))}</strong>
+                    <span class="hint">${esc(game.i18n.localize(
+                        localContentMode(profile) === LOCAL_MODE_FLAT
+                            ? "COMPENDIUM_CURATOR.ContentDistributionFlatHint"
+                            : "COMPENDIUM_CURATOR.ContentDistributionGroupedHint"
+                    ))}</span>
+                </span>
+                <select data-cc-content-local-mode>
+                    <option value="flat" ${localContentMode(profile) === LOCAL_MODE_FLAT ? "selected" : ""}>
+                        ${esc(game.i18n.localize(
+                            "COMPENDIUM_CURATOR.ContentDistributionFlat"
+                        ))}
+                    </option>
+                    <option value="grouped" ${localContentMode(profile) === LOCAL_MODE_GROUPED ? "selected" : ""}>
+                        ${esc(game.i18n.localize(
+                            "COMPENDIUM_CURATOR.ContentDistributionGrouped"
+                        ))}
+                    </option>
+                </select>
+            </div>
+
             <details
                 class="cc-table-filter-detail-block cc-table-content-section"
                 data-cc-content-section
@@ -2683,6 +2849,48 @@ function activateEditor(
     ) {
         stopSummaryToggle(control);
     }
+
+    const localModeSelect = wrapper.querySelector(
+        "[data-cc-content-local-mode]"
+    );
+
+    localModeSelect?.addEventListener(
+        "change",
+        async () => {
+            const value = String(
+                localModeSelect.value ?? ""
+            ).trim();
+
+            if (![LOCAL_MODE_FLAT, LOCAL_MODE_GROUPED]
+                .includes(value)) {
+                return;
+            }
+
+            localModeSelect.disabled = true;
+
+            try {
+                await saveLayout(
+                    profile.id,
+                    layout => {
+                        layout.mode = DIRECT_MODE;
+                        layout.localMode = value;
+                    }
+                );
+                await rerender(application);
+            }
+            catch (error) {
+                console.error(
+                    "Compendium Curator | Error actualizando el modo de distribución del contenido.",
+                    error
+                );
+                ui.notifications.error(text(
+                    "No se pudo actualizar el modo de distribución.",
+                    "The distribution mode could not be updated."
+                ));
+                localModeSelect.disabled = false;
+            }
+        }
+    );
 
     for (
         const input
@@ -3306,6 +3514,15 @@ function enhanceDirectEditor(
         const oldWrapper = row.querySelector(
             "[data-cc-direct-content]"
         );
+        const legacyDistribution = row.querySelector(
+            "[data-cc-distribution-mode]"
+        )?.closest(
+            ".cc-table-filter-detail-block"
+        );
+
+        if (legacyDistribution)
+            legacyDistribution.hidden = true;
+
         const existing = row.querySelector(
             "[data-cc-direct-content-editor]"
         );
@@ -3316,7 +3533,7 @@ function enhanceDirectEditor(
             ? previews.get(profile.id)
             : null;
         const sources = [
-            ...ownSources(
+            ...localSources(
                 profile,
                 filterGroups
             ),
@@ -3379,6 +3596,7 @@ function enhanceDirectEditor(
         );
 
         wrapper.innerHTML = renderEditor(
+            profile,
             sources,
             tableViews
         ).trim();
@@ -3391,17 +3609,14 @@ function enhanceDirectEditor(
         if (oldWrapper) {
             oldWrapper.replaceWith(editor);
         }
-        else {
-            const distribution = row.querySelector(
-                "[data-cc-distribution-mode]"
-            )?.closest(
-                ".cc-table-filter-detail-block"
-            );
-
-            distribution?.insertAdjacentElement(
+        else if (legacyDistribution) {
+            legacyDistribution?.insertAdjacentElement(
                 "afterend",
                 editor
             );
+        }
+        else {
+            inspector?.append(editor);
         }
 
         activateEditor(

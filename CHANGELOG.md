@@ -6,6 +6,7 @@
 
 - Added reusable manual inclusions to Categories and table Item rules.
 - Added a flat “No grouping” distribution that writes objects directly into the generated table branch.
+- Added a table-level “No grouping / By groups” mode that either merges Categories and manual inclusions into one deduplicated local branch or keeps them separate, while linked tables remain independent.
 - Added direct access to table defaults from Foundry's module settings.
 - Added nested filter groups inside reusable categories, including a live Compendium Browser editor, zero-match groups, and per-group edit, duplicate, and delete actions.
 
@@ -22,6 +23,7 @@
 - Compact table and Category rows show more content without changing their hierarchy.
 - Table restrictions are dormant and hidden while their stored data remains available for compatibility.
 - Legacy direct objects are preserved and presented as the table's Manual inclusion source.
+- Made table inclusions more visible and added live selected/available counters plus bulk selection controls.
 
 ### Reliability
 
@@ -30,6 +32,7 @@
 - Added an explicit v6-to-v7 migration that preserves existing category identifiers and converts every flat category into one same-named group without merging data.
 - Kept version 1, 2 and 3 table bundles and legacy complete backups importable; new table bundles export Category-level inclusions as version 4.
 - Prevented the custom hidden-state control from recursively redispatching its own change event during live browser synchronization.
+- Kept manual inclusions in direct-content generation and migrated existing direct profiles explicitly to the grouped layout.
 
 ## 0.4.0
 

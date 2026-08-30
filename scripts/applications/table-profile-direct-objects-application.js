@@ -49,7 +49,9 @@ export class TableProfileDirectObjectsApplication
         },
         actions: {
             save: this.#onSave,
-            cancel: this.#onCancel
+            cancel: this.#onCancel,
+            selectAll: this.#onSelectAll,
+            clearAll: this.#onClearAll
         }
     };
 
@@ -69,6 +71,8 @@ export class TableProfileDirectObjectsApplication
         if (!profile) {
             context.profileName = "";
             context.candidates = [];
+            context.candidateCount = 0;
+            context.selectedCount = 0;
             context.hasCandidates = false;
             return context;
         }
@@ -135,6 +139,7 @@ export class TableProfileDirectObjectsApplication
         context.selectedCount = context.candidates
             .filter(candidate => candidate.included)
             .length;
+        context.candidateCount = context.candidates.length;
         context.hasCandidates =
             context.candidates.length > 0;
         return context;
@@ -143,6 +148,18 @@ export class TableProfileDirectObjectsApplication
     async _onRender(context, options) {
         await super._onRender(context, options);
         activateDnd5eDocumentEntries(this.element);
+
+        for (
+            const checkbox
+            of this.element.querySelectorAll(
+                ".cc-table-profile-direct-object-checkbox"
+            )
+        ) {
+            checkbox.addEventListener(
+                "change",
+                () => this.#updateSelectedCount()
+            );
+        }
     }
 
     static async #onSave() {
@@ -165,10 +182,12 @@ export class TableProfileDirectObjectsApplication
                 ".cc-table-profile-direct-object-checkbox"
             )
         ) {
-            if (
-                checkbox.checked === true ||
-                checkbox.hasAttribute("checked")
-            ) {
+            const checked =
+                typeof checkbox.checked === "boolean"
+                    ? checkbox.checked
+                    : checkbox.hasAttribute("checked");
+
+            if (checked) {
                 directUuids.add(
                     checkbox.dataset.uuid
                 );
@@ -204,5 +223,53 @@ export class TableProfileDirectObjectsApplication
 
     static async #onCancel() {
         await this.close();
+    }
+
+    static #onSelectAll() {
+        this.#setAllSelected(true);
+    }
+
+    static #onClearAll() {
+        this.#setAllSelected(false);
+    }
+
+    #setAllSelected(selected) {
+        for (
+            const checkbox
+            of this.element.querySelectorAll(
+                ".cc-table-profile-direct-object-checkbox"
+            )
+        ) {
+            checkbox.checked = selected;
+            checkbox.toggleAttribute("checked", selected);
+        }
+
+        this.#updateSelectedCount();
+    }
+
+    #updateSelectedCount() {
+        const count = [
+            ...this.element.querySelectorAll(
+                ".cc-table-profile-direct-object-checkbox"
+            )
+        ].filter(checkbox =>
+            typeof checkbox.checked === "boolean"
+                ? checkbox.checked
+                : checkbox.hasAttribute("checked")
+        ).length;
+
+        const counter = this.element.querySelector(
+            "[data-cc-inclusion-selected-count]"
+        );
+
+        if (counter) {
+            counter.innerHTML = `
+                <i class="fas fa-thumbtack"></i>
+                ${game.i18n.format(
+                    "COMPENDIUM_CURATOR.InclusionSelectedCount",
+                    { count }
+                )}
+            `;
+        }
     }
 }

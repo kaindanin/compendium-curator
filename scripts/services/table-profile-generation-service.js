@@ -867,10 +867,13 @@ export class TableProfileGenerationService {
                     ) {
                         const sourceNodeId =
                             `source:${source.key}`;
-                        const sourceName = numberedName(
-                            sourceIndex,
-                            source.name
-                        );
+                        const sourceName =
+                            source.numbered === false
+                                ? source.name
+                                : numberedName(
+                                    sourceIndex,
+                                    source.name
+                                );
                         const sourceInternalPath = [
                             ...rootInternalPath,
                             {

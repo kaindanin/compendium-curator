@@ -36,6 +36,10 @@ let storage = {
             name: "Tienda",
             filterGroupIds: ["magic"],
             revision: 2,
+            contentLayout: {
+                mode: "direct",
+                sources: {}
+            },
             generation: {}
         }
     }
@@ -89,7 +93,7 @@ test("migrates each legacy category into one deterministic group", async () => {
         TableProfileStorageService.getStorage();
     const category = normalized.filterGroups.magic;
 
-    assert.equal(normalized.version, 9);
+    assert.equal(normalized.version, 10);
     assert.equal(category.name, "Magia");
     assert.equal(category.groups.length, 1);
     assert.equal(category.groups[0].id, "magic-legacy");
@@ -97,6 +101,12 @@ test("migrates each legacy category into one deterministic group", async () => {
     assert.deepEqual(
         category.groups[0].browser.filters.types,
         ["equipment"]
+    );
+    assert.equal(
+        TableProfileStorageService
+            .getProfiles().shop
+            .contentLayout.localMode,
+        "grouped"
     );
     assert.deepEqual(category.groups[0].matches, [
         "Compendium.test.items.Item.a"
@@ -116,7 +126,7 @@ test("migrates each legacy category into one deterministic group", async () => {
             .migrateStorage(),
         true
     );
-    assert.equal(storage.version, 9);
+    assert.equal(storage.version, 10);
     assert.equal(storage.filterGroups.magic.browser, undefined);
     assert.equal(storage.filterGroups.magic.matches, undefined);
 });
