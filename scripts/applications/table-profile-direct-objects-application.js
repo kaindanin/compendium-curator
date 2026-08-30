@@ -41,7 +41,7 @@ export class TableProfileDirectObjectsApplication
         ],
         window: {
             title:
-                "COMPENDIUM_CURATOR.DirectObjects"
+                "COMPENDIUM_CURATOR.ManualInclusions"
         },
         position: {
             width: 620,
@@ -183,7 +183,7 @@ export class TableProfileDirectObjectsApplication
 
         ui.notifications.info(
             game.i18n.localize(
-                "COMPENDIUM_CURATOR.DirectObjectsSaved"
+                "COMPENDIUM_CURATOR.ManualInclusionsSaved"
             )
         );
 

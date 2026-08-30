@@ -16,7 +16,7 @@ const PATCH_FLAG =
 
 const TABLE_PROFILE_BUNDLE_TYPE =
     "compendium-curator-table-profile-bundle";
-const TABLE_PROFILE_BUNDLE_VERSION = 3;
+const TABLE_PROFILE_BUNDLE_VERSION = 4;
 
 function normalizePositiveNumber(value, fallback = 1) {
     const parsed = Number(value);

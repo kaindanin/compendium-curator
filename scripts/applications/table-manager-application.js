@@ -73,6 +73,7 @@ const DISTRIBUTION_MODES = new Set([
 ]);
 
 const GROUPING_CRITERIA = new Set([
+    "none",
     "rarity",
     "type",
     "source",
@@ -881,7 +882,9 @@ function getInspectorSpellSchoolLabel(key) {
 function getInspectorGroupingLabel(criterion) {
     let key = "GroupByRarity";
 
-    if (criterion === "type")
+    if (criterion === "none")
+        key = "GroupByNone";
+    else if (criterion === "type")
         key = "GroupByType";
     else if (criterion === "source")
         key = "GroupBySource";
@@ -954,6 +957,9 @@ function getInspectorGroupingKey(
     criterion,
     profile
 ) {
+    if (criterion === "none")
+        return "all";
+
     if (criterion === "type")
         return getInspectorDocumentType(uuid);
 
@@ -1005,6 +1011,12 @@ function getInspectorGroupingGroupLabel(
     key,
     profile
 ) {
+    if (criterion === "none") {
+        return game.i18n.localize(
+            "COMPENDIUM_CURATOR.GroupAllObjects"
+        );
+    }
+
     if (criterion === "type") {
         return getInspectorDocumentTypeLabel(
             key
@@ -1067,6 +1079,9 @@ function getInspectorOrderedGroupKeys(
     criterion,
     profile
 ) {
+    if (criterion === "none")
+        return groups.has("all") ? ["all"] : [];
+
     if (criterion === "manual") {
         const ordered = getInspectorManualGroups(
             profile
@@ -1624,10 +1639,6 @@ function buildContentInspector(
         }
     }
 
-    const restrictions =
-        profile?.restrictions ??
-        profile?.globalFilters ?? null;
-    const hasGlobalFilters = Boolean(restrictions);
     const finalUuids = resolvedContent
         ? new Set(
             resolvedContent.candidates
@@ -1638,23 +1649,6 @@ function buildContentInspector(
             ...categoryUuids,
             ...directUuids
         ]);
-    const sourceObjectCount = finalUuids.size;
-
-    if (!resolvedContent && hasGlobalFilters) {
-        const restrictionMatches = new Set(
-            restrictions.matches ?? []
-        );
-
-        for (const uuid of finalUuids) {
-            if (!restrictionMatches.has(uuid))
-                finalUuids.delete(uuid);
-        }
-    }
-
-    const globalFilterExcludedCount = resolvedContent
-        ? resolvedContent.restrictionExcludedCount
-        : sourceObjectCount - finalUuids.size;
-
     for (
         const uuid
         of profile?.manualExcludes ?? []
@@ -1870,6 +1864,10 @@ function buildContentInspector(
 
                         return {
                             ...entry,
+                            groupKey: group.key,
+                            isFlatGrouped:
+                                isGrouped &&
+                                groupingCriterion === "none",
                             probability:
                                 formatInspectorProbability(
                                     probabilityWeight,
@@ -1929,14 +1927,11 @@ function buildContentInspector(
         isUniform,
         isIndividual,
         isGrouped,
-        hasGlobalFilters,
-        globalFilterMatchCount:
-            resolvedContent?.restrictionMatchCount ??
-            restrictions?.matches?.length ?? 0,
-        globalFilterExcludedCount,
-        hasGlobalFilterExclusions:
-            globalFilterExcludedCount > 0,
+        usesGroupedLayout:
+            isGrouped && groupingCriterion !== "none",
         groupingCriterion,
+        isGroupingNone:
+            groupingCriterion === "none",
         isGroupingRarity:
             groupingCriterion === "rarity",
         isGroupingType:
@@ -1974,15 +1969,15 @@ function buildContentInspector(
         finalCount: activeCount,
         categoryObjectCount:
             categoryUuids.size,
-        directObjectCount:
+        manualObjectCount:
             directUuids.size,
-        hasDirectObjects:
+        hasManualObjects:
             directUuids.size > 0,
-        directObjects:
+        manualObjects:
             prepareDnd5eIndexedEntries(
                 [...directUuids]
             ).slice(0, CONTENT_INSPECTOR_ENTRY_LIMIT),
-        directObjectsTruncated:
+        manualObjectsTruncated:
             directUuids.size >
                 CONTENT_INSPECTOR_ENTRY_LIMIT,
         sourceCount: finalUuids.size,
@@ -2016,18 +2011,10 @@ function profileHasPotentialObjects(profile) {
             .flatMap(group => group?.matches ?? []),
         ...(profile?.directUuids ?? [])
     ];
-    const restrictions =
-        profile?.restrictions ??
-        profile?.globalFilters ?? null;
-    const allowed = restrictions
-        ? new Set(restrictions.matches ?? [])
-        : null;
-
     return candidates.some(uuid =>
             uuid &&
             !excluded.has(uuid) &&
-            !hidden.has(uuid) &&
-            (!allowed || allowed.has(uuid))
+            !hidden.has(uuid)
     );
 }
 
@@ -2392,7 +2379,7 @@ export class TableManagerApplication
             filterGroupInclusions:
                 this.#onFilterGroupInclusions,
             manualExclusions: this.#onManualExclusions,
-            directObjects: this.#onDirectObjects,
+            profileInclusions: this.#onDirectObjects,
             generateProfile: this.#onGenerateProfile,
             openGeneratedTable: this.#onOpenGeneratedTable,
             drawGeneratedTable: this.#onDrawGeneratedTable,
@@ -2625,25 +2612,6 @@ export class TableManagerApplication
                     inspectorProfileIds.has(profile.id)
                     ? buildContentInspector(profile)
                     : null;
-
-                if (inspector) {
-                    inspector.globalFilterDisplay =
-                        TableProfileService.getFilterDisplayGroups(
-                            this.browserApp,
-                            (
-                                profile.restrictions ??
-                                profile.globalFilters
-                            )?.browser?.filters ?? {}
-                        );
-                    inspector.hasGlobalFilterDisplay =
-                        inspector.globalFilterDisplay.length > 0;
-                    inspector.globalFilterBrowserDetails =
-                        getGlobalFilterBrowserDetails(
-                            this.browserApp,
-                            profile.restrictions ??
-                            profile.globalFilters
-                        );
-                }
 
                 const nestedInspector = isNested
                     ? {

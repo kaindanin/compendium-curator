@@ -89,7 +89,7 @@ test("migrates each legacy category into one deterministic group", async () => {
         TableProfileStorageService.getStorage();
     const category = normalized.filterGroups.magic;
 
-    assert.equal(normalized.version, 8);
+    assert.equal(normalized.version, 9);
     assert.equal(category.name, "Magia");
     assert.equal(category.groups.length, 1);
     assert.equal(category.groups[0].id, "magic-legacy");
@@ -116,7 +116,7 @@ test("migrates each legacy category into one deterministic group", async () => {
             .migrateStorage(),
         true
     );
-    assert.equal(storage.version, 8);
+    assert.equal(storage.version, 9);
     assert.equal(storage.filterGroups.magic.browser, undefined);
     assert.equal(storage.filterGroups.magic.matches, undefined);
 });
@@ -181,11 +181,11 @@ test("stores zero-match groups and validates names inside their category", async
     );
 });
 
-test("exports the category hierarchy with bundle version 3", () => {
+test("exports the category hierarchy with bundle version 4", () => {
     const bundle = TableProfileStorageService
         .exportProfileBundle("shop");
 
-    assert.equal(bundle.version, 3);
+    assert.equal(bundle.version, 4);
     assert.ok(Array.isArray(
         bundle.filterGroups.magic.groups
     ));
@@ -243,6 +243,7 @@ test("imports legacy version 1 bundles without losing criteria", async () => {
 test("combines groups with OR and deduplicates categories by UUID", async () => {
     const original =
         TableProfileService.getBrowserCandidates;
+    const originalFromUuid = globalThis.fromUuid;
     const documents = {
         a: {
             uuid: "Compendium.test.items.Item.a",
@@ -258,6 +259,11 @@ test("combines groups with OR and deduplicates categories by UUID", async () => 
             uuid: "Compendium.test.items.Item.c",
             name: "C",
             system: { rarity: "rare" }
+        },
+        d: {
+            uuid: "Compendium.test.items.Item.d",
+            name: "D",
+            system: { rarity: "uncommon" }
         }
     };
 
@@ -267,6 +273,10 @@ test("combines groups with OR and deduplicates categories by UUID", async () => 
             second: [documents.b, documents.c],
             third: [documents.c]
         })[filters.marker] ?? [];
+    globalThis.fromUuid = async uuid =>
+        Object.values(documents).find(
+            document => document.uuid === uuid
+        ) ?? null;
 
     try {
         const preview = await TableProfileService
@@ -274,6 +284,7 @@ test("combines groups with OR and deduplicates categories by UUID", async () => 
                 filterGroups: [{
                     id: "one",
                     name: "Primera",
+                    manualIncludes: [documents.d.uuid],
                     groups: [{
                         browser: {
                             filters: { marker: "first" }
@@ -297,20 +308,21 @@ test("combines groups with OR and deduplicates categories by UUID", async () => 
 
         assert.deepEqual(
             preview.groups.map(group => group.count),
-            [3, 1]
+            [4, 1]
         );
-        assert.equal(preview.totalMatches, 4);
-        assert.equal(preview.uniqueCount, 3);
+        assert.equal(preview.totalMatches, 5);
+        assert.equal(preview.uniqueCount, 4);
         assert.equal(preview.duplicateEntriesRemoved, 1);
         assert.equal(preview.overlappingObjects, 1);
     }
     finally {
         TableProfileService.getBrowserCandidates =
             original;
+        globalThis.fromUuid = originalFromUuid;
     }
 });
 
-test("restricts categories and direct objects without reading linked tables", async () => {
+test("ignores dormant restrictions and keeps linked tables as black boxes", async () => {
     const originalCandidates =
         TableProfileService.getBrowserCandidates;
     const originalFromUuid = globalThis.fromUuid;
@@ -387,15 +399,19 @@ test("restricts categories and direct objects without reading linked tables", as
                 group.count
             ]),
             [
-                ["category", 1],
-                ["direct", 2]
+                ["category", 2],
+                ["manual", 2]
             ]
         );
         assert.deepEqual(
             preview.candidates.map(candidate => candidate.uuid),
-            [documents.b.uuid, documents.c.uuid]
+            [
+                documents.a.uuid,
+                documents.b.uuid,
+                documents.c.uuid
+            ]
         );
-        assert.equal(preview.restrictionExcludedCount, 1);
+        assert.equal(preview.restrictionExcludedCount, 0);
         assert.equal(preview.duplicateEntriesRemoved, 1);
         assert.equal(
             preview.candidates.some(

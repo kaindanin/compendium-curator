@@ -103,7 +103,7 @@ test("migrates, stores and clears table restrictions", async () => {
     assert.equal(cleared.restrictions, null);
 });
 
-test("stores direct objects as a separate local source", async () => {
+test("stores legacy direct UUIDs as manual table inclusions", async () => {
     const saved = await TableProfileStorageService
         .setDirectUuids("shop", [
             "Compendium.test.items.Item.b",

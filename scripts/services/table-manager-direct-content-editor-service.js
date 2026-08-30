@@ -23,6 +23,7 @@ import {
 const DIRECT_MODE = "direct";
 const PREVIEW_LIMIT = 150;
 const CRITERIA = [
+    "none",
     "rarity",
     "type",
     "source",
@@ -164,6 +165,7 @@ function dedupe(entries) {
 
 function criterionLabel(criterion) {
     const keys = {
+        none: "GroupByNone",
         rarity: "GroupByRarity",
         type: "GroupByType",
         source: "GroupBySource",
@@ -434,6 +436,9 @@ function groupKey(
     criterion,
     configuredRanges
 ) {
+    if (criterion === "none")
+        return "all";
+
     const document =
         getDnd5eDistributionIndexEntry(
             entry.uuid
@@ -591,6 +596,12 @@ function groupLabel(
     criterion,
     configuredRanges
 ) {
+    if (criterion === "none") {
+        return game.i18n.localize(
+            "COMPENDIUM_CURATOR.GroupAllObjects"
+        );
+    }
+
     if (criterion === "rarity") {
         const localizationKey =
             RARITY_LABELS[key];
@@ -1012,15 +1023,6 @@ function ownSources(
     filterGroups
 ) {
     const sources = [];
-    const restrictions =
-        profile?.restrictions ??
-        profile?.globalFilters ?? null;
-    const allowed = restrictions
-        ? new Set(restrictions.matches ?? [])
-        : null;
-    const restrict = uuids => allowed
-        ? uuids.filter(uuid => allowed.has(uuid))
-        : uuids;
 
     for (
         const filterGroupId
@@ -1037,7 +1039,7 @@ function ownSources(
         const entries = dedupe(
             eligibleEntries(
                 profile,
-                restrict(filterGroup.matches ?? [])
+                filterGroup.matches ?? []
             )
                 .map(entry => ({
                     ...entry,
@@ -1084,12 +1086,12 @@ function ownSources(
         const entries = dedupe(
             eligibleEntries(
                 profile,
-                restrict(profile.directUuids ?? [])
+                profile.directUuids ?? []
             ).map(entry => ({
                 ...entry,
                 origins: [
                     game.i18n.localize(
-                        "COMPENDIUM_CURATOR.DirectObjects"
+                        "COMPENDIUM_CURATOR.ManualInclusions"
                     )
                 ]
             }))
@@ -1103,14 +1105,14 @@ function ownSources(
         sources.push({
             key,
             sourceId: "direct",
-            type: "direct",
+            type: "manual",
             editable: true,
             icon: "fas fa-thumbtack",
             kind: game.i18n.localize(
-                "COMPENDIUM_CURATOR.DirectObjects"
+                "COMPENDIUM_CURATOR.ManualInclusions"
             ),
             name: game.i18n.localize(
-                "COMPENDIUM_CURATOR.DirectObjects"
+                "COMPENDIUM_CURATOR.ManualInclusions"
             ),
             entries,
             groups: buildEditableGroups(
@@ -2063,6 +2065,35 @@ function renderEditableGroup(source, group) {
     `;
 }
 
+function renderFlatEditableGroup(source, group) {
+    const entries = group.entries.slice(0, PREVIEW_LIMIT);
+
+    if (!entries.length) {
+        return `<p class="hint">${esc(text("No hay objetos.", "No objects."))}</p>`;
+    }
+
+    return `
+        <section class="inventory-element cc-dnd5e-document-list">
+            <section class="items-list browser-results">
+                <div class="items-section card">
+                    <div class="items-header header">
+                        <h3 class="item-name">${esc(game.i18n.localize("DND5E.CompendiumBrowser.Column.Results"))}</h3>
+                        <div class="item-header item-source">${esc(game.i18n.localize("DND5E.CompendiumBrowser.Column.Source"))}</div>
+                        <div class="item-header cc-direct-default-weight-header" style="flex:0 0 64px;min-width:64px;text-align:center;">
+                            <input type="number" min="0.000001" step="any" value="${esc(group.defaultWeight)}" data-cc-direct-default-item-weight data-source-key="${esc(source.key)}" data-group-key="${esc(group.key)}" aria-label="${esc(text("Peso base de la lista", "List default weight"))}" style="width:58px;height:26px;text-align:center;">
+                        </div>
+                        <div class="item-header item-controls cc-direct-weight-header" style="flex:0 0 174px;min-width:174px;text-align:center;">${esc(text("Peso / % raíz", "Weight / root %"))}</div>
+                    </div>
+                    <ol class="item-list unlist" style="max-height:420px;overflow-y:auto;">
+                        ${entries.map(entry => renderEditableEntry(entry, source, group)).join("")}
+                    </ol>
+                </div>
+            </section>
+            ${group.count > entries.length ? `<p class="hint" style="text-align:right;">${esc(text("Vista previa", "Preview"))}: ${entries.length} / ${group.count}</p>` : ""}
+        </section>
+    `;
+}
+
 function criterionOptions(selected) {
     return CRITERIA.map(value => `
         <option
@@ -2232,7 +2263,7 @@ function renderEditableSource(source) {
                     </select>
                 </div>
                 ${renderRangeEditor(source)}
-                <div
+                ${source.criterion === "none" ? "" : `<div
                     class="cc-table-filter-detail-choices"
                     style="display:flex;flex-direction:column;gap:0.35rem;"
                 >
@@ -2275,14 +2306,13 @@ function renderEditableSource(source) {
                             >
                         </div>
                     `).join("")}
-                </div>
+                </div>`}
                 <div style="display:flex;flex-direction:column;gap:0.55rem;">
                     ${source.groups.length
                         ? source.groups.map(group =>
-                            renderEditableGroup(
-                                source,
-                                group
-                            )
+                            source.criterion === "none"
+                                ? renderFlatEditableGroup(source, group)
+                                : renderEditableGroup(source, group)
                         ).join("")
                         : `<p class="hint">${esc(text(
                             "Este contenido no aporta objetos activos.",

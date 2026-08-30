@@ -107,58 +107,6 @@ async function synchronizeFilterGroups(manager) {
                 }
             }
 
-            for (
-                const profile
-                of Object.values(
-                    TableProfileStorageService
-                        .getProfiles()
-                )
-            ) {
-                const restrictions =
-                    profile?.restrictions ??
-                    profile?.globalFilters;
-                const filters =
-                    restrictions?.browser?.filters;
-
-                if (
-                    profile?.type !== "content" ||
-                    !filters ||
-                    typeof filters !== "object" ||
-                    Array.isArray(filters)
-                ) {
-                    continue;
-                }
-
-                const candidates =
-                    await TableProfileService
-                        .getBrowserCandidates(
-                            manager.browserApp,
-                            filters
-                        );
-                const matches = normalizeMatches(
-                    candidates.map(
-                        candidate => candidate.uuid
-                    )
-                );
-                const previous = normalizeMatches(
-                    restrictions.matches
-                );
-
-                if (matchesEqual(matches, previous))
-                    continue;
-
-                await TableProfileStorageService
-                    .setTableRestrictions(
-                        profile.id,
-                        {
-                            browser:
-                                restrictions.browser,
-                            matches
-                        }
-                    );
-                changed = true;
-            }
-
             return changed;
         })()
             .catch(error => {

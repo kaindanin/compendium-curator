@@ -104,7 +104,7 @@ export function registerSettings({ tableDefaultsMenuType } = {}) {
             type: Object,
 
             default: {
-                version: 8,
+                version: 9,
                 profiles: {},
                 filterGroups: {},
                 folders: {},

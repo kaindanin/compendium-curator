@@ -497,7 +497,8 @@ function buildDirectEntries(
             img: entry.img,
             resultKey: entry.uuid,
             weight:
-                inspector.isIndividual
+                inspector.isIndividual ||
+                inspector.isGroupingNone
                     ? entry.weight
                     : 1
         }))
@@ -676,7 +677,10 @@ export class TableProfileGenerationService {
                     const nodes = {};
                     let rootEntries;
 
-                    if (inspector.isGrouped) {
+                    if (
+                        inspector.isGrouped &&
+                        !inspector.isGroupingNone
+                    ) {
                         const groupNodes =
                             buildGroupedNodes(
                                 profile,
@@ -876,9 +880,28 @@ export class TableProfileGenerationService {
                         ];
                         const sourceEntries = [];
 
+                        if (source.criterion === "none") {
+                            sourceEntries.push(
+                                ...source.groups.flatMap(group =>
+                                    group.entries.map(entry => ({
+                                        documentUuid: entry.uuid,
+                                        name: entry.name,
+                                        img: entry.img,
+                                        resultKey: entry.uuid,
+                                        weight: normalizePositiveWeight(
+                                            entry.weight,
+                                            1
+                                        )
+                                    }))
+                                )
+                            );
+                        }
+
                         for (
                             const [groupIndex, group]
-                            of source.groups.entries()
+                            of source.criterion === "none"
+                                ? []
+                                : source.groups.entries()
                         ) {
                             const groupNodeId =
                                 `${sourceNodeId}:group:${encodeURIComponent(group.key)}`;

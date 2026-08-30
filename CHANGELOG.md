@@ -4,8 +4,8 @@
 
 ### New
 
-- Added table restrictions that intersect Categories and direct objects without filtering linked tables.
-- Added direct objects as an explicit local inclusion source for content tables.
+- Added reusable manual inclusions to Categories and table Item rules.
+- Added a flat “No grouping” distribution that writes objects directly into the generated table branch.
 - Added direct access to table defaults from Foundry's module settings.
 - Added nested filter groups inside reusable categories, including a live Compendium Browser editor, zero-match groups, and per-group edit, duplicate, and delete actions.
 
@@ -19,13 +19,16 @@
 - Categories now combine their filter groups with OR, while each group's criteria retain the Compendium Browser's AND semantics.
 - Table generation now reevaluates persisted Category and restriction criteria instead of relying on cached UUID matches.
 - Linked tables remain opaque RollTable references whose parent controls only the relationship weight.
+- Compact table and Category rows show more content without changing their hierarchy.
+- Table restrictions are dormant and hidden while their stored data remains available for compatibility.
+- Legacy direct objects are preserved and presented as the table's Manual inclusion source.
 
 ### Reliability
 
 - Added cancellation checks between duplicate-loading and document-resolution batches.
-- Added automated coverage for restrictions, direct objects, local-source intersections, and linked-table boundaries.
+- Added automated coverage for dormant restrictions, manual inclusions, local-source unions, and linked-table boundaries.
 - Added an explicit v6-to-v7 migration that preserves existing category identifiers and converts every flat category into one same-named group without merging data.
-- Kept version 1 and 2 table bundles and legacy complete backups importable; new table bundles export the modular source model as version 3.
+- Kept version 1, 2 and 3 table bundles and legacy complete backups importable; new table bundles export Category-level inclusions as version 4.
 - Prevented the custom hidden-state control from recursively redispatching its own change event during live browser synchronization.
 
 ## 0.4.0

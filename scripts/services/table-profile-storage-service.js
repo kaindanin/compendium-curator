@@ -5,9 +5,9 @@ import {
 
 const TABLE_PROFILE_BUNDLE_TYPE =
     "compendium-curator-table-profile-bundle";
-const TABLE_PROFILE_BUNDLE_VERSION = 3;
+const TABLE_PROFILE_BUNDLE_VERSION = 4;
 const SUPPORTED_TABLE_PROFILE_BUNDLE_VERSIONS =
-    new Set([1, 2, 3]);
+    new Set([1, 2, 3, 4]);
 const TABLE_PROFILE_BUNDLE_LIMIT = 500;
 
 function getPortableUuidAvailability(uuid) {
@@ -75,6 +75,14 @@ function getImportedObjectAvailability(
         ) {
             const filterGroup =
                 storage.filterGroups?.[filterGroupId];
+
+            for (
+                const uuid
+                of filterGroup?.manualIncludes ?? []
+            ) {
+                if (uuid)
+                    referenced.add(uuid);
+            }
 
             for (const group of filterGroup?.groups ?? []) {
                 for (const uuid of group?.matches ?? []) {
@@ -146,6 +154,10 @@ const DISTRIBUTION_MODES = new Set([
 ]);
 
 const GROUPING_CRITERIA = {
+    none: {
+        type: "none",
+        criterion: "none"
+    },
     rarity: {
         type: "field",
         criterion: "rarity",
@@ -517,11 +529,14 @@ export class TableProfileStorageService {
 
     static #getCategoryMatches(category) {
         return this.#normalizeMatches(
-            Array.from(category?.groups ?? [])
-                .flatMap(group => [
+            [
+                ...(category?.manualIncludes ?? []),
+                ...Array.from(category?.groups ?? [])
+                    .flatMap(group => [
                     ...(group?.matches ?? []),
                     ...(group?.manualIncludes ?? [])
-                ])
+                    ])
+            ]
         );
     }
 
@@ -1492,7 +1507,13 @@ export class TableProfileStorageService {
                                 groups: []
                             }
                     )
-            )
+            ),
+            manualIncludes:
+                Array.isArray(filterGroup?.groups)
+                    ? this.#normalizeMatches(
+                        filterGroup.manualIncludes
+                    )
+                    : []
         };
 
         storage.filterGroups[id] =
@@ -1743,7 +1764,7 @@ export class TableProfileStorageService {
 
         const storage = {
             ...source,
-            version: 8,
+            version: 9,
             profiles: {},
             folders:
                 foundry.utils.deepClone(
@@ -1896,6 +1917,12 @@ export class TableProfileStorageService {
                     groupId,
                     sourceGroup
                 ),
+                manualIncludes:
+                    Array.isArray(sourceGroup?.groups)
+                        ? this.#normalizeMatches(
+                            sourceGroup.manualIncludes
+                        )
+                        : [],
                 revision:
                     Number(
                         sourceGroup?.revision ?? 1
@@ -2115,8 +2142,6 @@ export class TableProfileStorageService {
                         this.#getCategoryMatches(
                             category
                         );
-                    category.manualIncludes = [];
-
                     return category;
                 });
 
@@ -2152,7 +2177,7 @@ export class TableProfileStorageService {
         );
 
         console.info(
-            "Compendium Curator | Perfiles de tabla migrados al formato v8."
+            "Compendium Curator | Perfiles de tabla migrados al formato v9."
         );
 
         return true;
@@ -4881,6 +4906,16 @@ export class TableProfileStorageService {
             }
 
             if (Number(bundle?.version) >= 2) {
+                if (
+                    !Array.isArray(
+                        filterGroup.manualIncludes ?? []
+                    )
+                ) {
+                    throw new Error(
+                        "INVALID_TABLE_PROFILE_BUNDLE"
+                    );
+                }
+
                 const ids = new Set();
                 const names = new Set();
 
@@ -5136,8 +5171,6 @@ export class TableProfileStorageService {
                         this.#getCategoryMatches(
                             category
                         );
-                    category.manualIncludes = [];
-
                     return [categoryId, category];
                 }
             )
@@ -5381,7 +5414,7 @@ export class TableProfileStorageService {
             );
         }
 
-        storage.version = 8;
+        storage.version = 9;
         storage.profiles ??= {};
         storage.filterGroups ??= {};
 

@@ -2055,8 +2055,7 @@ export class TableProfileService {
         profile,
         {
             applyManualIncludes = true,
-            applyManualExcludes = true,
-            applyRestrictions = true
+            applyManualExcludes = true
         } = {}
     ) {
         const filterGroups =
@@ -2072,39 +2071,6 @@ export class TableProfileService {
         const manualExcludes = new Set(
             profile?.manualExcludes ?? []
         );
-        const restrictions =
-            profile?.restrictions ??
-            profile?.globalFilters ?? null;
-        let restrictionUuids = null;
-
-        if (applyRestrictions && restrictions) {
-            const filters = restrictions?.browser?.filters;
-            let restrictionCandidates = [];
-
-            if (
-                filters &&
-                typeof filters === "object" &&
-                !Array.isArray(filters)
-            ) {
-                restrictionCandidates = await this
-                    .getBrowserCandidates(app, filters);
-            }
-            else {
-                restrictionCandidates = (
-                    await Promise.all(
-                        (restrictions.matches ?? [])
-                            .map(uuid => fromUuid(uuid))
-                    )
-                ).filter(Boolean);
-            }
-
-            restrictionUuids = new Set(
-                restrictionCandidates
-                    .map(candidate => candidate?.uuid)
-                    .filter(Boolean)
-            );
-        }
-
         const sources = [];
         const rawCandidatesByUuid = new Map();
         let manualIncludedCount = 0;
@@ -2206,6 +2172,27 @@ export class TableProfileService {
                 }
             }
 
+            if (applyManualIncludes) {
+                for (
+                    const uuid
+                    of filterGroup?.manualIncludes ?? []
+                ) {
+                    if (groupCandidates.has(uuid))
+                        continue;
+
+                    const document = await fromUuid(uuid);
+
+                    if (
+                        includeCandidate(
+                            groupCandidates,
+                            document
+                        )
+                    ) {
+                        manualIncludedCount++;
+                    }
+                }
+            }
+
             sources.push({
                 id: filterGroup.id,
                 key: `filter:${filterGroup.id}`,
@@ -2226,15 +2213,14 @@ export class TableProfileService {
             sources.push({
                 id: "direct",
                 key: "direct",
-                kind: "direct",
+                kind: "manual",
                 name: game.i18n.localize(
-                    "COMPENDIUM_CURATOR.DirectObjects"
+                    "COMPENDIUM_CURATOR.ManualInclusions"
                 ),
                 candidates: directCandidates
             });
         }
 
-        const restrictionExcludedUuids = new Set();
         const manuallyExcludedUuids = new Set();
         const candidatesByUuid = new Map();
         const occurrencesByUuid = new Map();
@@ -2243,15 +2229,6 @@ export class TableProfileService {
 
         for (const source of sources) {
             for (const [uuid] of source.candidates) {
-                if (
-                    restrictionUuids &&
-                    !restrictionUuids.has(uuid)
-                ) {
-                    source.candidates.delete(uuid);
-                    restrictionExcludedUuids.add(uuid);
-                    continue;
-                }
-
                 if (
                     applyManualExcludes &&
                     manualExcludes.has(uuid)
@@ -2330,11 +2307,9 @@ export class TableProfileService {
             manualExcludedCount:
                 manuallyExcludedUuids.size,
             restrictionExcludedCount:
-                restrictionExcludedUuids.size,
-            hasRestrictions:
-                restrictionUuids !== null,
-            restrictionMatchCount:
-                restrictionUuids?.size ?? 0,
+                0,
+            hasRestrictions: false,
+            restrictionMatchCount: 0,
             rawUniqueCount:
                 rawCandidatesByUuid.size,
             uniqueCount:

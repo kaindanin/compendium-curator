@@ -17,7 +17,7 @@ import {
 const DIRECT_MODE = "direct";
 const PREVIEW_LIMIT = 150;
 const CRITERIA = [
-    "rarity", "type", "source", "price", "cr",
+    "none", "rarity", "type", "source", "price", "cr",
     "spellLevel", "creatureType", "size", "spellSchool", "manual"
 ];
 const RARITY_ORDER = [
@@ -82,6 +82,7 @@ function dedupe(entries) {
 
 function criterionLabel(criterion) {
     const keys = {
+        none: "GroupByNone",
         rarity: "GroupByRarity",
         type: "GroupByType",
         source: "GroupBySource",
@@ -168,6 +169,7 @@ function sourceValue(document, entry) {
 }
 
 function groupKey(entry, profile, criterion) {
+    if (criterion === "none") return "all";
     const document = getDnd5eDistributionIndexEntry(entry.uuid);
     if (criterion === "type")
         return String(document?.type ?? "").trim() || "unclassified";
@@ -228,6 +230,8 @@ function rangeLabel(key, profile, criterion) {
 }
 
 function groupLabel(key, profile, criterion) {
+    if (criterion === "none")
+        return game.i18n.localize("COMPENDIUM_CURATOR.GroupAllObjects");
     if (criterion === "rarity") {
         const label = RARITY_LABELS[key];
         return label
@@ -343,20 +347,12 @@ function ownSources(profile, filterGroups) {
         StorageService.getHiddenUuids()
     );
     const excluded = new Set(profile?.manualExcludes ?? []);
-    const restrictions =
-        profile?.restrictions ??
-        profile?.globalFilters ?? null;
-    const allowed = restrictions
-        ? new Set(restrictions.matches ?? [])
-        : null;
     const excludeZeroPrice = profile?.itemRules?.excludeZeroPrice === true;
     const ids = [...new Set(profile.filterGroupIds ?? [])];
     const sources = [];
 
     const eligible = uuids => prepareDnd5eIndexedEntries(
-        allowed
-            ? uuids.filter(uuid => allowed.has(uuid))
-            : uuids
+        uuids
     )
         .filter(entry => entry.available !== false &&
             !hidden.has(entry.uuid) && !excluded.has(entry.uuid) &&
@@ -390,9 +386,8 @@ function ownSources(profile, filterGroups) {
             eligible(profile.directUuids)
                 .map(entry => ({
                     ...entry,
-                    origins: [text(
-                        "Objetos directos",
-                        "Direct objects"
+                    origins: [game.i18n.localize(
+                        "COMPENDIUM_CURATOR.ManualInclusions"
                     )]
                 }))
         );
@@ -402,13 +397,11 @@ function ownSources(profile, filterGroups) {
         sources.push({
             key,
             icon: "fas fa-thumbtack",
-            kind: text(
-                "Objetos directos",
-                "Direct objects"
+            kind: game.i18n.localize(
+                "COMPENDIUM_CURATOR.ManualInclusions"
             ),
-            name: text(
-                "Objetos directos",
-                "Direct objects"
+            name: game.i18n.localize(
+                "COMPENDIUM_CURATOR.ManualInclusions"
             ),
             entries,
             groups: groupedEntries(

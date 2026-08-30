@@ -151,6 +151,14 @@
                                     <div class="cc-table-manager-profile-menu" hidden>
                                         <button
                                             type="button"
+                                            data-action="filterGroupInclusions"
+                                        >
+                                            <i class="fas fa-thumbtack"></i>
+                                            {{localize "COMPENDIUM_CURATOR.ManualInclusions"}}
+                                        </button>
+
+                                        <button
+                                            type="button"
                                             data-action="renameFilterGroup"
                                         >
                                             <i class="fas fa-pen"></i>
@@ -454,14 +462,6 @@
                                     {{#if isContent}}
                                         <button
                                             type="button"
-                                            data-action="directObjects"
-                                        >
-                                            <i class="fas fa-thumbtack"></i>
-                                            {{localize "COMPENDIUM_CURATOR.ManageDirectObjects"}}
-                                        </button>
-
-                                        <button
-                                            type="button"
                                             data-action="manualExclusions"
                                             {{#unless hasLocalSources}}disabled{{/unless}}
                                         >
@@ -535,57 +535,6 @@
                                             border-top: 1px solid rgb(255 255 255 / 7%);
                                         "
                                     >
-                                        <details
-                                            class="cc-table-filter-detail-block cc-table-direct-objects"
-                                            {{#if inspector.hasDirectObjects}}open{{/if}}
-                                        >
-                                            <summary class="cc-table-section-summary">
-                                                <span>
-                                                    <i class="fas fa-chevron-down"></i>
-                                                    <i class="fas fa-thumbtack"></i>
-                                                    {{localize "COMPENDIUM_CURATOR.DirectObjects"}}
-                                                </span>
-                                                <strong>
-                                                    {{localize
-                                                        "COMPENDIUM_CURATOR.DirectObjectCount"
-                                                        count=inspector.directObjectCount
-                                                    }}
-                                                </strong>
-                                            </summary>
-
-                                            <div class="cc-table-manager-filter-group-section">
-                                                <button
-                                                    type="button"
-                                                    data-action="directObjects"
-                                                >
-                                                    <i class="fas fa-pen"></i>
-                                                    {{localize "COMPENDIUM_CURATOR.ManageDirectObjects"}}
-                                                </button>
-
-                                                {{#if inspector.hasDirectObjects}}
-                                                    <ol class="item-list unlist cc-table-direct-object-preview">
-                                                        {{#each inspector.directObjects}}
-                                                            <li
-                                                                class="item cc-dnd5e-document-entry"
-                                                                data-uuid="{{uuid}}"
-                                                            >
-                                                                <span>{{name}}</span>
-                                                            </li>
-                                                        {{/each}}
-                                                    </ol>
-                                                    {{#if inspector.directObjectsTruncated}}
-                                                        <p class="hint">
-                                                            {{localize "COMPENDIUM_CURATOR.PreviewTruncated"}}
-                                                        </p>
-                                                    {{/if}}
-                                                {{else}}
-                                                    <p class="hint">
-                                                        {{localize "COMPENDIUM_CURATOR.NoDirectObjects"}}
-                                                    </p>
-                                                {{/if}}
-                                            </div>
-                                        </details>
-
                                         {{#if inspector.hasUnavailableObjects}}
                                             <p
                                                 class="notification warning"
@@ -599,6 +548,7 @@
                                             </p>
                                         {{/if}}
 
+                                        {{#if inspector.showRestrictions}}
                                         <details
                                             class="cc-table-filter-detail-block cc-table-global-filters"
                                             {{#if inspector.hasGlobalFilters}}open{{/if}}
@@ -720,6 +670,7 @@
                                                 {{/if}}
                                             </div>
                                         </details>
+                                        {{/if}}
 
                                         <details
                                             class="cc-table-filter-detail-block cc-table-item-rules"
@@ -734,6 +685,19 @@
                                             </summary>
 
                                             <div class="cc-table-item-rules-list">
+                                                <div class="cc-table-item-rule cc-table-manual-inclusions-rule">
+                                                    <i class="fas fa-thumbtack"></i>
+                                                    <span class="cc-table-item-rule-content">
+                                                        <strong>{{localize "COMPENDIUM_CURATOR.ManualInclusions"}}</strong>
+                                                        <span class="hint">{{localize "COMPENDIUM_CURATOR.ProfileInclusionsHint"}}</span>
+                                                    </span>
+                                                    <strong>{{inspector.manualObjectCount}}</strong>
+                                                    <button type="button" data-action="profileInclusions">
+                                                        <i class="fas fa-pen"></i>
+                                                        {{localize "COMPENDIUM_CURATOR.ManageManualInclusions"}}
+                                                    </button>
+                                                </div>
+
                                                 <label
                                                     class="cc-table-item-rule"
                                                     for="cc-exclude-zero-price-{{id}}"
@@ -822,6 +786,12 @@
                                                         id="cc-distribution-grouping-{{id}}"
                                                         data-cc-grouping-criterion
                                                     >
+                                                        <option
+                                                            value="none"
+                                                            {{#if inspector.isGroupingNone}}selected{{/if}}
+                                                        >
+                                                            {{localize "COMPENDIUM_CURATOR.GroupByNone"}}
+                                                        </option>
                                                         <option
                                                             value="rarity"
                                                             {{#if inspector.isGroupingRarity}}selected{{/if}}
@@ -931,7 +901,7 @@
                                             </p>
                                         </div>
 
-                                        {{#if inspector.isGrouped}}
+                                        {{#if inspector.usesGroupedLayout}}
                                             <div class="cc-table-filter-detail-block">
                                                 <div class="cc-table-filter-detail-heading">
                                                     <strong>
@@ -1329,7 +1299,12 @@
                                                                                         min="0.000001"
                                                                                         step="any"
                                                                                         value="{{weight}}"
+                                                                                        {{#if isFlatGrouped}}
+                                                                                            data-cc-group-item-weight
+                                                                                            data-group-key="{{groupKey}}"
+                                                                                        {{else}}
                                                                                         data-cc-individual-weight
+                                                                                        {{/if}}
                                                                                         data-uuid="{{uuid}}"
                                                                                         data-has-override="{{hasOverride}}"
                                                                                         aria-label="{{localize 'COMPENDIUM_CURATOR.IndividualWeight'}}: {{name}}"
@@ -1359,7 +1334,12 @@
                                                                                     <button
                                                                                         type="button"
                                                                                         class="unbutton"
+                                                                                        {{#if isFlatGrouped}}
+                                                                                            data-cc-reset-group-item-weight
+                                                                                            data-group-key="{{groupKey}}"
+                                                                                        {{else}}
                                                                                         data-cc-reset-individual-weight
+                                                                                        {{/if}}
                                                                                         data-uuid="{{uuid}}"
                                                                                         aria-label="{{localize 'COMPENDIUM_CURATOR.ResetIndividualWeight'}}: {{name}}"
                                                                                         title="{{localize 'COMPENDIUM_CURATOR.ResetIndividualWeight'}}"

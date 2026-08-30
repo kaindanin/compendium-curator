@@ -9,9 +9,6 @@ import {
     getTableChildren,
     setTableChildEnabled
 } from "../services/table-profile-relations-service.js";
-import {
-    TableProfileDirectObjectsApplication
-} from "./table-profile-direct-objects-application.js";
 
 const {
     ApplicationV2,
@@ -59,7 +56,6 @@ export class TableManagerContentApplication
         this.browserApp =
             managerApp?.browserApp ?? null;
         this.profileId = profileId;
-        this._directObjects = null;
         this._managerCloseHook =
             Hooks.on(
                 "closeApplicationV2",
@@ -87,8 +83,6 @@ export class TableManagerContentApplication
             height: 560
         },
         actions: {
-            manageDirectObjects:
-                this.#onManageDirectObjects,
             save: this.#onSave,
             cancel: this.#onCancel
         }
@@ -122,8 +116,8 @@ export class TableManagerContentApplication
             "Manage content"
         );
         context.intro = text(
-            "Selecciona las Categorías, gestiona los objetos directos y enlaza las otras tablas que forman parte de esta tabla.",
-            "Select Categories, manage direct objects, and link the other tables that belong to this table."
+            "Selecciona las Categorías y enlaza las otras tablas que forman parte de esta tabla. Las inclusiones manuales se gestionan en Reglas de objetos.",
+            "Select Categories and link the other tables that belong to this table. Manual inclusions are managed under Item rules."
         );
         context.filterGroupsLabel = text(
             "Categorías",
@@ -231,13 +225,13 @@ export class TableManagerContentApplication
             context.tables.filter(
                 table => table.checked
                 ).length;
-        context.directObjectCount =
+        context.manualObjectCount =
             profile.directUuids?.length ?? 0;
         context.selectedSummary =
             context.supportsFilterGroups
                 ? text(
-                    `${context.selectedGroupCount} categorías · ${context.directObjectCount} objetos directos · ${context.selectedTableCount} tablas`,
-                    `${context.selectedGroupCount} categories · ${context.directObjectCount} direct objects · ${context.selectedTableCount} tables`
+                    `${context.selectedGroupCount} categorías · ${context.manualObjectCount} inclusiones manuales · ${context.selectedTableCount} tablas`,
+                    `${context.selectedGroupCount} categories · ${context.manualObjectCount} manual inclusions · ${context.selectedTableCount} tables`
                 )
                 : text(
                     `${context.selectedTableCount} tablas`,
@@ -245,23 +239,6 @@ export class TableManagerContentApplication
                 );
 
         return context;
-    }
-
-    static async #onManageDirectObjects(event) {
-        event.preventDefault();
-
-        if (this._directObjects?.rendered) {
-            this._directObjects.bringToFront();
-            return;
-        }
-
-        this._directObjects =
-            new TableProfileDirectObjectsApplication(
-                this.browserApp,
-                this.managerApp,
-                this.profileId
-            );
-        this._directObjects.render({ force: true });
     }
 
     async _onRender(context, options) {
@@ -291,8 +268,8 @@ export class TableManagerContentApplication
             summary.textContent =
                 context.supportsFilterGroups
                     ? text(
-                        `${groupCount} categorías · ${context.directObjectCount} objetos directos · ${tableCount} tablas`,
-                        `${groupCount} categories · ${context.directObjectCount} direct objects · ${tableCount} tables`
+                        `${groupCount} categorías · ${context.manualObjectCount} inclusiones manuales · ${tableCount} tablas`,
+                        `${groupCount} categories · ${context.manualObjectCount} manual inclusions · ${tableCount} tables`
                     )
                     : text(
                         `${tableCount} tablas`,
@@ -448,12 +425,6 @@ export class TableManagerContentApplication
     }
 
     async _preClose(options) {
-        if (this._directObjects?.rendered) {
-            await this._directObjects.close();
-        }
-
-        this._directObjects = null;
-
         if (this._managerCloseHook !== null) {
             Hooks.off(
                 "closeApplicationV2",

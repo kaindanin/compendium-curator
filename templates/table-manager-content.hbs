@@ -73,33 +73,6 @@
                 </section>
             {{/if}}
 
-            {{#if supportsFilterGroups}}
-                <section
-                    class="cc-table-profile-editor-section"
-                    style="margin-top: 1rem;"
-                >
-                    <h3 style="margin: 0 0 0.5rem;">
-                        <i class="fas fa-thumbtack"></i>
-                        {{localize "COMPENDIUM_CURATOR.DirectObjects"}}
-                    </h3>
-
-                    <p class="hint">
-                        {{localize
-                            "COMPENDIUM_CURATOR.DirectObjectCount"
-                            count=directObjectCount
-                        }}
-                    </p>
-
-                    <button
-                        type="button"
-                        data-action="manageDirectObjects"
-                    >
-                        <i class="fas fa-pen"></i>
-                        {{localize "COMPENDIUM_CURATOR.ManageDirectObjects"}}
-                    </button>
-                </section>
-            {{/if}}
-
             <section
                 class="cc-table-profile-editor-section"
                 style="margin-top: 1rem;"

@@ -5,7 +5,7 @@ import {
 const TABLE_PROFILE_BUNDLE_TYPE =
     "compendium-curator-table-profile-bundle";
 const SUPPORTED_TABLE_PROFILE_BUNDLE_VERSIONS =
-    new Set([1, 2, 3]);
+    new Set([1, 2, 3, 4]);
 const TABLE_PROFILE_BUNDLE_LIMIT = 500;
 
 function normalizeComparableName(value) {
@@ -94,6 +94,14 @@ function assertBundle(bundle) {
             }
         }
 
+        for (const uuid of profile.directUuids ?? []) {
+            if (!String(uuid ?? "").trim()) {
+                throw new Error(
+                    "INVALID_TABLE_PROFILE_BUNDLE"
+                );
+            }
+        }
+
         const usedChildren = new Set();
 
         for (const child of profile.children ?? []) {
@@ -176,15 +184,16 @@ function assertBundle(bundle) {
             );
         }
 
-        for (const uuid of profile.directUuids ?? []) {
-            if (!String(uuid ?? "").trim()) {
+        if (Number(bundle?.version) >= 2) {
+            if (
+                !Array.isArray(
+                    filterGroup.manualIncludes ?? []
+                )
+            ) {
                 throw new Error(
                     "INVALID_TABLE_PROFILE_BUNDLE"
                 );
             }
-        }
-
-        if (Number(bundle?.version) >= 2) {
             const ids = new Set();
             const names = new Set();
 
@@ -310,6 +319,16 @@ function collectReferencedUuids(
             )
                 ? filterGroup.groups
                 : [filterGroup];
+
+            for (
+                const uuid
+                of filterGroup?.manualIncludes ?? []
+            ) {
+                const value = String(uuid ?? "").trim();
+
+                if (value)
+                    referenced.add(value);
+            }
 
             for (const group of groups) {
                 for (const uuid of group?.matches ?? []) {
