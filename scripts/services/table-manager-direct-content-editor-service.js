@@ -2687,7 +2687,7 @@ function renderEditor(
                 gap:0.55rem;
             "
         >
-            <div class="cc-table-content-distribution-mode">
+            <div class="cc-table-filter-detail-block cc-table-content-distribution-mode">
                 <span class="cc-table-content-distribution-icon">
                     <i class="fas fa-chart-simple"></i>
                 </span>

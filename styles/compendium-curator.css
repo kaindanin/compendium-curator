@@ -1315,38 +1315,14 @@
 }
 
 .cc-table-manual-inclusions-rule {
-    display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 0.7rem;
     align-items: center;
 
-    padding: 0.65rem 0.75rem;
-
-    background:
-        linear-gradient(
-            135deg,
-            rgb(120 66 25 / 26%),
-            rgb(0 0 0 / 13%)
-        );
-
-    border: 1px solid rgb(191 145 71 / 32%);
-    border-radius: 6px;
-}
-
-.cc-table-manual-inclusions-rule.has-inclusions {
-    border-color: rgb(191 145 71 / 60%);
+    cursor: default;
 }
 
 .cc-table-manual-inclusions-icon {
-    display: grid;
-    place-items: center;
-
-    width: 34px;
-    height: 34px;
-
-    color: var(--dnd5e-color-gold, #c59b5a);
-    background: rgb(0 0 0 / 22%);
-    border-radius: 50%;
+    opacity: 0.75;
 }
 
 .cc-table-manual-inclusions-title {
@@ -1357,13 +1333,9 @@
 }
 
 .cc-table-manual-inclusions-count {
-    padding: 0.12rem 0.45rem;
-
+    color: var(--color-text-subtle, #999);
     font-size: var(--font-size-11);
     font-weight: 600;
-
-    background: rgb(0 0 0 / 25%);
-    border-radius: 999px;
 }
 
 .cc-table-manual-inclusions-rule > button {
@@ -1376,29 +1348,10 @@
     grid-template-columns: auto minmax(0, 1fr) minmax(155px, 210px);
     gap: 0.7rem;
     align-items: center;
-
-    padding: 0.65rem 0.75rem;
-
-    background:
-        linear-gradient(
-            135deg,
-            rgb(110 66 27 / 25%),
-            rgb(0 0 0 / 13%)
-        );
-    border: 1px solid rgb(191 145 71 / 38%);
-    border-radius: 6px;
 }
 
 .cc-table-content-distribution-icon {
-    display: grid;
-    place-items: center;
-
-    width: 34px;
-    height: 34px;
-
-    color: var(--dnd5e-color-gold, #c59b5a);
-    background: rgb(0 0 0 / 22%);
-    border-radius: 50%;
+    opacity: 0.75;
 }
 
 .cc-table-content-distribution-copy {
@@ -2397,14 +2350,8 @@
     gap: 0.35rem;
     align-items: center;
 
-    padding: 0.25rem 0.55rem;
-
-    background: rgb(0 0 0 / 18%);
-    border-radius: 999px;
-}
-
-.cc-table-profile-direct-objects-stat.is-selected {
-    color: var(--dnd5e-color-gold, #c59b5a);
+    color: var(--color-text-subtle, #999);
+    font-size: var(--font-size-12);
 }
 
 .cc-table-profile-direct-objects-loading {
@@ -2439,21 +2386,11 @@
     min-width: 0;
     min-height: 0;
 
-    background: rgb(0 0 0 / 13%);
-    border: 1px solid rgb(255 255 255 / 10%);
-    border-radius: 7px;
+    background: var(--dnd5e-background-card);
+    border: 0;
+    border-radius: 5px;
 
     overflow: hidden;
-}
-
-.cc-table-profile-direct-objects-panel.is-selected {
-    background:
-        linear-gradient(
-            145deg,
-            rgb(111 67 25 / 24%),
-            rgb(0 0 0 / 13%) 42%
-        );
-    border-color: rgb(191 145 71 / 42%);
 }
 
 .cc-table-profile-direct-objects-panel-header {
@@ -2465,7 +2402,6 @@
     min-height: 64px;
     padding: 0.6rem 0.65rem;
 
-    background: rgb(0 0 0 / 18%);
     border-bottom: 1px solid rgb(255 255 255 / 9%);
 }
 
@@ -2488,12 +2424,6 @@
     flex: 0 0 auto;
     width: auto;
     white-space: nowrap;
-}
-
-.cc-table-profile-direct-objects-panel.is-selected
-    .cc-table-profile-direct-objects-panel-header
-    strong {
-    color: var(--dnd5e-color-gold, #c59b5a);
 }
 
 .cc-table-profile-direct-objects-panel-body {
@@ -2552,8 +2482,8 @@
 }
 
 .cc-table-profile-direct-objects-empty > i {
-    color: var(--dnd5e-color-gold, #c59b5a);
     font-size: var(--font-size-24);
+    opacity: 0.75;
 }
 
 .cc-table-profile-direct-objects-missing {
