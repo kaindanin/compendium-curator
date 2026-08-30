@@ -24,6 +24,7 @@
 - Table restrictions are dormant and hidden while their stored data remains available for compatibility.
 - Legacy direct objects are preserved and presented as the table's Manual inclusion source.
 - Made table inclusions more visible and added live selected/available counters plus bulk selection controls.
+- Redesigned table inclusions as two synchronized lists: live Browser results and a persistent draft selection that remains stable while filters, searches, and tabs change.
 
 ### Reliability
 

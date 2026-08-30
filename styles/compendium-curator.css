@@ -2407,38 +2407,115 @@
     color: var(--dnd5e-color-gold, #c59b5a);
 }
 
-.cc-table-profile-direct-objects-actions {
-    display: flex;
+.cc-table-profile-direct-objects-loading {
+    display: inline-flex;
     gap: 0.35rem;
-
+    align-items: center;
     margin-left: auto;
+
+    color: var(--color-text-subtle, #999);
+    font-size: var(--font-size-12);
 }
 
-.cc-table-profile-direct-objects-actions > button {
+.cc-table-profile-direct-objects-loading[hidden] {
+    display: none;
+}
+
+.cc-table-profile-direct-objects-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.75rem;
+
+    flex: 1 1 0;
+    min-height: 0;
+
+    padding: 0 1rem 0.25rem;
+}
+
+.cc-table-profile-direct-objects-panel {
+    display: flex;
+    flex-direction: column;
+
+    min-width: 0;
+    min-height: 0;
+
+    background: rgb(0 0 0 / 13%);
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 7px;
+
+    overflow: hidden;
+}
+
+.cc-table-profile-direct-objects-panel.is-selected {
+    background:
+        linear-gradient(
+            145deg,
+            rgb(111 67 25 / 24%),
+            rgb(0 0 0 / 13%) 42%
+        );
+    border-color: rgb(191 145 71 / 42%);
+}
+
+.cc-table-profile-direct-objects-panel-header {
+    display: flex;
+    gap: 0.65rem;
+    align-items: center;
+
+    flex: 0 0 auto;
+    min-height: 64px;
+    padding: 0.6rem 0.65rem;
+
+    background: rgb(0 0 0 / 18%);
+    border-bottom: 1px solid rgb(255 255 255 / 9%);
+}
+
+.cc-table-profile-direct-objects-panel-header > span {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 0.16rem;
+
+    min-width: 0;
+}
+
+.cc-table-profile-direct-objects-panel-header strong {
+    display: inline-flex;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.cc-table-profile-direct-objects-panel-header button {
+    flex: 0 0 auto;
     width: auto;
     white-space: nowrap;
 }
 
-.cc-table-profile-direct-object-results {
+.cc-table-profile-direct-objects-panel.is-selected
+    .cc-table-profile-direct-objects-panel-header
+    strong {
+    color: var(--dnd5e-color-gold, #c59b5a);
+}
+
+.cc-table-profile-direct-objects-panel-body {
     flex: 1 1 0;
     min-height: 0;
 
-    padding: 0 1rem;
+    padding: 0.45rem;
 
     overflow-x: hidden;
     overflow-y: auto;
     scrollbar-gutter: stable;
 }
 
-.cc-table-profile-direct-object-results
+.cc-table-profile-direct-objects-panel-body
     .cc-dnd5e-document-list,
-.cc-table-profile-direct-object-results
+.cc-table-profile-direct-objects-panel-body
     .cc-dnd5e-document-list
     .items-section {
     margin: 0;
 }
 
-.cc-table-profile-direct-object-results
+.cc-table-profile-direct-objects-panel-body
     .cc-dnd5e-document-list
     .item-controls {
     width: 50px;
@@ -2448,10 +2525,39 @@
     justify-content: center;
 }
 
-.cc-table-profile-direct-object-results
+.cc-table-profile-direct-objects-panel-body
     .cc-dnd5e-document-list
     .item-name.rollable {
     cursor: var(--cursor-pointer);
+}
+
+.cc-table-profile-direct-objects-workspace.is-loading
+    .cc-table-profile-direct-objects-panel.is-results
+    .cc-table-profile-direct-objects-panel-body {
+    opacity: 0.45;
+}
+
+.cc-table-profile-direct-objects-empty {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    align-items: center;
+    justify-content: center;
+
+    min-height: 150px;
+    padding: 1.5rem;
+
+    color: var(--color-text-subtle, #999);
+    text-align: center;
+}
+
+.cc-table-profile-direct-objects-empty > i {
+    color: var(--dnd5e-color-gold, #c59b5a);
+    font-size: var(--font-size-24);
+}
+
+.cc-table-profile-direct-objects-missing {
+    margin: 1rem;
 }
 
 .cc-table-profile-direct-objects-footer {
@@ -2464,6 +2570,17 @@
 
 .cc-table-profile-direct-objects-footer > button {
     flex: 1;
+}
+
+@media (max-width: 760px) {
+    .cc-table-profile-direct-objects-workspace {
+        grid-template-columns: minmax(0, 1fr);
+        overflow-y: auto;
+    }
+
+    .cc-table-profile-direct-objects-panel {
+        min-height: 280px;
+    }
 }
 
 .cc-table-profile-inclusions-app

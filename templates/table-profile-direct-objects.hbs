@@ -1,114 +1,259 @@
 <div class="cc-table-profile-direct-objects">
-    <header class="cc-table-profile-direct-objects-header">
-        <h2>{{profileName}}</h2>
-        <p class="hint">
-            {{localize "COMPENDIUM_CURATOR.ProfileInclusionsHint"}}
-        </p>
-        <div class="cc-table-profile-direct-objects-toolbar">
-            <span class="cc-table-profile-direct-objects-stat">
-                <i class="fas fa-list"></i>
-                {{localize "COMPENDIUM_CURATOR.InclusionResultsCount" count=candidateCount}}
-            </span>
-            <span class="cc-table-profile-direct-objects-stat is-selected" data-cc-inclusion-selected-count>
-                <i class="fas fa-thumbtack"></i>
-                {{localize "COMPENDIUM_CURATOR.InclusionSelectedCount" count=selectedCount}}
-            </span>
-            <span class="cc-table-profile-direct-objects-actions">
-                <button type="button" data-action="selectAll" {{#unless hasCandidates}}disabled{{/unless}}>
-                    <i class="fas fa-check-double"></i>
-                    {{localize "COMPENDIUM_CURATOR.SelectVisibleInclusions"}}
-                </button>
-                <button type="button" data-action="clearAll" {{#unless hasCandidates}}disabled{{/unless}}>
-                    <i class="fas fa-eraser"></i>
-                    {{localize "COMPENDIUM_CURATOR.ClearVisibleInclusions"}}
-                </button>
-            </span>
-        </div>
-    </header>
-
-    <div class="cc-table-profile-direct-object-results">
-        {{#if hasCandidates}}
-            <section class="inventory-element cc-dnd5e-document-list">
-                <section class="items-list browser-results">
-                    <div class="items-section card">
-                        <div class="items-header header">
-                            <h3 class="item-name">
-                                {{localize "DND5E.CompendiumBrowser.Column.Results"}}
-                            </h3>
-                            <div class="item-header item-source">
-                                {{localize "DND5E.CompendiumBrowser.Column.Source"}}
-                            </div>
-                            <div class="item-header item-controls"></div>
-                        </div>
-
-                        <ol class="item-list unlist">
-                            {{#each candidates}}
-                                <li
-                                    class="item cc-dnd5e-document-entry"
-                                    data-uuid="{{uuid}}"
-                                >
-                                    <div class="item-row">
-                                        <div
-                                            class="item-name rollable"
-                                            role="button"
-                                            data-cc-open-document
-                                        >
-                                            {{#if img}}
-                                                <img
-                                                    class="item-image gold-icon"
-                                                    loading="lazy"
-                                                    src="{{img}}"
-                                                    alt="{{name}}"
-                                                    draggable="false"
-                                                >
-                                            {{/if}}
-                                            <div class="name name-stacked">
-                                                <span class="title">{{name}}</span>
-                                                {{#if subtitle}}
-                                                    <span class="subtitle">{{localize subtitle}}</span>
-                                                {{/if}}
-                                            </div>
-                                        </div>
-
-                                        <div class="item-detail item-source {{#unless source}}empty{{/unless}}">
-                                            {{#if source}}
-                                                <span class="condensed">{{source}}</span>
-                                            {{/if}}
-                                        </div>
-
-                                        <div class="item-detail item-controls">
-                                            <dnd5e-checkbox
-                                                class="cc-table-profile-direct-object-checkbox"
-                                                data-uuid="{{uuid}}"
-                                                {{#if included}}checked{{/if}}
-                                            ></dnd5e-checkbox>
-                                        </div>
-                                    </div>
-                                </li>
-                            {{/each}}
-                        </ol>
-                    </div>
-                </section>
-            </section>
-        {{else}}
+    {{#if exists}}
+        <header class="cc-table-profile-direct-objects-header">
+            <h2>{{profileName}}</h2>
             <p class="hint">
-                {{localize "COMPENDIUM_CURATOR.NoMatchingObjects"}}
+                {{localize "COMPENDIUM_CURATOR.ProfileInclusionsLiveHint"}}
             </p>
-        {{/if}}
-    </div>
 
-    <footer class="cc-table-profile-direct-objects-footer">
-        <button type="button" data-action="cancel">
-            <i class="fas fa-xmark"></i>
-            {{localize "COMPENDIUM_CURATOR.TableDefaultsCancel"}}
-        </button>
-        <button
-            type="button"
-            data-action="save"
-            {{#unless hasCandidates}}disabled{{/unless}}
+            <div class="cc-table-profile-direct-objects-toolbar">
+                <span class="cc-table-profile-direct-objects-stat">
+                    <i class="fas fa-filter"></i>
+                    {{localize
+                        "COMPENDIUM_CURATOR.InclusionResultsCount"
+                        count=candidateCount
+                    }}
+                </span>
+                <span class="cc-table-profile-direct-objects-stat is-selected">
+                    <i class="fas fa-thumbtack"></i>
+                    {{localize
+                        "COMPENDIUM_CURATOR.InclusionSelectedCount"
+                        count=selectedCount
+                    }}
+                </span>
+                <span
+                    class="cc-table-profile-direct-objects-loading"
+                    data-cc-inclusions-loading
+                    {{#unless isBrowserLoading}}hidden{{/unless}}
+                >
+                    <i class="fas fa-spinner fa-spin"></i>
+                    {{localize "COMPENDIUM_CURATOR.InclusionsUpdating"}}
+                </span>
+            </div>
+        </header>
+
+        <div
+            class="cc-table-profile-direct-objects-workspace {{#if isBrowserLoading}}is-loading{{/if}}"
+            data-cc-direct-inclusion-workspace
+            aria-busy="{{#if isBrowserLoading}}true{{else}}false{{/if}}"
         >
-            <i class="fas fa-floppy-disk"></i>
-            {{localize "COMPENDIUM_CURATOR.TableDefaultsSave"}}
-        </button>
-    </footer>
+            <section class="cc-table-profile-direct-objects-panel is-results">
+                <header class="cc-table-profile-direct-objects-panel-header">
+                    <span>
+                        <strong>
+                            <i class="fas fa-filter"></i>
+                            {{localize "COMPENDIUM_CURATOR.CurrentFilterResults"}}
+                        </strong>
+                        <span class="hint">
+                            {{localize "COMPENDIUM_CURATOR.CurrentFilterResultsHint"}}
+                        </span>
+                    </span>
+                    <button
+                        type="button"
+                        data-action="selectAll"
+                        {{#unless hasCandidates}}disabled{{/unless}}
+                    >
+                        <i class="fas fa-check-double"></i>
+                        {{localize "COMPENDIUM_CURATOR.SelectVisibleInclusions"}}
+                    </button>
+                </header>
+
+                <div class="cc-table-profile-direct-objects-panel-body">
+                    {{#if hasCandidates}}
+                        <section class="inventory-element cc-dnd5e-document-list">
+                            <section class="items-list browser-results">
+                                <div class="items-section card">
+                                    <div class="items-header header">
+                                        <h3 class="item-name">
+                                            {{localize "DND5E.CompendiumBrowser.Column.Results"}}
+                                        </h3>
+                                        <div class="item-header item-source">
+                                            {{localize "DND5E.CompendiumBrowser.Column.Source"}}
+                                        </div>
+                                        <div class="item-header item-controls"></div>
+                                    </div>
+
+                                    <ol class="item-list unlist">
+                                        {{#each candidates}}
+                                            <li
+                                                class="item cc-dnd5e-document-entry"
+                                                data-uuid="{{uuid}}"
+                                            >
+                                                <div class="item-row">
+                                                    <div
+                                                        class="item-name rollable"
+                                                        role="button"
+                                                        data-cc-open-document
+                                                    >
+                                                        {{#if img}}
+                                                            <img
+                                                                class="item-image gold-icon"
+                                                                loading="lazy"
+                                                                src="{{img}}"
+                                                                alt="{{name}}"
+                                                                draggable="false"
+                                                            >
+                                                        {{/if}}
+                                                        <div class="name name-stacked">
+                                                            <span class="title">{{name}}</span>
+                                                            {{#if subtitle}}
+                                                                <span class="subtitle">{{localize subtitle}}</span>
+                                                            {{/if}}
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="item-detail item-source {{#unless source}}empty{{/unless}}">
+                                                        {{#if source}}
+                                                            <span class="condensed">{{source}}</span>
+                                                        {{/if}}
+                                                    </div>
+
+                                                    <div class="item-detail item-controls">
+                                                        <dnd5e-checkbox
+                                                            class="cc-table-profile-direct-object-checkbox"
+                                                            data-uuid="{{uuid}}"
+                                                            aria-label="{{localize 'COMPENDIUM_CURATOR.AddToInclusions'}}"
+                                                        ></dnd5e-checkbox>
+                                                    </div>
+                                                </div>
+                                            </li>
+                                        {{/each}}
+                                    </ol>
+                                </div>
+                            </section>
+                        </section>
+                    {{else}}
+                        <div class="cc-table-profile-direct-objects-empty">
+                            {{#if browserError}}
+                                <i class="fas fa-triangle-exclamation"></i>
+                                <strong>{{localize "COMPENDIUM_CURATOR.InclusionsUpdateFailed"}}</strong>
+                            {{else if isBrowserLoading}}
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <strong>{{localize "COMPENDIUM_CURATOR.InclusionsUpdating"}}</strong>
+                            {{else if allBrowserMatchesIncluded}}
+                                <i class="fas fa-circle-check"></i>
+                                <strong>{{localize "COMPENDIUM_CURATOR.AllMatchingObjectsIncluded"}}</strong>
+                            {{else}}
+                                <i class="fas fa-filter-circle-xmark"></i>
+                                <strong>{{localize "COMPENDIUM_CURATOR.NoMatchingObjects"}}</strong>
+                            {{/if}}
+                        </div>
+                    {{/if}}
+                </div>
+            </section>
+
+            <section class="cc-table-profile-direct-objects-panel is-selected">
+                <header class="cc-table-profile-direct-objects-panel-header">
+                    <span>
+                        <strong>
+                            <i class="fas fa-thumbtack"></i>
+                            {{localize "COMPENDIUM_CURATOR.SelectedInclusions"}}
+                        </strong>
+                        <span class="hint">
+                            {{localize "COMPENDIUM_CURATOR.SelectedInclusionsHint"}}
+                        </span>
+                    </span>
+                    <button
+                        type="button"
+                        data-action="clearAll"
+                        {{#unless hasInclusions}}disabled{{/unless}}
+                    >
+                        <i class="fas fa-eraser"></i>
+                        {{localize "COMPENDIUM_CURATOR.ClearSelectedInclusions"}}
+                    </button>
+                </header>
+
+                <div class="cc-table-profile-direct-objects-panel-body">
+                    {{#if hasInclusions}}
+                        <section class="inventory-element cc-dnd5e-document-list">
+                            <section class="items-list browser-results">
+                                <div class="items-section card">
+                                    <div class="items-header header">
+                                        <h3 class="item-name">
+                                            {{localize "COMPENDIUM_CURATOR.ManualInclusions"}}
+                                        </h3>
+                                        <div class="item-header item-source">
+                                            {{localize "DND5E.CompendiumBrowser.Column.Source"}}
+                                        </div>
+                                        <div class="item-header item-controls"></div>
+                                    </div>
+
+                                    <ol class="item-list unlist">
+                                        {{#each inclusions}}
+                                            <li
+                                                class="item cc-dnd5e-document-entry"
+                                                data-uuid="{{uuid}}"
+                                            >
+                                                <div class="item-row">
+                                                    <div
+                                                        class="item-name rollable"
+                                                        role="button"
+                                                        data-cc-open-document
+                                                    >
+                                                        {{#if img}}
+                                                            <img
+                                                                class="item-image gold-icon"
+                                                                loading="lazy"
+                                                                src="{{img}}"
+                                                                alt="{{name}}"
+                                                                draggable="false"
+                                                            >
+                                                        {{/if}}
+                                                        <div class="name name-stacked">
+                                                            <span class="title">{{name}}</span>
+                                                            {{#if subtitle}}
+                                                                <span class="subtitle">{{localize subtitle}}</span>
+                                                            {{/if}}
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="item-detail item-source {{#unless source}}empty{{/unless}}">
+                                                        {{#if source}}
+                                                            <span class="condensed">{{source}}</span>
+                                                        {{/if}}
+                                                    </div>
+
+                                                    <div class="item-detail item-controls">
+                                                        <dnd5e-checkbox
+                                                            class="cc-table-profile-direct-object-checkbox"
+                                                            data-uuid="{{uuid}}"
+                                                            aria-label="{{localize 'COMPENDIUM_CURATOR.RemoveFromInclusions'}}"
+                                                            checked
+                                                        ></dnd5e-checkbox>
+                                                    </div>
+                                                </div>
+                                            </li>
+                                        {{/each}}
+                                    </ol>
+                                </div>
+                            </section>
+                        </section>
+                    {{else}}
+                        <div class="cc-table-profile-direct-objects-empty">
+                            <i class="far fa-circle"></i>
+                            <strong>{{localize "COMPENDIUM_CURATOR.NoSelectedInclusions"}}</strong>
+                            <span class="hint">
+                                {{localize "COMPENDIUM_CURATOR.NoSelectedInclusionsHint"}}
+                            </span>
+                        </div>
+                    {{/if}}
+                </div>
+            </section>
+        </div>
+
+        <footer class="cc-table-profile-direct-objects-footer">
+            <button type="button" data-action="cancel">
+                <i class="fas fa-xmark"></i>
+                {{localize "COMPENDIUM_CURATOR.TableDefaultsCancel"}}
+            </button>
+            <button type="button" data-action="save">
+                <i class="fas fa-floppy-disk"></i>
+                {{localize "COMPENDIUM_CURATOR.TableDefaultsSave"}}
+            </button>
+        </footer>
+    {{else}}
+        <p class="hint cc-table-profile-direct-objects-missing">
+            {{localize "COMPENDIUM_CURATOR.TableProfileNotFound"}}
+        </p>
+    {{/if}}
 </div>
