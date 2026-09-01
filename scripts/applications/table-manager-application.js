@@ -25,6 +25,9 @@ import {
     generateStoredProfileTablesRecursively,
     profileHasPendingTableDependencies
 } from "../services/table-profile-recursive-generation-service.js";
+import {
+    getCategoryManualIncludeUuids
+} from "../services/table-category-content-service.js";
 
 const {
     ApplicationV2,
@@ -1630,8 +1633,18 @@ function buildContentInspector(
     const directUuids = new Set(
         profile?.directUuids ?? []
     );
+    const manualInclusionUuids = new Set(
+        directUuids
+    );
 
     for (const group of profile?.filterGroups ?? []) {
+        for (
+            const uuid
+            of getCategoryManualIncludeUuids(group)
+        ) {
+            manualInclusionUuids.add(uuid);
+        }
+
         for (const uuid of group?.matches ?? []) {
             if (uuid && !hiddenUuids.has(uuid))
                 categoryUuids.add(uuid);
@@ -1718,6 +1731,9 @@ function buildContentInspector(
             const eligibleEntries =
                 excludeZeroPrice
                     ? availableEntries.filter(entry =>
+                        manualInclusionUuids.has(
+                            entry.uuid
+                        ) ||
                         entry.documentName !== "Item" ||
                         entry.hasPositivePrice
                     )

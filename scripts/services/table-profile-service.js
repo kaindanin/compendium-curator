@@ -1,5 +1,8 @@
 import { StorageService } from "./storage-service.js";
 import { CuratorState } from "../state/curator-state.js";
+import {
+    getCategoryManualIncludeUuids
+} from "./table-category-content-service.js";
 
 function serializeValue(value) {
 
@@ -2149,6 +2152,13 @@ export class TableProfileService {
                 ? filterGroup.groups
                 : [filterGroup];
             const groupCandidates = new Map();
+            const manualIncludeUuids = new Set(
+                applyManualIncludes
+                    ? getCategoryManualIncludeUuids(
+                        filterGroup
+                    )
+                    : []
+            );
             /*
              * AND se resuelve dentro de cada conjunto de
              * criterios mediante CompendiumBrowser.fetch.
@@ -2248,6 +2258,7 @@ export class TableProfileService {
                 of groupCandidates
             ) {
                 if (
+                    !manualIncludeUuids.has(uuid) &&
                     !candidatePassesItemRules(
                         candidate,
                         filterGroup?.itemRules
@@ -2262,7 +2273,8 @@ export class TableProfileService {
                 key: `filter:${filterGroup.id}`,
                 kind: "category",
                 name: filterGroup.name,
-                candidates: groupCandidates
+                candidates: groupCandidates,
+                manualUuids: manualIncludeUuids
             });
         }
 
@@ -2281,7 +2293,10 @@ export class TableProfileService {
                 name: game.i18n.localize(
                     "COMPENDIUM_CURATOR.ManualInclusions"
                 ),
-                candidates: directCandidates
+                candidates: directCandidates,
+                manualUuids: new Set(
+                    profile?.directUuids ?? []
+                )
             });
         }
 
@@ -2360,7 +2375,12 @@ export class TableProfileService {
                 name: source.name,
                 candidates: [
                     ...source.candidates.values()
-                ]
+                ],
+                manualUuids: [
+                    ...(source.manualUuids ?? [])
+                ].filter(uuid =>
+                    source.candidates.has(uuid)
+                )
             })),
             groups,
             candidates,

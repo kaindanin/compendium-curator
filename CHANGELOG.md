@@ -38,6 +38,7 @@
 - Prevented the custom hidden-state control from recursively redispatching its own change event during live browser synchronization.
 - Kept manual inclusions in direct-content generation and migrated existing direct profiles explicitly to the grouped layout.
 - Kept every Category disclosure independent and placed Rules before Content without reopening sibling sections during updates.
+- Preserved explicit Category and table inclusions when zero-price rules filter their automatic content.
 
 ## 0.4.0
 

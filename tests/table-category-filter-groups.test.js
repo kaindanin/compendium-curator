@@ -364,9 +364,10 @@ test("combines groups with OR and deduplicates categories by UUID", async () => 
     }
 });
 
-test("applies category item rules before exposing the category to a table", async () => {
+test("applies category item rules while preserving explicit inclusions", async () => {
     const original =
         TableProfileService.getBrowserCandidates;
+    const originalFromUuid = globalThis.fromUuid;
     const priced = {
         uuid: "Compendium.test.items.Item.priced",
         documentName: "Item",
@@ -389,9 +390,24 @@ test("applies category item rules before exposing the category to a table", asyn
             }
         }
     };
+    const manualFree = {
+        uuid: "Compendium.test.items.Item.manual-free",
+        documentName: "Item",
+        name: "Manual Free",
+        system: {
+            price: {
+                value: 0,
+                denomination: "gp"
+            }
+        }
+    };
 
     TableProfileService.getBrowserCandidates =
         async () => [priced, free];
+    globalThis.fromUuid = async uuid =>
+        uuid === manualFree.uuid
+            ? manualFree
+            : null;
 
     try {
         const preview = await TableProfileService
@@ -402,6 +418,9 @@ test("applies category item rules before exposing the category to a table", asyn
                     itemRules: {
                         excludeZeroPrice: true
                     },
+                    manualIncludes: [
+                        manualFree.uuid
+                    ],
                     groups: [{
                         browser: {
                             filters: {
@@ -416,13 +435,15 @@ test("applies category item rules before exposing the category to a table", asyn
             preview.candidates.map(
                 candidate => candidate.uuid
             ),
-            [priced.uuid]
+            [manualFree.uuid, priced.uuid]
         );
-        assert.equal(preview.groups[0].count, 1);
+        assert.equal(preview.groups[0].count, 2);
+        assert.equal(preview.manualIncludedCount, 1);
     }
     finally {
         TableProfileService.getBrowserCandidates =
             original;
+        globalThis.fromUuid = originalFromUuid;
     }
 });
 

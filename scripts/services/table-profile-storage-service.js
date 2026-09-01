@@ -2,6 +2,9 @@ import {
     MODULE_ID,
     TABLE_PROFILES_SETTING
 } from "../settings.js";
+import {
+    getCategoryAllUuids
+} from "./table-category-content-service.js";
 
 const TABLE_PROFILE_BUNDLE_TYPE =
     "compendium-curator-table-profile-bundle";
@@ -529,14 +532,7 @@ export class TableProfileStorageService {
 
     static #getCategoryMatches(category) {
         return this.#normalizeMatches(
-            [
-                ...(category?.manualIncludes ?? []),
-                ...Array.from(category?.groups ?? [])
-                    .flatMap(group => [
-                    ...(group?.matches ?? []),
-                    ...(group?.manualIncludes ?? [])
-                    ])
-            ]
+            getCategoryAllUuids(category)
         );
     }
 

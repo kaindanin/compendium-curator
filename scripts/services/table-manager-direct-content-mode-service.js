@@ -9,6 +9,10 @@ import {
     StorageService
 } from "./storage-service.js";
 import {
+    getCategoryAutomaticMatchUuids,
+    getCategoryManualIncludeUuids
+} from "./table-category-content-service.js";
+import {
     activateDnd5eDocumentEntries,
     getDnd5eDistributionIndexEntry,
     prepareDnd5eIndexedEntries
@@ -351,20 +355,29 @@ function ownSources(profile, filterGroups) {
     const ids = [...new Set(profile.filterGroupIds ?? [])];
     const sources = [];
 
-    const eligible = uuids => prepareDnd5eIndexedEntries(
-        uuids
-    )
+    const eligible = (
+        uuids,
+        { preserveManualInclusions = false } = {}
+    ) => prepareDnd5eIndexedEntries(uuids)
         .filter(entry => entry.available !== false &&
             !hidden.has(entry.uuid) && !excluded.has(entry.uuid) &&
-            (!excludeZeroPrice || entry.documentName !== "Item" || entry.hasPositivePrice));
+            (
+                preserveManualInclusions ||
+                !excludeZeroPrice ||
+                entry.documentName !== "Item" ||
+                entry.hasPositivePrice
+            ));
     for (const id of ids) {
         const filterGroup = filterGroups?.[id];
         if (!filterGroup) continue;
         const categoryExcludesZeroPrice =
             filterGroup?.itemRules
                 ?.excludeZeroPrice === true;
-        const entries = dedupe(
-            eligible(filterGroup.matches ?? [])
+        const automaticEntries = eligible(
+            getCategoryAutomaticMatchUuids(
+                filterGroup
+            )
+        )
                 .filter(entry =>
                     !categoryExcludesZeroPrice ||
                     entry.documentName !== "Item" ||
@@ -373,8 +386,25 @@ function ownSources(profile, filterGroups) {
                 .map(entry => ({
                     ...entry,
                     origins: [filterGroup.name]
-                }))
-        );
+                }));
+        const manualEntries = eligible(
+            getCategoryManualIncludeUuids(
+                filterGroup
+            ),
+            { preserveManualInclusions: true }
+        ).map(entry => ({
+            ...entry,
+            origins: [
+                filterGroup.name,
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.ManualInclusions"
+                )
+            ]
+        }));
+        const entries = dedupe([
+            ...automaticEntries,
+            ...manualEntries
+        ]);
         const key = `filter:${id}`;
         const criterion = sourceCriterion(profile, key);
         sources.push({
@@ -391,7 +421,10 @@ function ownSources(profile, filterGroups) {
 
     if ((profile?.directUuids ?? []).length) {
         const entries = dedupe(
-            eligible(profile.directUuids)
+            eligible(
+                profile.directUuids,
+                { preserveManualInclusions: true }
+            )
                 .map(entry => ({
                     ...entry,
                     origins: [game.i18n.localize(

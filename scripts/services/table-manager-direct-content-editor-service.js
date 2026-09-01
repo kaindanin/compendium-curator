@@ -12,6 +12,10 @@ import {
     StorageService
 } from "./storage-service.js";
 import {
+    getCategoryAutomaticMatchUuids,
+    getCategoryManualIncludeUuids
+} from "./table-category-content-service.js";
+import {
     setTableChildWeight
 } from "./table-profile-relations-service.js";
 import {
@@ -913,7 +917,10 @@ function nativeItemWeight(
 function eligibleEntries(
     profile,
     uuids,
-    sourceItemRules = null
+    sourceItemRules = null,
+    {
+        preserveManualInclusions = false
+    } = {}
 ) {
     const hidden = new Set(
         StorageService.getHiddenUuids()
@@ -922,8 +929,11 @@ function eligibleEntries(
         profile?.manualExcludes ?? []
     );
     const excludeZeroPrice =
-        profile?.itemRules?.excludeZeroPrice === true ||
-        sourceItemRules?.excludeZeroPrice === true;
+        !preserveManualInclusions &&
+        (
+            profile?.itemRules?.excludeZeroPrice === true ||
+            sourceItemRules?.excludeZeroPrice === true
+        );
 
     return prepareDnd5eIndexedEntries(
         uuids
@@ -1043,17 +1053,36 @@ function ownSources(
         if (!filterGroup)
             continue;
 
-        const entries = dedupe(
-            eligibleEntries(
-                profile,
-                filterGroup.matches ?? [],
-                filterGroup.itemRules
-            )
-                .map(entry => ({
-                    ...entry,
-                    origins: [filterGroup.name]
-                }))
-        );
+        const automaticEntries = eligibleEntries(
+            profile,
+            getCategoryAutomaticMatchUuids(
+                filterGroup
+            ),
+            filterGroup.itemRules
+        ).map(entry => ({
+            ...entry,
+            origins: [filterGroup.name]
+        }));
+        const manualEntries = eligibleEntries(
+            profile,
+            getCategoryManualIncludeUuids(
+                filterGroup
+            ),
+            null,
+            { preserveManualInclusions: true }
+        ).map(entry => ({
+            ...entry,
+            origins: [
+                filterGroup.name,
+                game.i18n.localize(
+                    "COMPENDIUM_CURATOR.ManualInclusions"
+                )
+            ]
+        }));
+        const entries = dedupe([
+            ...automaticEntries,
+            ...manualEntries
+        ]);
 
         const key = `filter:${filterGroupId}`;
         const criterion =
@@ -1094,7 +1123,9 @@ function ownSources(
         const entries = dedupe(
             eligibleEntries(
                 profile,
-                profile.directUuids ?? []
+                profile.directUuids ?? [],
+                null,
+                { preserveManualInclusions: true }
             ).map(entry => ({
                 ...entry,
                 origins: [
@@ -1347,11 +1378,19 @@ export async function buildDirectContentGenerationSources(
             .filter(Boolean);
 
         if (source.kind === "category") {
+            const manualUuids = new Set(
+                source.manualUuids ?? []
+            );
             resolvedProfile.filterGroupIds.push(source.id);
             resolvedFilterGroups[source.id] = {
                 id: source.id,
                 name: source.name,
-                matches: uuids
+                matches: uuids.filter(uuid =>
+                    !manualUuids.has(uuid)
+                ),
+                manualIncludes: uuids.filter(uuid =>
+                    manualUuids.has(uuid)
+                )
             };
         }
         else if (
@@ -1418,15 +1457,32 @@ function buildReadOnlyDirectBranches(
                         const filterGroup =
                             filterGroups?.[filterGroupId];
 
-                        return eligibleEntries(
-                            child,
-                            filterGroup?.matches ?? [],
-                            filterGroup?.itemRules
-                        );
+                        return [
+                            ...eligibleEntries(
+                                child,
+                                getCategoryAutomaticMatchUuids(
+                                    filterGroup
+                                ),
+                                filterGroup?.itemRules
+                            ),
+                            ...eligibleEntries(
+                                child,
+                                getCategoryManualIncludeUuids(
+                                    filterGroup
+                                ),
+                                null,
+                                {
+                                    preserveManualInclusions:
+                                        true
+                                }
+                            )
+                        ];
                     }),
                 ...eligibleEntries(
                     child,
-                    child?.directUuids ?? []
+                    child?.directUuids ?? [],
+                    null,
+                    { preserveManualInclusions: true }
                 )
             ]
         );
@@ -1466,16 +1522,23 @@ function buildReadOnlyDirectBranches(
         if (!filterGroup)
             continue;
 
-        const entries = dedupe(
-            eligibleEntries(
+        const entries = dedupe([
+            ...eligibleEntries(
                 child,
-                [
-                    ...(filterGroup.matches ?? []),
-                    ...(filterGroup.manualIncludes ?? [])
-                ],
+                getCategoryAutomaticMatchUuids(
+                    filterGroup
+                ),
                 filterGroup.itemRules
+            ),
+            ...eligibleEntries(
+                child,
+                getCategoryManualIncludeUuids(
+                    filterGroup
+                ),
+                null,
+                { preserveManualInclusions: true }
             )
-        );
+        ]);
 
         const key = `filter:${filterGroupId}`;
 
@@ -1501,7 +1564,9 @@ function buildReadOnlyDirectBranches(
     ) {
         const manualCount = eligibleEntries(
             child,
-            child.directUuids
+            child.directUuids,
+            null,
+            { preserveManualInclusions: true }
         ).length;
 
         branches.push({
