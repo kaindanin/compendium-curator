@@ -360,8 +360,16 @@ function ownSources(profile, filterGroups) {
     for (const id of ids) {
         const filterGroup = filterGroups?.[id];
         if (!filterGroup) continue;
+        const categoryExcludesZeroPrice =
+            filterGroup?.itemRules
+                ?.excludeZeroPrice === true;
         const entries = dedupe(
             eligible(filterGroup.matches ?? [])
+                .filter(entry =>
+                    !categoryExcludesZeroPrice ||
+                    entry.documentName !== "Item" ||
+                    entry.hasPositivePrice
+                )
                 .map(entry => ({
                     ...entry,
                     origins: [filterGroup.name]

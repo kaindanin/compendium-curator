@@ -61,6 +61,56 @@ function hasRangeValue(value) {
 
 }
 
+function candidateDocumentName(candidate) {
+    const directName = String(
+        candidate?.documentName ??
+        candidate?.constructor?.documentName ??
+        ""
+    ).trim();
+
+    if (directName)
+        return directName;
+
+    const uuid = String(
+        candidate?.uuid ?? ""
+    ).trim();
+    const parts = uuid.split(".");
+
+    if (
+        parts[0] === "Compendium" &&
+        parts.length >= 4
+    ) {
+        return String(
+            game.packs.get(
+                `${parts[1]}.${parts[2]}`
+            )?.documentName ?? ""
+        ).trim();
+    }
+
+    return String(parts[0] ?? "").trim();
+}
+
+function candidatePassesItemRules(
+    candidate,
+    itemRules
+) {
+    if (
+        itemRules?.excludeZeroPrice !== true ||
+        candidateDocumentName(candidate) !== "Item"
+    ) {
+        return true;
+    }
+
+    return Number(
+        candidate?.system?.price?.value
+    ) > 0 && Boolean(
+        String(
+            candidate?.system?.price
+                ?.denomination ?? ""
+        ).trim()
+    );
+}
+
 
 function compactBrowserFilters(filters) {
 
@@ -2190,6 +2240,20 @@ export class TableProfileService {
                     ) {
                         manualIncludedCount++;
                     }
+                }
+            }
+
+            for (
+                const [uuid, candidate]
+                of groupCandidates
+            ) {
+                if (
+                    !candidatePassesItemRules(
+                        candidate,
+                        filterGroup?.itemRules
+                    )
+                ) {
+                    groupCandidates.delete(uuid);
                 }
             }
 

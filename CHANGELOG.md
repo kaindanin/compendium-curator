@@ -9,6 +9,7 @@
 - Added a table-level “No grouping / By groups” mode that either merges Categories and manual inclusions into one deduplicated local branch or keeps them separate, while linked tables remain independent.
 - Added direct access to table defaults from Foundry's module settings.
 - Added nested filter groups inside reusable categories, including a live Compendium Browser editor, zero-match groups, and per-group edit, duplicate, and delete actions.
+- Added reusable Category rules and the live two-list inclusion manager already used by tables.
 
 ### Improvements
 
@@ -26,6 +27,7 @@
 - Made table inclusions more visible and added live selected/available counters plus bulk selection controls.
 - Redesigned table inclusions as two synchronized lists: live Browser results and a persistent draft selection that remains stable while filters, searches, and tabs change.
 - Aligned table inclusions and distribution controls with the Table Manager's neutral base styling.
+- Nested Category filter groups and inclusions under Content, and moved each table's local distribution mode into the Content heading.
 
 ### Reliability
 

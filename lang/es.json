@@ -259,7 +259,7 @@
     "ImportedUnavailableObjects": "La importación contiene {count} objetos no disponibles. No se generarán resultados rotos. Revisa: {packs}.",
     "MissingDocuments": "documentos ausentes",
     "UnavailableProfileObjects": "{count} objetos no están disponibles en este mundo y se omitirán al generar la tabla.",
-    "ItemRules": "Reglas de objetos",
+    "ItemRules": "Reglas",
     "DirectObjects": "Objetos directos",
     "ManageDirectObjects": "Gestionar objetos directos",
     "DirectObjectsHint": "Los objetos marcados se añaden explícitamente a esta tabla. La lista incluye las coincidencias actuales del Navegador y los objetos directos ya guardados.",

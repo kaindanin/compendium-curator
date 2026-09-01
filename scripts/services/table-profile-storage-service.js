@@ -1428,18 +1428,25 @@ export class TableProfileStorageService {
         };
     }
 
-    static #normalizeItemRules(profile) {
+    static #normalizeItemRulesValue(value) {
         const source =
-            profile?.itemRules &&
-            typeof profile.itemRules === "object" &&
-            !Array.isArray(profile.itemRules)
-                ? profile.itemRules
+            value &&
+            typeof value === "object" &&
+            !Array.isArray(value)
+                ? value
                 : {};
 
-        profile.itemRules = {
+        return {
             excludeZeroPrice:
                 source.excludeZeroPrice === true
         };
+    }
+
+    static #normalizeItemRules(profile) {
+        profile.itemRules =
+            this.#normalizeItemRulesValue(
+                profile?.itemRules
+            );
     }
 
     static #createFilterGroupRecord(
@@ -1513,7 +1520,11 @@ export class TableProfileStorageService {
                     ? this.#normalizeMatches(
                         filterGroup.manualIncludes
                     )
-                    : []
+                    : [],
+            itemRules:
+                this.#normalizeItemRulesValue(
+                    filterGroup?.itemRules
+                )
         };
 
         storage.filterGroups[id] =
@@ -1923,6 +1934,10 @@ export class TableProfileStorageService {
                             sourceGroup.manualIncludes
                         )
                         : [],
+                itemRules:
+                    this.#normalizeItemRulesValue(
+                        sourceGroup?.itemRules
+                    ),
                 revision:
                     Number(
                         sourceGroup?.revision ?? 1
@@ -2027,6 +2042,14 @@ export class TableProfileStorageService {
                             this.#normalizeCategoryGroups(
                                 groupId,
                                 sourceGroup
+                            ),
+                        manualIncludes:
+                            this.#normalizeMatches(
+                                sourceGroup.manualIncludes
+                            ),
+                        itemRules:
+                            this.#normalizeItemRulesValue(
+                                sourceGroup.itemRules
                             ),
                         revision: Number(
                             sourceGroup.revision ?? 1
@@ -2893,6 +2916,62 @@ export class TableProfileStorageService {
 
         return foundry.utils.deepClone(
             filterGroup
+        );
+    }
+
+    static async setFilterGroupExcludeZeroPrice(
+        filterGroupId,
+        excludeZeroPrice
+    ) {
+        const storage =
+            foundry.utils.deepClone(
+                this.getStorage()
+            );
+        const filterGroup =
+            storage.filterGroups?.[filterGroupId];
+
+        if (!filterGroup) {
+            throw new Error(
+                "TABLE_FILTER_GROUP_NOT_FOUND"
+            );
+        }
+
+        const requested =
+            excludeZeroPrice === true;
+
+        if (
+            filterGroup.itemRules
+                ?.excludeZeroPrice === requested
+        ) {
+            return foundry.utils.deepClone(
+                filterGroup
+            );
+        }
+
+        filterGroup.itemRules = {
+            ...foundry.utils.deepClone(
+                filterGroup.itemRules ?? {}
+            ),
+            excludeZeroPrice: requested
+        };
+        this.#touchCategoryProfiles(
+            storage,
+            filterGroupId
+        );
+
+        const normalizedStorage =
+            this.#normalizeStorage(storage);
+
+        await game.settings.set(
+            MODULE_ID,
+            TABLE_PROFILES_SETTING,
+            normalizedStorage
+        );
+
+        return foundry.utils.deepClone(
+            normalizedStorage.filterGroups[
+                filterGroupId
+            ]
         );
     }
 

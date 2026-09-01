@@ -259,7 +259,7 @@
     "ImportedUnavailableObjects": "The import contains {count} unavailable items. Broken results will not be generated. Check: {packs}.",
     "MissingDocuments": "missing documents",
     "UnavailableProfileObjects": "{count} items are unavailable in this world and will be skipped when generating the table.",
-    "ItemRules": "Item rules",
+    "ItemRules": "Rules",
     "DirectObjects": "Direct objects",
     "ManageDirectObjects": "Manage direct objects",
     "DirectObjectsHint": "Checked objects are explicitly added to this table. The list includes the current Compendium Browser matches and previously saved direct objects.",

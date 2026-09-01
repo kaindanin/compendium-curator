@@ -111,6 +111,10 @@ test("migrates each legacy category into one deterministic group", async () => {
     assert.deepEqual(category.groups[0].matches, [
         "Compendium.test.items.Item.a"
     ]);
+    assert.equal(
+        category.itemRules.excludeZeroPrice,
+        false
+    );
     assert.deepEqual(
         TableProfileStorageService
             .getProfiles().shop
@@ -191,6 +195,29 @@ test("stores zero-match groups and validates names inside their category", async
     );
 });
 
+test("stores category item rules and invalidates linked tables", async () => {
+    const before =
+        TableProfileStorageService
+            .getProfiles().shop.revision;
+
+    await TableProfileStorageService
+        .setFilterGroupExcludeZeroPrice(
+            "magic",
+            true
+        );
+
+    assert.equal(
+        TableProfileStorageService
+            .getFilterGroup("magic")
+            .itemRules.excludeZeroPrice,
+        true
+    );
+    assert.ok(
+        TableProfileStorageService
+            .getProfiles().shop.revision > before
+    );
+});
+
 test("exports the category hierarchy with bundle version 4", () => {
     const bundle = TableProfileStorageService
         .exportProfileBundle("shop");
@@ -202,6 +229,11 @@ test("exports the category hierarchy with bundle version 4", () => {
     assert.equal(
         bundle.filterGroups.magic.matches,
         undefined
+    );
+    assert.equal(
+        bundle.filterGroups.magic
+            .itemRules.excludeZeroPrice,
+        true
     );
 });
 
@@ -329,6 +361,68 @@ test("combines groups with OR and deduplicates categories by UUID", async () => 
         TableProfileService.getBrowserCandidates =
             original;
         globalThis.fromUuid = originalFromUuid;
+    }
+});
+
+test("applies category item rules before exposing the category to a table", async () => {
+    const original =
+        TableProfileService.getBrowserCandidates;
+    const priced = {
+        uuid: "Compendium.test.items.Item.priced",
+        documentName: "Item",
+        name: "Priced",
+        system: {
+            price: {
+                value: 5,
+                denomination: "gp"
+            }
+        }
+    };
+    const free = {
+        uuid: "Compendium.test.items.Item.free",
+        documentName: "Item",
+        name: "Free",
+        system: {
+            price: {
+                value: 0,
+                denomination: "gp"
+            }
+        }
+    };
+
+    TableProfileService.getBrowserCandidates =
+        async () => [priced, free];
+
+    try {
+        const preview = await TableProfileService
+            .getProfilePreview({}, {
+                filterGroups: [{
+                    id: "priced-category",
+                    name: "Con precio",
+                    itemRules: {
+                        excludeZeroPrice: true
+                    },
+                    groups: [{
+                        browser: {
+                            filters: {
+                                documentClass: "Item"
+                            }
+                        }
+                    }]
+                }]
+            });
+
+        assert.deepEqual(
+            preview.candidates.map(
+                candidate => candidate.uuid
+            ),
+            [priced.uuid]
+        );
+        assert.equal(preview.groups[0].count, 1);
+    }
+    finally {
+        TableProfileService.getBrowserCandidates =
+            original;
     }
 });
 

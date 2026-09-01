@@ -910,7 +910,11 @@ function nativeItemWeight(
     );
 }
 
-function eligibleEntries(profile, uuids) {
+function eligibleEntries(
+    profile,
+    uuids,
+    sourceItemRules = null
+) {
     const hidden = new Set(
         StorageService.getHiddenUuids()
     );
@@ -918,7 +922,8 @@ function eligibleEntries(profile, uuids) {
         profile?.manualExcludes ?? []
     );
     const excludeZeroPrice =
-        profile?.itemRules?.excludeZeroPrice === true;
+        profile?.itemRules?.excludeZeroPrice === true ||
+        sourceItemRules?.excludeZeroPrice === true;
 
     return prepareDnd5eIndexedEntries(
         uuids
@@ -1041,7 +1046,8 @@ function ownSources(
         const entries = dedupe(
             eligibleEntries(
                 profile,
-                filterGroup.matches ?? []
+                filterGroup.matches ?? [],
+                filterGroup.itemRules
             )
                 .map(entry => ({
                     ...entry,
@@ -1406,17 +1412,23 @@ function buildReadOnlyDirectBranches(
             LOCAL_MODE_FLAT
     ) {
         const localEntries = dedupe(
-            eligibleEntries(
-                child,
-                [
-                    ...(child?.filterGroupIds ?? [])
-                        .flatMap(filterGroupId =>
-                            filterGroups?.[filterGroupId]
-                                ?.matches ?? []
-                        ),
-                    ...(child?.directUuids ?? [])
-                ]
-            )
+            [
+                ...(child?.filterGroupIds ?? [])
+                    .flatMap(filterGroupId => {
+                        const filterGroup =
+                            filterGroups?.[filterGroupId];
+
+                        return eligibleEntries(
+                            child,
+                            filterGroup?.matches ?? [],
+                            filterGroup?.itemRules
+                        );
+                    }),
+                ...eligibleEntries(
+                    child,
+                    child?.directUuids ?? []
+                )
+            ]
         );
 
         branches.push({
@@ -1460,7 +1472,8 @@ function buildReadOnlyDirectBranches(
                 [
                     ...(filterGroup.matches ?? []),
                     ...(filterGroup.manualIncludes ?? [])
-                ]
+                ],
+                filterGroup.itemRules
             )
         );
 
@@ -2687,34 +2700,6 @@ function renderEditor(
                 gap:0.55rem;
             "
         >
-            <div class="cc-table-filter-detail-block cc-table-content-distribution-mode">
-                <span class="cc-table-content-distribution-icon">
-                    <i class="fas fa-chart-simple"></i>
-                </span>
-                <span class="cc-table-content-distribution-copy">
-                    <strong>${esc(game.i18n.localize(
-                        "COMPENDIUM_CURATOR.DistributionMode"
-                    ))}</strong>
-                    <span class="hint">${esc(game.i18n.localize(
-                        localContentMode(profile) === LOCAL_MODE_FLAT
-                            ? "COMPENDIUM_CURATOR.ContentDistributionFlatHint"
-                            : "COMPENDIUM_CURATOR.ContentDistributionGroupedHint"
-                    ))}</span>
-                </span>
-                <select data-cc-content-local-mode>
-                    <option value="flat" ${localContentMode(profile) === LOCAL_MODE_FLAT ? "selected" : ""}>
-                        ${esc(game.i18n.localize(
-                            "COMPENDIUM_CURATOR.ContentDistributionFlat"
-                        ))}
-                    </option>
-                    <option value="grouped" ${localContentMode(profile) === LOCAL_MODE_GROUPED ? "selected" : ""}>
-                        ${esc(game.i18n.localize(
-                            "COMPENDIUM_CURATOR.ContentDistributionGrouped"
-                        ))}
-                    </option>
-                </select>
-            </div>
-
             <details
                 class="cc-table-filter-detail-block cc-table-content-section"
                 data-cc-content-section
@@ -2727,15 +2712,46 @@ function renderEditor(
                             "COMPENDIUM_CURATOR.TableManagerTabContent"
                         ))}
                     </span>
-                    <strong class="cc-table-content-object-count">
-                        ${esc(game.i18n.format(
-                            "COMPENDIUM_CURATOR.GroupObjectCount",
-                            { count: totalCount }
-                        ))}
-                    </strong>
+                    <span class="cc-table-content-summary-controls">
+                        <span class="hint">
+                            ${esc(game.i18n.localize(
+                                "COMPENDIUM_CURATOR.DistributionMode"
+                            ))}
+                        </span>
+                        <select
+                            data-cc-content-local-mode
+                            aria-label="${esc(game.i18n.localize(
+                                "COMPENDIUM_CURATOR.DistributionMode"
+                            ))}"
+                        >
+                            <option value="flat" ${localContentMode(profile) === LOCAL_MODE_FLAT ? "selected" : ""}>
+                                ${esc(game.i18n.localize(
+                                    "COMPENDIUM_CURATOR.ContentDistributionFlat"
+                                ))}
+                            </option>
+                            <option value="grouped" ${localContentMode(profile) === LOCAL_MODE_GROUPED ? "selected" : ""}>
+                                ${esc(game.i18n.localize(
+                                    "COMPENDIUM_CURATOR.ContentDistributionGrouped"
+                                ))}
+                            </option>
+                        </select>
+                        <strong class="cc-table-content-object-count">
+                            ${esc(game.i18n.format(
+                                "COMPENDIUM_CURATOR.GroupObjectCount",
+                                { count: totalCount }
+                            ))}
+                        </strong>
+                    </span>
                 </summary>
 
                 <div class="cc-table-content-list">
+                    <p class="hint cc-table-content-distribution-hint">
+                        ${esc(game.i18n.localize(
+                            localContentMode(profile) === LOCAL_MODE_FLAT
+                                ? "COMPENDIUM_CURATOR.ContentDistributionFlatHint"
+                                : "COMPENDIUM_CURATOR.ContentDistributionGroupedHint"
+                        ))}
+                    </p>
                     ${sources.length
                         ? sources.map(source => {
                             if (source.type === "table") {

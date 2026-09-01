@@ -31,14 +31,30 @@ export class TableProfileDirectObjectsApplication
     constructor(
         browserApp,
         managerApp,
-        profileId,
+        targetId,
         options = {}
     ) {
-        super(options);
+        const {
+            targetType = "profile",
+            ...applicationOptions
+        } = options;
+
+        super(applicationOptions);
 
         this.browserApp = browserApp;
         this.managerApp = managerApp;
-        this.profileId = profileId;
+        this.targetType =
+            targetType === "category"
+                ? "category"
+                : "profile";
+        this.profileId =
+            this.targetType === "profile"
+                ? targetId
+                : null;
+        this.filterGroupId =
+            this.targetType === "category"
+                ? targetId
+                : null;
 
         this._selection = null;
         this._browserCandidates = [];
@@ -320,17 +336,27 @@ export class TableProfileDirectObjectsApplication
     async _prepareContext(options) {
         const context = await super
             ._prepareContext(options);
-        const profile = TableProfileStorageService
-            .getProfiles()?.[this.profileId];
+        const target =
+            this.targetType === "category"
+                ? TableProfileStorageService
+                    .getFilterGroup(
+                        this.filterGroupId
+                    )
+                : TableProfileStorageService
+                    .getProfiles()?.[
+                        this.profileId
+                    ];
 
-        if (!profile) {
+        if (!target) {
             context.exists = false;
             return context;
         }
 
         this._selection ??=
             new TableDirectInclusionSelection(
-                profile.directUuids ?? []
+                this.targetType === "category"
+                    ? target.manualIncludes ?? []
+                    : target.directUuids ?? []
             );
 
         const availableCandidates =
@@ -344,7 +370,7 @@ export class TableProfileDirectObjectsApplication
             this._selection.values();
 
         context.exists = true;
-        context.profileName = profile.name;
+        context.profileName = target.name;
         context.candidates =
             prepareDnd5eIndexedEntries(
                 availableUuids
@@ -424,11 +450,20 @@ export class TableProfileDirectObjectsApplication
         if (!this._selection)
             return;
 
-        await TableProfileStorageService
-            .setDirectUuids(
-                this.profileId,
-                this._selection.values()
-            );
+        if (this.targetType === "category") {
+            await TableProfileStorageService
+                .setFilterGroupManualIncludes(
+                    this.filterGroupId,
+                    this._selection.values()
+                );
+        }
+        else {
+            await TableProfileStorageService
+                .setDirectUuids(
+                    this.profileId,
+                    this._selection.values()
+                );
+        }
 
         ui.notifications.info(
             game.i18n.localize(

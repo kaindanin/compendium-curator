@@ -3,7 +3,6 @@ import { TableProfileStorageService } from "../services/table-profile-storage-se
 import { TableFilterGroupApplication } from "./table-filter-group-application.js";
 import { TableProfileExclusionsApplication } from "./table-profile-exclusions-application.js";
 import { TableProfileDirectObjectsApplication } from "./table-profile-direct-objects-application.js";
-import { TableFilterGroupInclusionsApplication } from "./table-profile-inclusions-application.js";
 import { TableGroupingRangeApplication } from "./table-grouping-range-application.js";
 import { TableManualGroupingApplication } from "./table-manual-grouping-application.js";
 import { TableProfileService } from "../services/table-profile-service.js";
@@ -2724,7 +2723,7 @@ export class TableManagerApplication
                         filterGroup.id
                     );
                 const categoryUuids = new Set();
-                const categoryGroups = Array.from(
+                const rawCategoryGroups = Array.from(
                     filterGroup.groups ?? []
                 ).map(group => {
                     const groupKey =
@@ -2746,6 +2745,58 @@ export class TableManagerApplication
                     for (const uuid of matchUuids)
                         categoryUuids.add(uuid);
 
+                    return {
+                        group,
+                        groupOpen,
+                        manualIncludes,
+                        matchUuids
+                    };
+                });
+
+                const manualUuids = [
+                    ...new Set(
+                        filterGroup.manualIncludes ?? []
+                    )
+                ];
+
+                for (const uuid of manualUuids)
+                    categoryUuids.add(uuid);
+
+                const rawEntries =
+                    prepareDnd5eIndexedEntries(
+                        [...categoryUuids]
+                    ).filter(entry =>
+                        entry.available !== false
+                    );
+                const excludeZeroPrice =
+                    filterGroup?.itemRules
+                        ?.excludeZeroPrice === true;
+                const eligibleEntries =
+                    excludeZeroPrice
+                        ? rawEntries.filter(entry =>
+                            entry.documentName !== "Item" ||
+                            entry.hasPositivePrice
+                        )
+                        : rawEntries;
+                const eligibleUuids = new Set(
+                    eligibleEntries.map(entry =>
+                        entry.uuid
+                    )
+                );
+                const priceExcludedCount =
+                    rawEntries.length -
+                    eligibleEntries.length;
+                const categoryGroups =
+                    rawCategoryGroups.map(({
+                        group,
+                        groupOpen,
+                        manualIncludes,
+                        matchUuids
+                    }) => {
+                    const visibleUuids =
+                        matchUuids.filter(uuid =>
+                            eligibleUuids.has(uuid)
+                        );
                     const displayFilters = groupOpen
                         ? TableProfileService
                             .getFilterDisplayGroups(
@@ -2755,7 +2806,7 @@ export class TableManagerApplication
                         : [];
                     const matches = groupOpen
                         ? prepareDnd5eIndexedEntries(
-                            matchUuids
+                            visibleUuids
                         ).map(entry => ({
                             ...entry,
                             manuallyIncluded:
@@ -2768,17 +2819,21 @@ export class TableManagerApplication
                     return {
                         id: group.id,
                         name: group.name,
-                        matchCount: matchUuids.length,
+                        matchCount: visibleUuids.length,
                         detailsOpen: groupOpen,
                         displayFilters,
                         hasFilters:
                             displayFilters.length > 0,
                         matches,
                         hasMatches:
-                            matchUuids.length > 0
+                            visibleUuids.length > 0
                     };
                 });
-                const matchCount = categoryUuids.size;
+                const matchCount = eligibleUuids.size;
+                const manualObjects =
+                    prepareDnd5eIndexedEntries(
+                        manualUuids
+                    );
 
                 return {
                     id: filterGroup.id,
@@ -2786,6 +2841,34 @@ export class TableManagerApplication
                     matchCount,
                     groupCount: categoryGroups.length,
                     groups: categoryGroups,
+                    manualObjectCount:
+                        manualUuids.length,
+                    hasManualObjects:
+                        manualUuids.length > 0,
+                    manualObjects:
+                        manualObjects.slice(
+                            0,
+                            CONTENT_INSPECTOR_ENTRY_LIMIT
+                        ),
+                    manualObjectsTruncated:
+                        manualObjects.length >
+                            CONTENT_INSPECTOR_ENTRY_LIMIT,
+                    excludeZeroPrice,
+                    priceExcludedCount,
+                    hasPriceExcluded:
+                        priceExcludedCount > 0,
+                    hasItemDocuments:
+                        rawEntries.some(entry =>
+                            entry.documentName === "Item"
+                        ),
+                    rulesOpen:
+                        this._openFilterGroupSections.has(
+                            `${filterGroup.id}:rules`
+                        ),
+                    inclusionsOpen:
+                        this._openFilterGroupSections.has(
+                            `${filterGroup.id}:inclusions`
+                        ),
                     useCount,
                     usedBy,
                     detailsOpen,
@@ -3007,6 +3090,75 @@ export class TableManagerApplication
                                 if (target.isConnected) {
                                     target.checked =
                                         profile?.itemRules
+                                            ?.excludeZeroPrice ===
+                                        true;
+                                }
+                            })
+                            .finally(() => {
+                                if (target.isConnected)
+                                    target.disabled = false;
+                            });
+                }
+            );
+        }
+
+        for (
+            const ruleInput
+            of this.element.querySelectorAll(
+                "[data-cc-category-exclude-zero-price]"
+            )
+        ) {
+            ruleInput.addEventListener(
+                "change",
+                event => {
+                    const target = event.currentTarget;
+                    const categoryElement =
+                        target.closest(
+                            "[data-filter-group-id]"
+                        );
+                    const filterGroupId =
+                        categoryElement?.dataset
+                            ?.filterGroupId;
+
+                    if (!filterGroupId)
+                        return;
+
+                    target.disabled = true;
+                    this._openFilterGroups.add(
+                        filterGroupId
+                    );
+                    this._openFilterGroupSections.add(
+                        `${filterGroupId}:rules`
+                    );
+
+                    this._distributionSaveQueue =
+                        this._distributionSaveQueue
+                            .catch(() => {})
+                            .then(() =>
+                                TableProfileStorageService
+                                    .setFilterGroupExcludeZeroPrice(
+                                        filterGroupId,
+                                        target.checked
+                                    )
+                            )
+                            .then(() =>
+                                this.render({ force: true })
+                            )
+                            .catch(error => {
+                                console.error(
+                                    "Compendium Curator | Error cambiando la regla de precio de la categoría.",
+                                    error
+                                );
+
+                                const category =
+                                    TableProfileStorageService
+                                        .getFilterGroup(
+                                            filterGroupId
+                                        );
+
+                                if (target.isConnected) {
+                                    target.checked =
+                                        category?.itemRules
                                             ?.excludeZeroPrice ===
                                         true;
                                 }
@@ -4837,10 +4989,15 @@ export class TableManagerApplication
         }
 
         this._filterGroupInclusions =
-            new TableFilterGroupInclusionsApplication(
+            new TableProfileDirectObjectsApplication(
                 this.browserApp,
                 this,
-                filterGroupId
+                filterGroupId,
+                {
+                    id:
+                        "compendium-curator-table-category-inclusions",
+                    targetType: "category"
+                }
             );
 
         this._filterGroupInclusions.render({
