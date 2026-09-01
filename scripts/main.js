@@ -45,6 +45,9 @@ import {
 import {
     registerTableManagerBulkActions
 } from "./services/table-manager-bulk-actions-service.js";
+import {
+    registerItemSheetOverridePrototype
+} from "./hooks/item-sheet-overrides.js";
 
 Hooks.once("init", () => {
 
@@ -67,6 +70,7 @@ Hooks.once("init", () => {
     registerTableManagerFolders();
     registerTableManagerFilterGroupFolders();
     registerTableManagerBulkActions();
+    registerItemSheetOverridePrototype();
 
     debug("Settings registradas");
 

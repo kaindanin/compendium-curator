@@ -2870,3 +2870,86 @@
     p:last-child {
     margin-bottom: 0;
 }
+
+
+/* ==========================================================================
+   Object Override prototype
+   ========================================================================== */
+
+.cc-item-override-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    min-height: 38px;
+    padding: 0.35rem 0.6rem;
+
+    color: var(--color-text-primary);
+    background: var(--dnd5e-background-texture-denim);
+    border-bottom: 1px solid rgb(255 255 255 / 10%);
+}
+
+
+.cc-item-override-status {
+    margin-right: auto;
+
+    font-family: var(--dnd5e-font-roboto-slab);
+    font-weight: 700;
+}
+
+
+.cc-item-override-view-switch,
+.cc-item-override-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+
+.cc-item-override-toolbar button {
+    width: auto;
+    min-height: 28px;
+    margin: 0;
+    padding: 0.2rem 0.55rem;
+}
+
+
+.cc-item-override-view-switch button.active {
+    font-weight: 700;
+    box-shadow: inset 0 -2px 0 var(--color-warm-1);
+}
+
+
+.cc-item-override-original [data-action="changeMode"],
+.cc-item-override-modified [data-action="changeMode"] {
+    display: none !important;
+}
+
+
+.cc-override-control-blocked {
+    cursor: not-allowed;
+}
+
+
+.cc-override-locked-structure {
+    position: relative;
+}
+
+
+.cc-override-locked-notice {
+    margin: 0.5rem;
+    padding: 0.45rem 0.6rem;
+
+    border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 4px;
+}
+
+
+.cc-override-reset-field {
+    flex: 0 0 auto;
+
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    margin-left: 0.2rem;
+}
