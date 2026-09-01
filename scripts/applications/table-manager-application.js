@@ -2865,6 +2865,14 @@ export class TableManagerApplication
                         this._openFilterGroupSections.has(
                             `${filterGroup.id}:rules`
                         ),
+                    contentOpen:
+                        this._openFilterGroupSections.has(
+                            `${filterGroup.id}:content`
+                        ),
+                    groupsOpen:
+                        this._openFilterGroupSections.has(
+                            `${filterGroup.id}:groups`
+                        ),
                     inclusionsOpen:
                         this._openFilterGroupSections.has(
                             `${filterGroup.id}:inclusions`
@@ -4136,6 +4144,9 @@ export class TableManagerApplication
                 continue;
 
             const key = `${filterGroupId}:${section}`;
+            const needsLazyRender = details.matches(
+                ".cc-table-category-group"
+            );
 
             if (details.open)
                 this._openFilterGroupSections.add(key);
@@ -4147,7 +4158,7 @@ export class TableManagerApplication
                             .has(key);
                     this._openFilterGroupSections.add(key);
 
-                    if (!wasLoaded) {
+                    if (!wasLoaded && needsLazyRender) {
                         this.render({ force: true });
                     }
                 }

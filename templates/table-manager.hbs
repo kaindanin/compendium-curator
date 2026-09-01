@@ -180,9 +180,68 @@
 
                             <div class="cc-table-manager-content-inspector cc-table-manager-filter-group-inspector">
                                 <details
+                                    class="cc-table-filter-detail-block cc-table-item-rules"
+                                    data-filter-group-section="rules"
+                                    {{#if rulesOpen}}open{{/if}}
+                                >
+                                    <summary class="cc-table-section-summary">
+                                        <span>
+                                            <i class="fas fa-chevron-down"></i>
+                                            <i class="fas fa-tags"></i>
+                                            {{localize "COMPENDIUM_CURATOR.ItemRules"}}
+                                        </span>
+                                    </summary>
+
+                                    <div class="cc-table-item-rules-list">
+                                        <div class="cc-table-item-rule cc-table-manual-inclusions-rule">
+                                            <span class="cc-table-manual-inclusions-icon"><i class="fas fa-thumbtack"></i></span>
+                                            <span class="cc-table-item-rule-content">
+                                                <span class="cc-table-manual-inclusions-title">
+                                                    <strong>{{localize "COMPENDIUM_CURATOR.ManualInclusions"}}</strong>
+                                                    <span class="cc-table-manual-inclusions-count">
+                                                        {{localize "COMPENDIUM_CURATOR.GroupObjectCount" count=manualObjectCount}}
+                                                    </span>
+                                                </span>
+                                                <span class="hint">{{localize "COMPENDIUM_CURATOR.ManualInclusionsHint"}}</span>
+                                            </span>
+                                            <button type="button" data-action="filterGroupInclusions">
+                                                <i class="fas fa-pen"></i>
+                                                {{localize "COMPENDIUM_CURATOR.ManageManualInclusions"}}
+                                            </button>
+                                        </div>
+
+                                        <label class="cc-table-item-rule" for="cc-category-exclude-zero-price-{{id}}">
+                                            <input
+                                                id="cc-category-exclude-zero-price-{{id}}"
+                                                type="checkbox"
+                                                data-cc-category-exclude-zero-price
+                                                {{#if excludeZeroPrice}}checked{{/if}}
+                                                {{#unless hasItemDocuments}}disabled{{/unless}}
+                                            >
+                                            <span class="cc-table-item-rule-content">
+                                                <strong>{{localize "COMPENDIUM_CURATOR.ExcludeZeroPrice"}}</strong>
+                                                <span class="hint">{{localize "COMPENDIUM_CURATOR.ExcludeZeroPriceHint"}}</span>
+                                                {{#unless hasItemDocuments}}
+                                                    <span class="hint cc-table-item-rule-unavailable">
+                                                        <i class="fas fa-circle-info"></i>
+                                                        {{localize "COMPENDIUM_CURATOR.ItemRulesUnavailableHint"}}
+                                                    </span>
+                                                {{/unless}}
+                                                {{#if hasPriceExcluded}}
+                                                    <span class="hint cc-table-item-rule-result">
+                                                        <i class="fas fa-filter-circle-xmark"></i>
+                                                        {{localize "COMPENDIUM_CURATOR.ZeroPriceExcludedCount" count=priceExcludedCount}}
+                                                    </span>
+                                                {{/if}}
+                                            </span>
+                                        </label>
+                                    </div>
+                                </details>
+
+                                <details
                                     class="cc-table-filter-detail-block"
                                     data-filter-group-section="content"
-                                    open
+                                    {{#if contentOpen}}open{{/if}}
                                 >
                                     <summary>
                                         <span>
@@ -197,7 +256,7 @@
                                         <details
                                             class="cc-table-category-content-section"
                                             data-filter-group-section="groups"
-                                            open
+                                            {{#if groupsOpen}}open{{/if}}
                                         >
                                             <summary class="cc-table-section-summary">
                                                 <span>
@@ -376,65 +435,6 @@
                                                 {{/if}}
                                             </div>
                                         </details>
-                                    </div>
-                                </details>
-
-                                <details
-                                    class="cc-table-filter-detail-block cc-table-item-rules"
-                                    data-filter-group-section="rules"
-                                    {{#if rulesOpen}}open{{/if}}
-                                >
-                                    <summary class="cc-table-section-summary">
-                                        <span>
-                                            <i class="fas fa-chevron-down"></i>
-                                            <i class="fas fa-tags"></i>
-                                            {{localize "COMPENDIUM_CURATOR.ItemRules"}}
-                                        </span>
-                                    </summary>
-
-                                    <div class="cc-table-item-rules-list">
-                                        <div class="cc-table-item-rule cc-table-manual-inclusions-rule">
-                                            <span class="cc-table-manual-inclusions-icon"><i class="fas fa-thumbtack"></i></span>
-                                            <span class="cc-table-item-rule-content">
-                                                <span class="cc-table-manual-inclusions-title">
-                                                    <strong>{{localize "COMPENDIUM_CURATOR.ManualInclusions"}}</strong>
-                                                    <span class="cc-table-manual-inclusions-count">
-                                                        {{localize "COMPENDIUM_CURATOR.GroupObjectCount" count=manualObjectCount}}
-                                                    </span>
-                                                </span>
-                                                <span class="hint">{{localize "COMPENDIUM_CURATOR.ManualInclusionsHint"}}</span>
-                                            </span>
-                                            <button type="button" data-action="filterGroupInclusions">
-                                                <i class="fas fa-pen"></i>
-                                                {{localize "COMPENDIUM_CURATOR.ManageManualInclusions"}}
-                                            </button>
-                                        </div>
-
-                                        <label class="cc-table-item-rule" for="cc-category-exclude-zero-price-{{id}}">
-                                            <input
-                                                id="cc-category-exclude-zero-price-{{id}}"
-                                                type="checkbox"
-                                                data-cc-category-exclude-zero-price
-                                                {{#if excludeZeroPrice}}checked{{/if}}
-                                                {{#unless hasItemDocuments}}disabled{{/unless}}
-                                            >
-                                            <span class="cc-table-item-rule-content">
-                                                <strong>{{localize "COMPENDIUM_CURATOR.ExcludeZeroPrice"}}</strong>
-                                                <span class="hint">{{localize "COMPENDIUM_CURATOR.ExcludeZeroPriceHint"}}</span>
-                                                {{#unless hasItemDocuments}}
-                                                    <span class="hint cc-table-item-rule-unavailable">
-                                                        <i class="fas fa-circle-info"></i>
-                                                        {{localize "COMPENDIUM_CURATOR.ItemRulesUnavailableHint"}}
-                                                    </span>
-                                                {{/unless}}
-                                                {{#if hasPriceExcluded}}
-                                                    <span class="hint cc-table-item-rule-result">
-                                                        <i class="fas fa-filter-circle-xmark"></i>
-                                                        {{localize "COMPENDIUM_CURATOR.ZeroPriceExcludedCount" count=priceExcludedCount}}
-                                                    </span>
-                                                {{/if}}
-                                            </span>
-                                        </label>
                                     </div>
                                 </details>
 

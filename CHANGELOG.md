@@ -37,6 +37,7 @@
 - Kept version 1, 2 and 3 table bundles and legacy complete backups importable; new table bundles export Category-level inclusions as version 4.
 - Prevented the custom hidden-state control from recursively redispatching its own change event during live browser synchronization.
 - Kept manual inclusions in direct-content generation and migrated existing direct profiles explicitly to the grouped layout.
+- Kept every Category disclosure independent and placed Rules before Content without reopening sibling sections during updates.
 
 ## 0.4.0
 
