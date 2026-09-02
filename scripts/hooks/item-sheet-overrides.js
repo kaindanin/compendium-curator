@@ -550,43 +550,44 @@ class ItemSheetOverrideController {
         const editing =
             this.view === "modified" &&
             this.session.editing;
-        const status = editing
-            ? localize("ObjectOverrideModifiedEditing")
-            : this.view === "modified"
-                ? localize("ObjectOverrideModified")
-                : localize("ObjectOverrideOriginal");
 
         return `
             <div class="cc-item-override-toolbar" data-cc-item-override-toolbar>
-                <span class="cc-item-override-status">${status}</span>
                 <div class="cc-item-override-view-switch" role="group"
                      aria-label="${localize("ObjectOverrideView")}">
                     <button type="button" data-cc-override-view="original"
-                        class="${this.view === "original" ? "active" : ""}"
+                        class="unbutton ${this.view === "original" ? "active" : ""}"
+                        aria-pressed="${this.view === "original"}"
                         ${editing ? "disabled" : ""}>
                         ${localize("ObjectOverrideOriginal")}
                     </button>
                     <button type="button" data-cc-override-view="modified"
-                        class="${this.view === "modified" ? "active" : ""}"
+                        class="unbutton ${this.view === "modified" ? "active" : ""}"
+                        aria-pressed="${this.view === "modified"}"
                         ${editing ? "disabled" : ""}>
                         ${localize("ObjectOverrideModified")}
                     </button>
                 </div>
+                ${editing ? `
+                    <span class="cc-item-override-status" aria-live="polite">
+                        ${localize("ObjectOverrideModifiedEditing")}
+                    </span>
+                ` : ""}
                 <div class="cc-item-override-actions">
                     ${this.view === "modified" && !editing ? `
-                        <button type="button" data-cc-override-edit>
+                        <button type="button" class="unbutton" data-cc-override-edit>
                             <i class="fa-solid fa-pen-to-square" inert></i>
                             ${localize("ObjectOverrideEdit")}
                         </button>
                     ` : ""}
                     ${editing ? `
-                        <button type="button" data-cc-override-cancel>
+                        <button type="button" class="unbutton" data-cc-override-cancel>
                             ${localize("Cancel")}
                         </button>
-                        <button type="button" data-cc-override-apply>
+                        <button type="button" class="unbutton" data-cc-override-apply>
                             ${localize("ObjectOverrideApply")}
                         </button>
-                        <button type="button" data-cc-override-reset-all>
+                        <button type="button" class="unbutton" data-cc-override-reset-all>
                             <i class="fa-solid fa-rotate-left" inert></i>
                             ${localize("ObjectOverrideResetAll")}
                         </button>
@@ -602,20 +603,18 @@ class ItemSheetOverrideController {
             .querySelector("[data-cc-item-override-toolbar]")
             ?.remove();
 
-        const header = app.element.querySelector(
-            ".window-header"
+        const content = app.element.querySelector(
+            ".window-content"
         );
 
-        header?.insertAdjacentHTML(
-            "afterend",
+        content?.insertAdjacentHTML(
+            "afterbegin",
             this._toolbarHtml()
         );
 
-        const toolbar = header?.nextElementSibling?.matches(
-            "[data-cc-item-override-toolbar]"
-        )
-            ? header.nextElementSibling
-            : null;
+        const toolbar = content?.querySelector(
+            ":scope > [data-cc-item-override-toolbar]"
+        );
 
         if (!toolbar)
             return;
