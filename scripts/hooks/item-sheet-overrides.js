@@ -31,8 +31,10 @@ const BLOCKED_SYNTHETIC_METHODS = [
 ];
 
 const SAFE_ACTIONS = new Set([
+    "changeMode",
     "close",
     "tab",
+    "toggleCollapsed",
     "toggleControls"
 ]);
 
@@ -261,7 +263,6 @@ class ItemSheetOverrideController {
 
         controllers.set(originalSheet, this);
         originalSheet._ccOverrideController = this;
-        setApplicationEditable(originalSheet, false);
     }
 
 
@@ -432,10 +433,14 @@ class ItemSheetOverrideController {
                 ? this.originalSheet
                 : this._createSyntheticDocument().sheet;
 
-            target._mode = PLAY_MODE;
+            if (view === "modified") {
+                target._mode = this.session.editing
+                    ? EDIT_MODE
+                    : PLAY_MODE;
+            }
 
             await target.render(true, {
-                mode: PLAY_MODE,
+                mode: target._mode ?? PLAY_MODE,
                 position: this._viewState.position
             });
 
@@ -480,6 +485,7 @@ class ItemSheetOverrideController {
             this.syntheticDocument.toObject()
         );
         this.session.apply();
+        this.syntheticSheet.editingDescriptionTarget = null;
         this.syntheticSheet._mode = PLAY_MODE;
 
         const state = captureViewState(this.syntheticSheet);
@@ -499,6 +505,7 @@ class ItemSheetOverrideController {
         this._replaceSyntheticSource(
             this.session.workingSource
         );
+        this.syntheticSheet.editingDescriptionTarget = null;
         this.syntheticSheet._mode = PLAY_MODE;
 
         const state = captureViewState(this.syntheticSheet);
@@ -546,78 +553,60 @@ class ItemSheetOverrideController {
     }
 
 
-    _toolbarHtml() {
-        const editing =
-            this.view === "modified" &&
-            this.session.editing;
+    _viewSwitchHtml() {
+        const disabled = this.session.editing
+            ? "disabled"
+            : "";
 
         return `
-            <div class="cc-item-override-toolbar" data-cc-item-override-toolbar>
-                <div class="cc-item-override-view-switch" role="group"
-                     aria-label="${localize("ObjectOverrideView")}">
-                    <button type="button" data-cc-override-view="original"
-                        class="unbutton ${this.view === "original" ? "active" : ""}"
-                        aria-pressed="${this.view === "original"}"
-                        ${editing ? "disabled" : ""}>
-                        ${localize("ObjectOverrideOriginal")}
-                    </button>
-                    <button type="button" data-cc-override-view="modified"
-                        class="unbutton ${this.view === "modified" ? "active" : ""}"
-                        aria-pressed="${this.view === "modified"}"
-                        ${editing ? "disabled" : ""}>
-                        ${localize("ObjectOverrideModified")}
-                    </button>
-                </div>
-                ${editing ? `
-                    <span class="cc-item-override-status" aria-live="polite">
-                        ${localize("ObjectOverrideModifiedEditing")}
-                    </span>
-                ` : ""}
-                <div class="cc-item-override-actions">
-                    ${this.view === "modified" && !editing ? `
-                        <button type="button" class="unbutton" data-cc-override-edit>
-                            <i class="fa-solid fa-pen-to-square" inert></i>
-                            ${localize("ObjectOverrideEdit")}
-                        </button>
-                    ` : ""}
-                    ${editing ? `
-                        <button type="button" class="unbutton" data-cc-override-cancel>
-                            ${localize("Cancel")}
-                        </button>
-                        <button type="button" class="unbutton" data-cc-override-apply>
-                            ${localize("ObjectOverrideApply")}
-                        </button>
-                        <button type="button" class="unbutton" data-cc-override-reset-all>
-                            <i class="fa-solid fa-rotate-left" inert></i>
-                            ${localize("ObjectOverrideResetAll")}
-                        </button>
-                    ` : ""}
-                </div>
+            <div class="cc-item-override-view-switch"
+                 data-cc-item-override-view-switch role="group"
+                 aria-label="${localize("ObjectOverrideView")}">
+                <button type="button" data-cc-override-view="original"
+                    class="unbutton ${this.view === "original" ? "active" : ""}"
+                    aria-pressed="${this.view === "original"}"
+                    ${disabled}>
+                    ${localize("ObjectOverrideOriginal")}
+                </button>
+                <button type="button" data-cc-override-view="modified"
+                    class="unbutton ${this.view === "modified" ? "active" : ""}"
+                    aria-pressed="${this.view === "modified"}"
+                    ${disabled}>
+                    ${localize("ObjectOverrideModified")}
+                </button>
             </div>
         `;
     }
 
 
-    _injectToolbar(app) {
+    _injectViewSwitch(app) {
         app.element
-            .querySelector("[data-cc-item-override-toolbar]")
+            .querySelector("[data-cc-item-override-view-switch]")
             ?.remove();
 
-        const content = app.element.querySelector(
-            ".window-content"
+        const header = app.element.querySelector(
+            ".window-header"
         );
 
-        content?.insertAdjacentHTML(
-            "afterbegin",
-            this._toolbarHtml()
-        );
-
-        const toolbar = content?.querySelector(
-            ":scope > [data-cc-item-override-toolbar]"
-        );
-
-        if (!toolbar)
+        if (!header)
             return;
+
+        const modeToggle = header.querySelector(
+            ":scope > .mode-slider"
+        );
+
+        if (modeToggle) {
+            modeToggle.insertAdjacentHTML(
+                "beforebegin",
+                this._viewSwitchHtml()
+            );
+        }
+        else {
+            header.insertAdjacentHTML(
+                "afterbegin",
+                this._viewSwitchHtml()
+            );
+        }
     }
 
 
@@ -680,6 +669,9 @@ class ItemSheetOverrideController {
             editing
         );
 
+        if (this.view === "original")
+            return;
+
         for (
             const control
             of app.element.querySelectorAll(
@@ -722,8 +714,15 @@ class ItemSheetOverrideController {
             )
         ) {
             if (
+                editing &&
+                control.closest("prose-mirror")
+            ) {
+                continue;
+            }
+
+            if (
                 control.closest(
-                    "[data-cc-item-override-toolbar]"
+                    "[data-cc-item-override-view-switch]"
                 )
             ) {
                 continue;
@@ -802,9 +801,12 @@ class ItemSheetOverrideController {
         preparedRoots.add(root);
 
         root.addEventListener("drop", event => {
+            if (this.view === "original")
+                return;
+
             if (
                 event.target.closest(
-                    "[data-cc-item-override-toolbar]"
+                    "[data-cc-item-override-view-switch]"
                 )
             ) {
                 return;
@@ -818,14 +820,20 @@ class ItemSheetOverrideController {
         }, true);
 
         root.addEventListener("dragover", event => {
+            if (this.view === "original")
+                return;
+
             event.preventDefault();
             event.stopImmediatePropagation();
         }, true);
 
         root.addEventListener("contextmenu", event => {
+            if (this.view === "original")
+                return;
+
             if (
                 event.target.closest(
-                    "[data-cc-item-override-toolbar]"
+                    "[data-cc-item-override-view-switch]"
                 )
             ) {
                 return;
@@ -857,17 +865,17 @@ class ItemSheetOverrideController {
                 return;
             }
 
-            const toolbar = target.closest(
-                "[data-cc-item-override-toolbar]"
+            const viewSwitch = target.closest(
+                "[data-cc-item-override-view-switch]"
             );
 
-            if (toolbar) {
+            if (viewSwitch) {
                 const control = target.closest("button");
 
                 if (control) {
                     event.preventDefault();
                     event.stopImmediatePropagation();
-                    void this._onToolbarClick(
+                    void this._onViewSwitchClick(
                         event,
                         control
                     ).catch(error => {
@@ -880,6 +888,9 @@ class ItemSheetOverrideController {
                 }
                 return;
             }
+
+            if (this.view === "original")
+                return;
 
             if (
                 target.closest(
@@ -894,6 +905,32 @@ class ItemSheetOverrideController {
             const action = target.closest(
                 "[data-action]"
             )?.dataset.action;
+
+            if (action === "changeMode") {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+
+                const operation = this.session.editing
+                    ? this.applyEditing()
+                    : this.beginEditing();
+
+                void operation.catch(error => {
+                    console.error(
+                        `${MODULE_ID} | Item override mode change failed`,
+                        error
+                    );
+                    ui.notifications.error(error.message);
+                });
+                return;
+            }
+
+            if (
+                this.session.editing &&
+                target.closest("prose-mirror")
+            ) {
+                return;
+            }
+
             const allowed = this.session.editing
                 ? SAFE_EDIT_ACTIONS
                 : SAFE_ACTIONS;
@@ -906,7 +943,7 @@ class ItemSheetOverrideController {
     }
 
 
-    async _onToolbarClick(event, target) {
+    async _onViewSwitchClick(event, target) {
         const view = target.closest(
             "[data-cc-override-view]"
         )?.dataset.ccOverrideView;
@@ -914,29 +951,7 @@ class ItemSheetOverrideController {
         if (view) {
             event.preventDefault();
             await this.show(view);
-            return;
         }
-
-        const reset = target.closest(
-            "[data-cc-override-reset-field]"
-        );
-
-        if (reset) {
-            event.preventDefault();
-            await this.resetField(
-                reset.dataset.ccOverrideResetField
-            );
-            return;
-        }
-
-        if (target.closest("[data-cc-override-edit]"))
-            await this.beginEditing();
-        else if (target.closest("[data-cc-override-apply]"))
-            await this.applyEditing();
-        else if (target.closest("[data-cc-override-cancel]"))
-            await this.cancelEditing();
-        else if (target.closest("[data-cc-override-reset-all]"))
-            await this.resetAll();
     }
 
 
@@ -949,7 +964,7 @@ class ItemSheetOverrideController {
         else if (app === this.syntheticSheet)
             this.view = "modified";
 
-        this._injectToolbar(app);
+        this._injectViewSwitch(app);
         this._configureControls(app);
         this._injectFieldResets(app);
         this._prepareEventGuards(app);

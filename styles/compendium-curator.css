@@ -2876,82 +2876,53 @@
    Object Override prototype
    ========================================================================== */
 
-.cc-item-override-toolbar {
-    position: sticky;
-    z-index: 20;
-    top: 0;
-
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-
-    flex: 0 0 auto;
-    min-height: 34px;
-    margin: 0 -12px 8px;
-    padding: 4px 8px;
-
-    color: var(--color-text-primary);
-    background: var(--dnd5e-background-card);
-    border-bottom: 1px solid rgb(255 255 255 / 10%);
-    box-shadow: 0 2px 5px rgb(0 0 0 / 22%);
-}
-
-
-.cc-item-override-status {
-    min-width: 0;
-    margin-right: auto;
-
-    color: var(--color-text-subtle);
-    font-size: var(--font-size-11);
-    white-space: nowrap;
-}
-
-
 .cc-item-override-view-switch {
     display: inline-flex;
     gap: 0;
     align-items: center;
 
-    padding: 2px;
+    flex: 0 0 auto;
+    height: 24px;
+    margin-right: 3px;
+    padding: 1px 4px 1px 0;
 
-    background: rgb(0 0 0 / 18%);
-    border: 1px solid rgb(255 255 255 / 10%);
-    border-radius: 4px;
+    border-right: 1px solid rgb(255 255 255 / 16%);
 }
 
 
-.cc-item-override-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-
-    margin-left: auto;
-}
-
-
-.cc-item-override-toolbar button {
+.cc-item-override-view-switch button {
     display: inline-flex;
-    gap: 0.3rem;
     align-items: center;
     justify-content: center;
 
     width: auto;
     min-width: 0;
-    min-height: 24px;
+    min-height: 20px;
     margin: 0;
-    padding: 0.2rem 0.5rem;
+    padding: 0 5px;
 
     color: inherit;
     font-family: var(--dnd5e-font-roboto-condensed);
-    font-size: var(--font-size-11);
+    font-size: var(--font-size-10);
     line-height: 1;
     text-transform: none;
     white-space: nowrap;
 
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 3px;
+    background: rgb(0 0 0 / 12%);
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 0;
     box-shadow: none;
+}
+
+
+.cc-item-override-view-switch button:first-child {
+    border-radius: 3px 0 0 3px;
+}
+
+
+.cc-item-override-view-switch button:last-child {
+    margin-left: -1px;
+    border-radius: 0 3px 3px 0;
 }
 
 
@@ -2962,27 +2933,16 @@
 }
 
 
-.cc-item-override-actions button {
-    border-color: rgb(255 255 255 / 12%);
-}
-
-
-.cc-item-override-toolbar button:not(:disabled):hover,
-.cc-item-override-toolbar button:not(:disabled):focus-visible {
+.cc-item-override-view-switch button:not(:disabled):hover,
+.cc-item-override-view-switch button:not(:disabled):focus-visible {
     background: rgb(255 255 255 / 9%);
     border-color: rgb(255 255 255 / 20%);
 }
 
 
-.cc-item-override-toolbar button:disabled {
+.cc-item-override-view-switch button:disabled {
     cursor: default;
-    opacity: 0.58;
-}
-
-
-.cc-item-override-original [data-action="changeMode"],
-.cc-item-override-modified [data-action="changeMode"] {
-    display: none !important;
+    opacity: 0.65;
 }
 
 
