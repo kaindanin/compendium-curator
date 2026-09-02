@@ -1,6 +1,7 @@
 const MODULE_ID = "compendium-curator";
 const controllers = new Set();
 const controllersByApp = new WeakMap();
+const pendingFolderDeletions = new Map();
 
 
 function localize(key) {
@@ -54,6 +55,58 @@ function collectFolderOptions(tree, depth = 0, output = []) {
     }
 
     return output;
+}
+
+
+function folderDeletionKey(folder) {
+    return `${folder.pack ?? "world"}.${folder.id}`;
+}
+
+
+function snapshotFolderDeletion(
+    pack,
+    rootFolderId,
+    includeSubfolders = false
+) {
+    const folderIds = new Set([rootFolderId]);
+
+    if (includeSubfolders) {
+        let changed = true;
+
+        while (changed) {
+            changed = false;
+
+            for (const folder of pack.folders.values()) {
+                if (
+                    folderIds.has(normalizeFolderId(folder.folder)) &&
+                    !folderIds.has(folder.id)
+                ) {
+                    folderIds.add(folder.id);
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    const entryIds = new Set();
+
+    for (const entry of pack.index.values()) {
+        if (folderIds.has(normalizeFolderId(entry.folder)))
+            entryIds.add(entry._id ?? entry.id);
+    }
+
+    return { pack, folderIds, entryIds };
+}
+
+
+function purgeFolderDeletion(snapshot) {
+    for (const entryId of snapshot.entryIds)
+        snapshot.pack.index.delete(entryId);
+
+    for (const folderId of snapshot.folderIds)
+        snapshot.pack.folders.delete(folderId);
+
+    snapshot.pack.initializeTree();
 }
 
 
@@ -707,6 +760,41 @@ export function registerCompendiumDirectoryEnhancements() {
                 controller.scheduleRefresh();
         }
     });
+
+    Hooks.on("preDeleteFolder", (folder, options) => {
+        if (!folder.pack || !options.deleteContents)
+            return;
+
+        const pack = game.packs.get(folder.pack);
+
+        if (!pack)
+            return;
+
+        pendingFolderDeletions.set(
+            folderDeletionKey(folder),
+            snapshotFolderDeletion(
+                pack,
+                folder.id,
+                options.deleteSubfolders
+            )
+        );
+    });
+
+    Hooks.on("deleteFolder", folder => {
+        const key = folderDeletionKey(folder);
+        const snapshot = pendingFolderDeletions.get(key);
+
+        if (!snapshot)
+            return;
+
+        pendingFolderDeletions.delete(key);
+        purgeFolderDeletion(snapshot);
+
+        for (const controller of controllers) {
+            if (controller.pack === snapshot.pack)
+                controller.scheduleRefresh();
+        }
+    });
 }
 
 
@@ -714,5 +802,7 @@ export {
     CompendiumDirectoryController,
     collectFolderOptions,
     normalizeFolderId,
+    purgeFolderDeletion,
+    snapshotFolderDeletion,
     synchronizeIndexFolder
 };

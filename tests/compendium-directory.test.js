@@ -4,6 +4,8 @@ import test from "node:test";
 import {
     collectFolderOptions,
     normalizeFolderId,
+    purgeFolderDeletion,
+    snapshotFolderDeletion,
     synchronizeIndexFolder
 } from "../scripts/hooks/compendium-directory.js";
 
@@ -69,4 +71,61 @@ test("synchronizes a moved document into the compendium index", () => {
         index.get("entry-1").folder,
         "folder-1"
     );
+});
+
+
+test("purges deleted folder branches from a compendium index", () => {
+    const folders = new Map([
+        ["root", {
+            id: "root",
+            folder: null
+        }],
+        ["child", {
+            id: "child",
+            folder: "root"
+        }],
+        ["safe", {
+            id: "safe",
+            folder: null
+        }]
+    ]);
+    const index = new Map([
+        ["root-entry", {
+            _id: "root-entry",
+            folder: "root"
+        }],
+        ["child-entry", {
+            _id: "child-entry",
+            folder: "child"
+        }],
+        ["safe-entry", {
+            _id: "safe-entry",
+            folder: "safe"
+        }]
+    ]);
+    let initialized = 0;
+    const pack = {
+        folders,
+        index,
+        initializeTree() {
+            initialized += 1;
+        }
+    };
+    const snapshot = snapshotFolderDeletion(
+        pack,
+        "root",
+        true
+    );
+
+    purgeFolderDeletion(snapshot);
+
+    assert.deepEqual(
+        Array.from(index.keys()),
+        ["safe-entry"]
+    );
+    assert.deepEqual(
+        Array.from(folders.keys()),
+        ["safe"]
+    );
+    assert.equal(initialized, 1);
 });
