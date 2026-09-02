@@ -536,10 +536,13 @@ class ItemSheetOverrideController {
 
 
     async resetAll() {
-        if (!this.session.editing)
-            return;
+        const editing = this.session.editing;
 
         this.session.resetAll();
+
+        if (!editing)
+            this.session.apply();
+
         this._replaceSyntheticSource(
             this.session.workingSource
         );
@@ -547,7 +550,7 @@ class ItemSheetOverrideController {
         const state = captureViewState(this.syntheticSheet);
         await this.syntheticSheet.render({
             force: true,
-            mode: EDIT_MODE
+            mode: editing ? EDIT_MODE : PLAY_MODE
         });
         restoreViewState(this.syntheticSheet, state);
     }
@@ -579,9 +582,24 @@ class ItemSheetOverrideController {
     }
 
 
+    _resetAllButtonHtml() {
+        return `
+            <button type="button"
+                class="header-control icon fa-solid fa-rotate-left cc-item-override-reset-all"
+                data-cc-override-reset-all
+                data-tooltip="${localize("ObjectOverrideResetAll")}"
+                aria-label="${localize("ObjectOverrideResetAll")}">
+            </button>
+        `;
+    }
+
+
     _injectViewSwitch(app) {
         app.element
             .querySelector("[data-cc-item-override-view-switch]")
+            ?.remove();
+        app.element
+            .querySelector("[data-cc-override-reset-all]")
             ?.remove();
 
         const header = app.element.querySelector(
@@ -600,6 +618,13 @@ class ItemSheetOverrideController {
                 "beforebegin",
                 this._viewSwitchHtml()
             );
+
+            if (this.view === "modified") {
+                modeToggle.insertAdjacentHTML(
+                    "afterend",
+                    this._resetAllButtonHtml()
+                );
+            }
         }
         else {
             header.insertAdjacentHTML(
@@ -862,6 +887,23 @@ class ItemSheetOverrideController {
                 void this.resetField(
                     reset.dataset.ccOverrideResetField
                 );
+                return;
+            }
+
+            const resetAll = target.closest(
+                "[data-cc-override-reset-all]"
+            );
+
+            if (resetAll) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                void this.resetAll().catch(error => {
+                    console.error(
+                        `${MODULE_ID} | Item override reset failed`,
+                        error
+                    );
+                    ui.notifications.error(error.message);
+                });
                 return;
             }
 

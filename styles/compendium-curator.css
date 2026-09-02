@@ -2896,6 +2896,17 @@
 }
 
 
+.cc-item-override-modified
+    .window-header > .mode-slider {
+    margin-right: 0;
+}
+
+
+.cc-item-override-reset-all {
+    margin-right: auto;
+}
+
+
 .cc-item-override-view-switch button {
     display: inline-flex;
     align-items: center;
