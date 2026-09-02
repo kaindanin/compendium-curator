@@ -2890,6 +2890,12 @@
 }
 
 
+.cc-item-override-original
+    .cc-item-override-view-switch {
+    margin-right: auto;
+}
+
+
 .cc-item-override-view-switch button {
     display: inline-flex;
     align-items: center;
