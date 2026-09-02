@@ -48,6 +48,9 @@ import {
 import {
     registerItemSheetOverridePrototype
 } from "./hooks/item-sheet-overrides.js";
+import {
+    registerCompendiumDirectoryEnhancements
+} from "./hooks/compendium-directory.js";
 
 Hooks.once("init", () => {
 
@@ -71,6 +74,7 @@ Hooks.once("init", () => {
     registerTableManagerFilterGroupFolders();
     registerTableManagerBulkActions();
     registerItemSheetOverridePrototype();
+    registerCompendiumDirectoryEnhancements();
 
     debug("Settings registradas");
 

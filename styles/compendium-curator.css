@@ -2990,3 +2990,72 @@
     height: 24px;
     margin-left: 0.2rem;
 }
+
+
+/* ==========================================================================
+   Compendium directory bulk actions
+   ========================================================================== */
+
+.compendium-directory
+    .header-actions
+    .cc-compendium-bulk-toggle.active {
+    box-shadow: inset 0 -2px 0 var(--color-warm-1);
+}
+
+
+.cc-compendium-bulk-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+
+    padding: 0.4rem;
+
+    border-top: 1px solid var(--color-border-light-primary);
+}
+
+
+.cc-compendium-bulk-summary,
+.cc-compendium-bulk-actions {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+}
+
+
+.cc-compendium-bulk-summary
+    [data-cc-compendium-bulk-count] {
+    flex: 1 1 auto;
+
+    font-size: var(--font-size-12);
+    font-weight: 600;
+}
+
+
+.cc-compendium-bulk-summary button,
+.cc-compendium-bulk-actions button {
+    width: auto;
+    min-height: 26px;
+    margin: 0;
+    padding: 0.2rem 0.45rem;
+
+    font-size: var(--font-size-11);
+    white-space: nowrap;
+}
+
+
+.cc-compendium-bulk-actions select {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 28px;
+}
+
+
+.compendium-directory
+    .directory-item.entry
+    > .cc-compendium-bulk-checkbox {
+    flex: 0 0 auto;
+
+    width: 16px;
+    height: 16px;
+    margin: 0 0.35rem 0 0;
+}
