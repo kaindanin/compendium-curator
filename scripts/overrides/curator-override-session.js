@@ -9,21 +9,33 @@ function clone(value) {
 
 
 export class CuratorOverrideSession {
-    constructor(originalSource, { sourceUuid = null } = {}) {
+    constructor(
+        originalSource,
+        {
+            sourceUuid = null,
+            appliedPatch = []
+        } = {}
+    ) {
         this.sourceUuid = sourceUuid;
         this._originalSource = clone(originalSource);
-        this._appliedSource = clone(originalSource);
-        this._workingSource = clone(originalSource);
+        this._appliedSource = ObjectOverridePatchEngine.apply(
+            this._originalSource,
+            appliedPatch
+        );
+        this._workingSource = clone(this._appliedSource);
         this._editBaseline = null;
         this._editing = false;
         this._disposed = false;
     }
 
 
-    static fromDocument(document) {
+    static fromDocument(document, options = {}) {
         return new this(
             document.toObject(),
-            { sourceUuid: document.uuid }
+            {
+                ...options,
+                sourceUuid: document.uuid
+            }
         );
     }
 

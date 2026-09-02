@@ -4,6 +4,7 @@ export const DUPLICATE_PRIORITY_SETTING = "duplicatePriority";
 export const STORAGE_CHANGED_HOOK = `${MODULE_ID}.storageChanged`;
 export const TABLE_DEFAULTS_SETTING = "tableDefaults";
 export const TABLE_PROFILES_SETTING = "tableProfiles";
+export const OBJECT_OVERRIDES_SETTING = "objectOverrides";
 
 export function registerSettings({ tableDefaultsMenuType } = {}) {
 
@@ -109,6 +110,21 @@ export function registerSettings({ tableDefaultsMenuType } = {}) {
                 filterGroups: {},
                 folders: {},
                 filterGroupFolders: {}
+            }
+        }
+    );
+
+    game.settings.register(
+        MODULE_ID,
+        OBJECT_OVERRIDES_SETTING,
+        {
+            scope: "world",
+            config: false,
+            type: Object,
+
+            default: {
+                version: 1,
+                overrides: {}
             }
         }
     );

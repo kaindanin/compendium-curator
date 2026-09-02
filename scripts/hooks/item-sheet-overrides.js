@@ -1,6 +1,12 @@
 import {
     CuratorOverrideSession
 } from "../overrides/curator-override-session.js";
+import {
+    ObjectOverridePatchEngine
+} from "../overrides/object-override-patch-engine.js";
+import {
+    ObjectOverrideStorageService
+} from "../overrides/object-override-storage-service.js";
 
 
 const PLAY_MODE = 1;
@@ -120,6 +126,38 @@ function safeUpdateData(updateData) {
     }
 
     return safe;
+}
+
+
+function safeStoredPatch(patch) {
+    return Array.from(patch ?? []).filter(operation => {
+        if (
+            !operation ||
+            !["set", "remove", "replace"].includes(
+                operation.op
+            )
+        ) {
+            return false;
+        }
+
+        let path;
+
+        try {
+            path = ObjectOverridePatchEngine
+                .segments(operation.path)
+                .join(".");
+        }
+        catch {
+            return false;
+        }
+
+        return pathIsSafe(
+            path,
+            operation.op === "remove"
+                ? null
+                : operation.value
+        );
+    });
 }
 
 
@@ -251,7 +289,14 @@ class ItemSheetOverrideController {
         this.originalSheet = originalSheet;
         this.originalDocument = originalSheet.document;
         this.session = CuratorOverrideSession.fromDocument(
-            this.originalDocument
+            this.originalDocument,
+            {
+                appliedPatch: safeStoredPatch(
+                    ObjectOverrideStorageService.getPatch(
+                        this.originalDocument.uuid
+                    )
+                )
+            }
         );
         this.view = "original";
         this.switching = false;
@@ -484,6 +529,16 @@ class ItemSheetOverrideController {
         this.session.captureWorkingSource(
             this.syntheticDocument.toObject()
         );
+
+        await ObjectOverrideStorageService.save(
+            this.originalDocument.uuid,
+            this.session.patch,
+            {
+                documentName:
+                    this.originalDocument.documentName,
+                documentType: this.originalDocument.type
+            }
+        );
         this.session.apply();
         this.syntheticSheet.editingDescriptionTarget = null;
         this.syntheticSheet._mode = PLAY_MODE;
@@ -537,6 +592,12 @@ class ItemSheetOverrideController {
 
     async resetAll() {
         const editing = this.session.editing;
+
+        if (!editing) {
+            await ObjectOverrideStorageService.remove(
+                this.originalDocument.uuid
+            );
+        }
 
         this.session.resetAll();
 
@@ -1112,5 +1173,6 @@ export function registerItemSheetOverridePrototype() {
 export {
     ItemSheetOverrideController,
     pathIsSafe,
+    safeStoredPatch,
     safeUpdateData
 };

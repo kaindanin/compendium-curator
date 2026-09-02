@@ -51,6 +51,9 @@ import {
 import {
     registerCompendiumDirectoryEnhancements
 } from "./hooks/compendium-directory.js";
+import {
+    ObjectOverrideStorageService
+} from "./overrides/object-override-storage-service.js";
 
 Hooks.once("init", () => {
 
@@ -101,7 +104,13 @@ Hooks.once("ready", async () => {
     const normalized =
         await StorageService.initialize();
 
+    const normalizedOverrides =
+        await ObjectOverrideStorageService.initialize();
+
     if (normalized)
         debug("Almacenamiento normalizado");
+
+    if (normalizedOverrides)
+        debug("Sobreescrituras de objetos normalizadas");
 
 });

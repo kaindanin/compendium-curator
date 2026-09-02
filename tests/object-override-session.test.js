@@ -8,6 +8,11 @@ import {
     ObjectOverridePatchEngine
 } from "../scripts/overrides/object-override-patch-engine.js";
 import {
+    ObjectOverrideStorageService,
+    normalizePatch
+} from "../scripts/overrides/object-override-storage-service.js";
+import {
+    safeStoredPatch,
     safeUpdateData
 } from "../scripts/hooks/item-sheet-overrides.js";
 
@@ -335,4 +340,181 @@ test("closing and reopening starts a new empty session", () => {
     assert.deepEqual(reopened.appliedPatch, []);
     assert.equal(reopened.workingSource.name, "Longsword");
     assert.deepEqual(original.persistenceCalls, []);
+});
+
+
+test("rehydrates a session from a persisted patch", () => {
+    const original = originalItem();
+    const first = CuratorOverrideSession.fromDocument(original);
+
+    first.beginEditing();
+    first.setField("/name", "Persistent name");
+    first.setField("/system/quantity", 7);
+    const persistedPatch = first.apply();
+
+    const reopened = CuratorOverrideSession.fromDocument(
+        original,
+        { appliedPatch: persistedPatch }
+    );
+
+    assert.equal(reopened.workingSource.name, "Persistent name");
+    assert.equal(reopened.workingSource.system.quantity, 7);
+    assert.deepEqual(reopened.patch, persistedPatch);
+    assert.deepEqual(original.persistenceCalls, []);
+});
+
+
+test("normalizes persisted override records safely", () => {
+    const storage = ObjectOverrideStorageService.normalizeStorage({
+        version: 999,
+        overrides: {
+            "Compendium.test.items.Item.item-1": {
+                documentName: "Item",
+                documentType: "weapon",
+                patch: [
+                    {
+                        op: "set",
+                        path: "/name",
+                        value: "Stored",
+                        baseline: {
+                            exists: true,
+                            value: "Original"
+                        }
+                    },
+                    {
+                        op: "execute",
+                        path: "/name",
+                        value: "Unsafe"
+                    }
+                ],
+                updatedAt: 12
+            },
+            invalid: {
+                patch: [{
+                    op: "set",
+                    path: "/name",
+                    value: "Ignored"
+                }]
+            }
+        }
+    });
+
+    assert.equal(storage.version, 1);
+    assert.deepEqual(
+        storage.overrides[
+            "Compendium.test.items.Item.item-1"
+        ].patch,
+        [{
+            op: "set",
+            path: "/name",
+            value: "Stored",
+            baseline: {
+                exists: true,
+                value: "Original"
+            }
+        }]
+    );
+    assert.equal(Object.keys(storage.overrides).length, 1);
+});
+
+
+test("persists, reloads and removes a world override", async () => {
+    let stored = {
+        version: 1,
+        overrides: {}
+    };
+    const previousGame = globalThis.game;
+
+    globalThis.game = {
+        settings: {
+            get() {
+                return structuredClone(stored);
+            },
+            async set(_moduleId, _setting, value) {
+                stored = structuredClone(value);
+            }
+        }
+    };
+
+    try {
+        const patch = normalizePatch([{
+            op: "set",
+            path: "/name",
+            value: "Stored name",
+            baseline: {
+                exists: true,
+                value: "Longsword"
+            }
+        }]);
+
+        await ObjectOverrideStorageService.save(
+            "Compendium.test.items.Item.item-1",
+            patch,
+            {
+                documentName: "Item",
+                documentType: "weapon"
+            }
+        );
+
+        assert.deepEqual(
+            ObjectOverrideStorageService.getPatch(
+                "Compendium.test.items.Item.item-1"
+            ),
+            patch
+        );
+
+        assert.equal(
+            await ObjectOverrideStorageService.remove(
+                "Compendium.test.items.Item.item-1"
+            ),
+            true
+        );
+        assert.deepEqual(
+            ObjectOverrideStorageService.getPatch(
+                "Compendium.test.items.Item.item-1"
+            ),
+            []
+        );
+    }
+    finally {
+        if (previousGame === undefined)
+            delete globalThis.game;
+        else
+            globalThis.game = previousGame;
+    }
+});
+
+
+test("filters unsafe persisted paths before applying them", () => {
+    assert.deepEqual(
+        safeStoredPatch([
+            {
+                op: "set",
+                path: "/name",
+                value: "Safe"
+            },
+            {
+                op: "replace",
+                path: "/effects",
+                value: [{ name: "Unsafe" }]
+            },
+            {
+                op: "set",
+                path: "/system/quantity",
+                value: 3
+            }
+        ]),
+        [
+            {
+                op: "set",
+                path: "/name",
+                value: "Safe"
+            },
+            {
+                op: "set",
+                path: "/system/quantity",
+                value: 3
+            }
+        ]
+    );
 });

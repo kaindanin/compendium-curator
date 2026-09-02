@@ -383,4 +383,11 @@ export class ObjectOverridePatchEngine {
     static pointer(path) {
         return toPointer(fromPointer(path));
     }
+
+
+    static segments(path) {
+        const segments = fromPointer(path);
+        assertSafeSegments(segments);
+        return [...segments];
+    }
 }
