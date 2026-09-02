@@ -2891,7 +2891,13 @@
 
 
 .cc-item-override-original
-    .cc-item-override-view-switch {
+    .window-header > .cc-item-override-view-switch {
+    margin-right: 3px;
+}
+
+
+.cc-item-override-original
+    .window-header > .mode-slider {
     margin-right: auto;
 }
 
