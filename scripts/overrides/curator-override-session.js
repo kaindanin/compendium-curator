@@ -13,10 +13,12 @@ export class CuratorOverrideSession {
         originalSource,
         {
             sourceUuid = null,
-            appliedPatch = []
+            appliedPatch = [],
+            atomicPaths = []
         } = {}
     ) {
         this.sourceUuid = sourceUuid;
+        this.atomicPaths = [...atomicPaths];
         this._originalSource = clone(originalSource);
         this._appliedSource = ObjectOverridePatchEngine.apply(
             this._originalSource,
@@ -188,7 +190,8 @@ export class CuratorOverrideSession {
             this._originalSource,
             applied
                 ? this._appliedSource
-                : this._workingSource
+                : this._workingSource,
+            { atomicPaths: this.atomicPaths }
         );
     }
 

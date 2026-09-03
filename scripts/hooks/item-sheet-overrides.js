@@ -27,9 +27,7 @@ const SAFE_AUXILIARY_SHEET_CLASS_NAMES = new Set([
 ]);
 
 const BLOCKED_PATH_PREFIXES = [
-    "effects",
     "items",
-    "system.activities",
     "system.advancement",
     "system.contents",
     "system.container",
@@ -40,12 +38,14 @@ const BLOCKED_PATH_PREFIXES = [
 ];
 
 const BLOCKED_SYNTHETIC_METHODS = [
-    "createActivity",
-    "updateActivity",
-    "deleteActivity",
     "createAdvancement",
     "updateAdvancement",
     "deleteAdvancement"
+];
+
+const ATOMIC_PATCH_PATHS = [
+    "effects",
+    "system.activities"
 ];
 
 const ATOMIC_CONTROL_PATHS = [
@@ -111,6 +111,9 @@ function isSafeValue(value) {
 
 
 function pathIsBlocked(path) {
+    if (path.startsWith("effects."))
+        return true;
+
     return BLOCKED_PATH_PREFIXES.some(prefix =>
         path === prefix || path.startsWith(`${prefix}.`)
     );
@@ -128,6 +131,9 @@ function pathIsSafe(path, value = null) {
 
     if (normalized === "img")
         return typeof value === "string" || value === null;
+
+    if (normalized === "effects")
+        return Array.isArray(value) && isSafeValue(value);
 
     if (!normalized.startsWith("system."))
         return false;
@@ -327,6 +333,13 @@ function safeStoredPatch(patch) {
             return false;
         }
 
+        if (
+            path.startsWith("effects.") ||
+            path.startsWith("system.activities.")
+        ) {
+            return false;
+        }
+
         return pathIsSafe(
             path,
             operation.op === "remove"
@@ -471,7 +484,8 @@ class ItemSheetOverrideController {
                     ObjectOverrideStorageService.getPatch(
                         this.originalDocument.uuid
                     )
-                )
+                ),
+                atomicPaths: ATOMIC_PATCH_PATHS
             }
         );
         this.view = "original";
@@ -505,18 +519,47 @@ class ItemSheetOverrideController {
             }
 
 
-            async createEmbeddedDocuments() {
-                return controller._blockedOperation();
+            async createEmbeddedDocuments(
+                embeddedName,
+                data = [],
+                options = {}
+            ) {
+                return controller._createSyntheticEmbeddedDocuments(
+                    embeddedName,
+                    data,
+                    options
+                );
             }
 
 
-            async updateEmbeddedDocuments() {
-                return controller._blockedOperation();
+            async updateEmbeddedDocuments(
+                embeddedName,
+                updates = [],
+                options = {}
+            ) {
+                return controller._updateSyntheticEmbeddedDocuments(
+                    embeddedName,
+                    updates,
+                    options
+                );
             }
 
 
-            async deleteEmbeddedDocuments() {
-                return controller._blockedOperation();
+            async deleteEmbeddedDocuments(
+                embeddedName,
+                ids = [],
+                options = {}
+            ) {
+                return controller._deleteSyntheticEmbeddedDocuments(
+                    embeddedName,
+                    ids,
+                    options
+                );
+            }
+
+
+            async deleteActivity(id) {
+                return controller._deleteSyntheticActivity(id);
             }
 
 
@@ -570,8 +613,60 @@ class ItemSheetOverrideController {
 
 
     _hardenEmbeddedDocuments() {
+        for (
+            const activity
+            of this.syntheticDocument?.system.activities ?? []
+        ) {
+            const id = activity.id;
+
+            Object.defineProperties(activity, {
+                update: {
+                    configurable: true,
+                    value: (updates = {}, options = {}) =>
+                        this._updateSyntheticActivity(
+                            id,
+                            updates,
+                            options
+                        )
+                },
+                delete: {
+                    configurable: true,
+                    value: options => this._deleteSyntheticActivity(
+                        id,
+                        options
+                    )
+                }
+            });
+        }
+
         for (const effect of this.syntheticDocument?.effects ?? []) {
-            for (const method of ["update", "delete"]) {
+            const id = effect.id;
+
+            Object.defineProperties(effect, {
+                update: {
+                    configurable: true,
+                    value: (updates = {}, options = {}) =>
+                        this._updateSyntheticEmbeddedDocuments(
+                            "ActiveEffect",
+                            [{ ...updates, _id: id }],
+                            options
+                        ).then(effects => effects[0] ?? effect)
+                },
+                delete: {
+                    configurable: true,
+                    value: options =>
+                        this._deleteSyntheticEmbeddedDocuments(
+                            "ActiveEffect",
+                            [id],
+                            options
+                        ).then(() => effect)
+                }
+            });
+
+            if (effect.parent === this.syntheticDocument)
+                continue;
+
+            for (const method of ["clone"]) {
                 Object.defineProperty(effect, method, {
                     configurable: true,
                     value: () => this._blockedOperation()
@@ -589,9 +684,263 @@ class ItemSheetOverrideController {
     }
 
 
+    _canEditStructures() {
+        return !this.disposed &&
+            this.view === "modified" &&
+            this.session.editing;
+    }
+
+
+    async _applySyntheticStructure(path, value, options = {}) {
+        if (!this._canEditStructures()) {
+            await this._blockedOperation();
+            return this.syntheticDocument;
+        }
+
+        const previousSource = this.session.workingSource;
+
+        try {
+            this.session.setField(path, value);
+            this._replaceSyntheticSource(
+                this.session.workingSource
+            );
+        }
+        catch (error) {
+            this.session.captureWorkingSource(previousSource);
+            this._replaceSyntheticSource(previousSource);
+            throw error;
+        }
+
+        if (
+            options.render !== false &&
+            !this._suppressLocalRender &&
+            this.syntheticSheet?.rendered
+        ) {
+            const state = captureViewState(
+                this.syntheticSheet
+            );
+
+            await this.syntheticSheet.render({
+                force: true,
+                mode: EDIT_MODE
+            });
+            restoreViewState(this.syntheticSheet, state);
+        }
+
+        return this.syntheticDocument;
+    }
+
+
+    async _createSyntheticEmbeddedDocuments(
+        embeddedName,
+        data,
+        options = {}
+    ) {
+        if (
+            embeddedName !== "ActiveEffect" ||
+            !this._canEditStructures()
+        ) {
+            return this._blockedOperation();
+        }
+
+        const EffectClass = CONFIG.ActiveEffect.documentClass;
+        const existing = Array.from(
+            this.syntheticDocument.effects ?? [],
+            effect => effect.toObject()
+        );
+        const usedIds = new Set(
+            existing.map(effect => effect._id)
+        );
+        const createdIds = [];
+
+        for (const source of Array.from(data ?? [])) {
+            const candidate = structuredClone(source);
+            let id = options.keepId ? candidate._id : null;
+
+            while (!id || usedIds.has(id))
+                id = foundry.utils.randomID(16);
+
+            candidate._id = id;
+
+            if (candidate.origin === this.syntheticDocument.uuid) {
+                candidate.origin = this.originalDocument.uuid;
+            }
+
+            const effect = new EffectClass(candidate, {
+                parent: this.syntheticDocument
+            });
+
+            existing.push(effect.toObject());
+            usedIds.add(id);
+            createdIds.push(id);
+        }
+
+        await this._applySyntheticStructure(
+            "effects",
+            existing,
+            options
+        );
+
+        return createdIds
+            .map(id => this.syntheticDocument.effects.get(id))
+            .filter(Boolean);
+    }
+
+
+    async _updateSyntheticEmbeddedDocuments(
+        embeddedName,
+        updates,
+        options = {}
+    ) {
+        if (
+            embeddedName !== "ActiveEffect" ||
+            !this._canEditStructures()
+        ) {
+            return this._blockedOperation();
+        }
+
+        const changedIds = [];
+
+        try {
+            for (const source of Array.from(updates ?? [])) {
+                const id = source?._id ?? source?.id;
+                const effect = this.syntheticDocument.effects.get(id);
+
+                if (!effect)
+                    continue;
+
+                const changes = structuredClone(source);
+                delete changes._id;
+                delete changes.id;
+                effect.updateSource(changes);
+                changedIds.push(id);
+            }
+
+            await this._applySyntheticStructure(
+                "effects",
+                Array.from(
+                    this.syntheticDocument.effects,
+                    effect => effect.toObject()
+                ),
+                options
+            );
+        }
+        catch (error) {
+            this._replaceSyntheticSource(
+                this.session.workingSource
+            );
+            throw error;
+        }
+
+        return changedIds
+            .map(id => this.syntheticDocument.effects.get(id))
+            .filter(Boolean);
+    }
+
+
+    async _deleteSyntheticEmbeddedDocuments(
+        embeddedName,
+        ids,
+        options = {}
+    ) {
+        if (
+            embeddedName !== "ActiveEffect" ||
+            !this._canEditStructures()
+        ) {
+            return this._blockedOperation();
+        }
+
+        const idSet = new Set(Array.from(ids ?? [], String));
+        const deleted = Array.from(
+            this.syntheticDocument.effects ?? []
+        ).filter(effect => idSet.has(effect.id));
+        const remaining = Array.from(
+            this.syntheticDocument.effects ?? [],
+            effect => effect.toObject()
+        ).filter(effect => !idSet.has(effect._id));
+
+        await this._applySyntheticStructure(
+            "effects",
+            remaining,
+            options
+        );
+
+        return deleted;
+    }
+
+
+    async _deleteSyntheticActivity(id) {
+        if (!this._canEditStructures()) {
+            await this._blockedOperation();
+            return this.syntheticDocument;
+        }
+
+        const current = ObjectOverridePatchEngine.get(
+            this.session.workingSource,
+            "system.activities"
+        );
+        const activities = current.exists &&
+            isPlainObject(current.value)
+            ? current.value
+            : {};
+
+        if (!Object.hasOwn(activities, id))
+            return this.syntheticDocument;
+
+        delete activities[id];
+        await this._applySyntheticStructure(
+            "system.activities",
+            activities
+        );
+        return this.syntheticDocument;
+    }
+
+
+    async _updateSyntheticActivity(id, updates, options = {}) {
+        if (!this._canEditStructures()) {
+            await this._blockedOperation();
+            return this.syntheticDocument;
+        }
+
+        const activity = this.syntheticDocument.system.activities?.get(id);
+
+        if (!activity)
+            return this.syntheticDocument;
+
+        const previousSource = this.session.workingSource;
+
+        try {
+            activity.updateSource(structuredClone(updates ?? {}));
+            await this._applySyntheticStructure(
+                "system.activities",
+                Object.fromEntries(
+                    Array.from(
+                        this.syntheticDocument.system.activities,
+                        entry => [entry.id, entry.toObject()]
+                    )
+                ),
+                options
+            );
+        }
+        catch (error) {
+            this.session.captureWorkingSource(previousSource);
+            this._replaceSyntheticSource(previousSource);
+            throw error;
+        }
+
+        return this.syntheticDocument.system.activities.get(id) ??
+            this.syntheticDocument;
+    }
+
+
     async _applySyntheticUpdate(data, options = {}) {
         if (this.disposed)
             return this.syntheticDocument;
+
+        if (!this._canEditStructures()) {
+            await this._blockedOperation();
+            return this.syntheticDocument;
+        }
 
         const safe = safeUpdateData(data);
 
@@ -746,6 +1095,24 @@ class ItemSheetOverrideController {
     }
 
 
+    async _closeStructureEditors() {
+        const applications = new Set(
+            Object.values(this.syntheticDocument?.apps ?? {})
+        );
+
+        for (const effect of this.syntheticDocument?.effects ?? []) {
+            for (const app of Object.values(effect.apps ?? {}))
+                applications.add(app);
+        }
+
+        applications.delete(this.syntheticSheet);
+
+        await Promise.allSettled(
+            Array.from(applications, app => app?.close?.())
+        );
+    }
+
+
     _scopedSubmitData(submitData) {
         const scoped = {};
         const form = this.syntheticSheet?.element;
@@ -818,6 +1185,7 @@ class ItemSheetOverrideController {
                 scopedSubmitData,
                 { render: false }
             );
+            await this._closeStructureEditors();
         }
         finally {
             this._suppressLocalRender = false;
@@ -850,6 +1218,7 @@ class ItemSheetOverrideController {
         if (!this.session.editing)
             return;
 
+        await this._closeStructureEditors();
         this.session.cancel();
         this._dirtyControlPaths.clear();
         this._replaceSyntheticSource(
@@ -887,6 +1256,12 @@ class ItemSheetOverrideController {
         if (!normalizedPaths.length)
             return;
 
+        if (normalizedPaths.some(path =>
+            ATOMIC_PATCH_PATHS.includes(path)
+        )) {
+            await this._closeStructureEditors();
+        }
+
         for (const path of normalizedPaths)
             this.session.resetField(path);
 
@@ -912,6 +1287,9 @@ class ItemSheetOverrideController {
 
     async resetAll() {
         const editing = this.session.editing;
+
+        if (editing)
+            await this._closeStructureEditors();
 
         if (!editing) {
             await ObjectOverrideStorageService.remove(
@@ -1021,9 +1399,7 @@ class ItemSheetOverrideController {
         for (
             const section
             of app.element.querySelectorAll(
-                "section[data-tab='activities'], " +
                 "section[data-tab='contents'], " +
-                "section[data-tab='effects'], " +
                 "section[data-tab='advancement']"
             )
         ) {
@@ -1056,6 +1432,71 @@ class ItemSheetOverrideController {
                 );
             }
         }
+    }
+
+
+    _actionIsAllowed(action, target, editing) {
+        if (
+            target.closest("[data-activity-id]") &&
+            [
+                "deleteDocument",
+                "editDocument",
+                "showDocument"
+            ].includes(action)
+        ) {
+            return editing;
+        }
+
+        const allowed = editing
+            ? SAFE_EDIT_ACTIONS
+            : SAFE_ACTIONS;
+
+        if (allowed.has(action))
+            return true;
+
+        if (!editing)
+            return false;
+
+        if (
+            action === "addDocument" &&
+            ["activities", "effects"].includes(
+                this.syntheticSheet?.tabGroups?.primary
+            )
+        ) {
+            return true;
+        }
+
+        return action === "create" && Boolean(
+            target.closest("section[data-tab='effects']")
+        );
+    }
+
+
+    async _handleActivityAction(action, target) {
+        const entry = target.closest("[data-activity-id]");
+
+        if (!entry)
+            return false;
+
+        const activity = this.syntheticDocument.system
+            .activities?.get(entry.dataset.activityId);
+
+        if (!activity)
+            return true;
+
+        if (action === "deleteDocument") {
+            await activity.deleteDialog({
+                sheet: this.syntheticSheet
+            });
+            return true;
+        }
+
+        if (["editDocument", "showDocument"].includes(action)) {
+            await this.syntheticSheet._renderChild(activity.sheet);
+            return true;
+        }
+
+        return false;
     }
 
 
@@ -1111,10 +1552,6 @@ class ItemSheetOverrideController {
             );
         }
 
-        const allowedActions = editing
-            ? SAFE_EDIT_ACTIONS
-            : SAFE_ACTIONS;
-
         for (
             const control
             of app.element.querySelectorAll(
@@ -1136,9 +1573,14 @@ class ItemSheetOverrideController {
                 continue;
             }
 
-            const allowed = allowedActions.has(
-                control.dataset.action
-            );
+            const action = control.dataset.action;
+            const allowed =
+                (editing && action === "addDocument") ||
+                this._actionIsAllowed(
+                    action,
+                    control,
+                    editing
+                );
 
             blockControl(control, !allowed);
         }
@@ -1253,6 +1695,22 @@ class ItemSheetOverrideController {
                     "description"
                 );
             }
+        }
+
+        for (const [tab, path] of [
+            ["activities", "system.activities"],
+            ["effects", "effects"]
+        ]) {
+            if (!this.session.hasDifference(path))
+                continue;
+
+            insertReset(
+                app.element.querySelector(
+                    `section[data-tab='${tab}']`
+                ),
+                [path],
+                "structure"
+            );
         }
 
         for (
@@ -1513,6 +1971,15 @@ class ItemSheetOverrideController {
                 return;
 
             if (
+                target.closest("[data-context-menu]") &&
+                !this.session.editing
+            ) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                return;
+            }
+
+            if (
                 target.closest(
                     ".cc-override-locked-structure"
                 )
@@ -1525,6 +1992,30 @@ class ItemSheetOverrideController {
             const action = target.closest(
                 "[data-action]"
             )?.dataset.action;
+
+            if (
+                this.session.editing &&
+                [
+                    "deleteDocument",
+                    "editDocument",
+                    "showDocument"
+                ].includes(action) &&
+                target.closest("[data-activity-id]")
+            ) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                void this._handleActivityAction(
+                    action,
+                    target
+                ).catch(error => {
+                    console.error(
+                        `${MODULE_ID} | Activity override action failed`,
+                        error
+                    );
+                    ui.notifications.error(error.message);
+                });
+                return;
+            }
 
             if (action === "toggleState") {
                 const path = target.closest(
@@ -1575,11 +2066,14 @@ class ItemSheetOverrideController {
                 return;
             }
 
-            const allowed = this.session.editing
-                ? SAFE_EDIT_ACTIONS
-                : SAFE_ACTIONS;
-
-            if (action && !allowed.has(action)) {
+            if (
+                action &&
+                !this._actionIsAllowed(
+                    action,
+                    target,
+                    this.session.editing
+                )
+            ) {
                 event.preventDefault();
                 event.stopImmediatePropagation();
             }

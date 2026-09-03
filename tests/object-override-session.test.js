@@ -151,6 +151,46 @@ test("supports explicit atomic object replacement", () => {
 });
 
 
+test("session keeps activities and effects as atomic patches", () => {
+    const session = new CuratorOverrideSession(
+        {
+            system: {
+                activities: {
+                    attack: {
+                        _id: "attack",
+                        type: "attack",
+                        name: "Strike"
+                    }
+                }
+            },
+            effects: [{ _id: "effect", name: "Blessed" }]
+        },
+        { atomicPaths: ["system.activities", "effects"] }
+    );
+
+    session.beginEditing();
+    session.setField(
+        "system.activities.attack.name",
+        "Heavy Strike"
+    );
+    session.setField("effects", []);
+
+    assert.deepEqual(
+        session.patch.map(operation => ({
+            op: operation.op,
+            path: operation.path
+        })),
+        [
+            { op: "replace", path: "/effects" },
+            {
+                op: "replace",
+                path: "/system/activities"
+            }
+        ]
+    );
+});
+
+
 test("rejects unsafe patch paths", () => {
     assert.throws(
         () => ObjectOverridePatchEngine.apply({}, [{
@@ -213,7 +253,9 @@ test("accepts serializable fields and rejects embedded structures", () => {
             "system.uses.recovery": [{
                 period: "day",
                 type: "recoverAll"
-            }]
+            }],
+            "system.activities.attack.name": "Changed attack",
+            effects: [{ name: "Unsafe" }]
         }
     );
 });
@@ -384,7 +426,7 @@ test("filters derived source labels from stored patches", () => {
 });
 
 
-test("keeps document structures with their own lifecycle blocked", () => {
+test("accepts activities and effects but keeps other lifecycles blocked", () => {
     assert.deepEqual(
         safeUpdateData({
             system: {
@@ -396,10 +438,12 @@ test("keeps document structures with their own lifecycle blocked", () => {
                 container: "parent-item",
                 equipped: true
             },
-            effects: [{ name: "Unsafe effect" }]
+            effects: [{ name: "Local effect" }]
         }),
         {
-            "system.equipped": true
+            "system.activities.attack.name": "Unsafe activity",
+            "system.equipped": true,
+            effects: [{ name: "Local effect" }]
         }
     );
 });
@@ -699,9 +743,9 @@ test("filters unsafe persisted paths before applying them", () => {
                 value: "Safe"
             },
             {
-                op: "replace",
-                path: "/effects",
-                value: [{ name: "Unsafe" }]
+                op: "set",
+                path: "/effects/effect/name",
+                value: "Unsafe nested patch"
             },
             {
                 op: "set",
@@ -712,6 +756,21 @@ test("filters unsafe persisted paths before applying them", () => {
                 op: "replace",
                 path: "/system/properties",
                 value: ["ada", "mgc"]
+            },
+            {
+                op: "replace",
+                path: "/system/activities",
+                value: { attack: { type: "attack" } }
+            },
+            {
+                op: "set",
+                path: "/system/activities/attack/name",
+                value: "Rejected nested patch"
+            },
+            {
+                op: "replace",
+                path: "/effects",
+                value: [{ _id: "effect", name: "Local" }]
             }
         ]),
         [
@@ -729,6 +788,16 @@ test("filters unsafe persisted paths before applying them", () => {
                 op: "replace",
                 path: "/system/properties",
                 value: ["ada", "mgc"]
+            },
+            {
+                op: "replace",
+                path: "/system/activities",
+                value: { attack: { type: "attack" } }
+            },
+            {
+                op: "replace",
+                path: "/effects",
+                value: [{ _id: "effect", name: "Local" }]
             }
         ]
     );

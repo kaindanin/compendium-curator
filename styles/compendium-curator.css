@@ -3074,6 +3074,12 @@
 }
 
 
+.cc-override-reset-host-structure > .cc-override-reset-field {
+    top: 4px;
+    right: 4px;
+}
+
+
 /* ==========================================================================
    Compendium directory bulk actions
    ========================================================================== */
