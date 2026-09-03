@@ -14,6 +14,17 @@ const EDIT_MODE = 2;
 const MODULE_ID = "compendium-curator";
 const controllers = new WeakMap();
 const preparedRoots = new WeakSet();
+const ITEM_SHEET_CLASS_NAMES = new Set([
+    "ItemSheet5e",
+    "ContainerSheet"
+]);
+
+const SAFE_AUXILIARY_SHEET_CLASS_NAMES = new Set([
+    "CreatureTypeConfig",
+    "MovementSensesConfig",
+    "SourceConfig",
+    "StartingEquipmentConfig"
+]);
 
 const BLOCKED_PATH_PREFIXES = [
     "effects",
@@ -22,9 +33,10 @@ const BLOCKED_PATH_PREFIXES = [
     "system.advancement",
     "system.contents",
     "system.container",
-    "system.properties",
-    "system.damage.parts",
-    "system.uses.recovery"
+    "system.source.bookPlaceholder",
+    "system.source.label",
+    "system.source.slug",
+    "system.source.value"
 ];
 
 const BLOCKED_SYNTHETIC_METHODS = [
@@ -36,9 +48,19 @@ const BLOCKED_SYNTHETIC_METHODS = [
     "deleteAdvancement"
 ];
 
+const ATOMIC_CONTROL_PATHS = [
+    "system.properties",
+    "system.damage.parts",
+    "system.uses.recovery"
+];
+
 const SAFE_ACTIONS = new Set([
     "changeMode",
     "close",
+    "copyUuid",
+    "editDocument",
+    "showDocument",
+    "showIcon",
     "tab",
     "toggleCollapsed",
     "toggleControls"
@@ -46,9 +68,16 @@ const SAFE_ACTIONS = new Set([
 
 const SAFE_EDIT_ACTIONS = new Set([
     ...SAFE_ACTIONS,
+    "addRecovery",
+    "deleteCraft",
+    "deleteRecovery",
     "editDescription",
-    "showConfiguration"
+    "editImage",
+    "showConfiguration",
+    "toggleState"
 ]);
+
+const NAMED_CONTROL_SELECTOR = "[name]";
 
 
 function localize(key) {
@@ -67,10 +96,16 @@ function isPlainObject(value) {
 }
 
 
-function isPrimitive(value) {
+function isSafeValue(value) {
     return value === null ||
-        ["string", "number", "boolean"].includes(
-            typeof value
+        ["string", "number", "boolean"].includes(typeof value) ||
+        (
+            Array.isArray(value) &&
+            value.every(isSafeValue)
+        ) ||
+        (
+            isPlainObject(value) &&
+            Object.values(value).every(isSafeValue)
         );
 }
 
@@ -91,10 +126,13 @@ function pathIsSafe(path, value = null) {
     if (normalized === "name")
         return typeof value === "string" || value === null;
 
+    if (normalized === "img")
+        return typeof value === "string" || value === null;
+
     if (!normalized.startsWith("system."))
         return false;
 
-    return isPrimitive(value);
+    return isSafeValue(value);
 }
 
 
@@ -126,6 +164,144 @@ function safeUpdateData(updateData) {
     }
 
     return safe;
+}
+
+
+function replaceSyntheticDocumentSource(document, source) {
+    document.updateSource(
+        structuredClone(source),
+        { recursive: false }
+    );
+
+    return document;
+}
+
+
+function controlPath(control) {
+    return String(
+        control?.getAttribute?.("name") ??
+        control?.name ??
+        ""
+    ).trim();
+}
+
+
+function controlValue(control) {
+    if (control?.matches?.("input[type='checkbox']")) {
+        return Boolean(control.checked);
+    }
+
+    if (control?.matches?.("dnd5e-checkbox"))
+        return control.hasAttribute("checked");
+
+    if (control?.matches?.("formula-input")) {
+        return control.querySelector("input")?.value ??
+            control.value ??
+            "";
+    }
+
+    if (control?.matches?.("multi-select, string-tags")) {
+        return Array.from(
+            control.querySelectorAll(".tag[data-key]"),
+            tag => tag.dataset.key
+        );
+    }
+
+    if (control?.matches?.("select[multiple]")) {
+        return Array.from(
+            control.selectedOptions ?? [],
+            option => option.value
+        );
+    }
+
+    const value = control?.value;
+
+    if (value instanceof Set)
+        return Array.from(value);
+
+    if (value !== undefined)
+        return value;
+
+    return null;
+}
+
+
+function atomicControlPath(path) {
+    return ATOMIC_CONTROL_PATHS.find(prefix =>
+        path === prefix || path.startsWith(`${prefix}.`)
+    ) ?? path;
+}
+
+
+function coerceControlValue(
+    control,
+    preparedValue,
+    currentValue = undefined
+) {
+    const value = controlValue(control);
+
+    if (value === null)
+        return preparedValue;
+
+    if (control?.matches?.("formula-input")) {
+        if (value === "")
+            return typeof currentValue === "number" ? null : "";
+
+        if (
+            typeof currentValue === "number" &&
+            String(Number(value)) === String(value).trim()
+        ) {
+            return Number(value);
+        }
+
+        return value;
+    }
+
+    if (control?.matches?.("dnd5e-checkbox"))
+        return Boolean(value);
+
+    if (
+        control?.tagName?.includes("-") &&
+        preparedValue !== undefined
+    ) {
+        return preparedValue;
+    }
+
+    if (
+        control?.matches?.(
+            "multi-select, string-tags, select[multiple]"
+        ) &&
+        (
+            Array.isArray(preparedValue) ||
+            isPlainObject(preparedValue)
+        )
+    ) {
+        return preparedValue;
+    }
+
+    if (control?.matches?.("input[type='number'], input[type='range']")) {
+        if (value === "")
+            return null;
+
+        const number = Number(value);
+        return Number.isNaN(number) ? preparedValue : number;
+    }
+
+    if (control?.matches?.("input[type='radio']"))
+        return preparedValue;
+
+    if (typeof preparedValue === "number") {
+        if (value === "")
+            return null;
+
+        const number = Number(value);
+        return Number.isNaN(number) ? preparedValue : number;
+    }
+
+    if (typeof preparedValue === "boolean")
+        return Boolean(value);
+
+    return value;
 }
 
 
@@ -305,6 +481,8 @@ class ItemSheetOverrideController {
         this.syntheticSheet = null;
         this._viewState = null;
         this._suppressLocalRender = false;
+        this._openModifiedOnFirstRender = true;
+        this._dirtyControlPaths = new Set();
 
         controllers.set(originalSheet, this);
         originalSheet._ccOverrideController = this;
@@ -363,6 +541,10 @@ class ItemSheetOverrideController {
         this.syntheticDocument = new CuratorSyntheticItem(
             this.session.workingSource
         );
+        this._applyFullSyntheticSource(
+            this.session.workingSource
+        );
+        this._reconcileSyntheticSource();
         this.syntheticDocument._ccOverrideController = this;
         this._hardenEmbeddedDocuments();
 
@@ -375,7 +557,7 @@ class ItemSheetOverrideController {
             options = {}
         ) => {
             await this._applySyntheticUpdate(
-                submitData,
+                this._scopedSubmitData(submitData),
                 { ...options, render: false }
             );
             return { updated: this.syntheticDocument };
@@ -416,11 +598,21 @@ class ItemSheetOverrideController {
         if (!Object.keys(safe).length)
             return this.syntheticDocument;
 
-        this.syntheticDocument.updateSource(safe);
-        this._hardenEmbeddedDocuments();
-        this.session.captureWorkingSource(
-            this.syntheticDocument.toObject()
-        );
+        const previousSource = this.session.workingSource;
+
+        try {
+            for (const [path, value] of Object.entries(safe))
+                this.session.setField(path, value);
+
+            this._replaceSyntheticSource(
+                this.session.workingSource
+            );
+        }
+        catch (error) {
+            this.session.captureWorkingSource(previousSource);
+            this._replaceSyntheticSource(previousSource);
+            throw error;
+        }
 
         if (
             options.render !== false &&
@@ -446,11 +638,51 @@ class ItemSheetOverrideController {
 
     _replaceSyntheticSource(source) {
         this._createSyntheticDocument();
-        this.syntheticDocument.updateSource(
-            structuredClone(source),
-            { recursive: false }
-        );
+        this._applyFullSyntheticSource(source);
+        this._reconcileSyntheticSource();
         this._hardenEmbeddedDocuments();
+    }
+
+
+    _applyFullSyntheticSource(source) {
+        replaceSyntheticDocumentSource(
+            this.syntheticDocument,
+            source
+        );
+    }
+
+
+    _reconcileSyntheticSource() {
+        const actualSource = this.syntheticDocument.toObject();
+
+        for (const operation of this.session.patch) {
+            const path = ObjectOverridePatchEngine
+                .segments(operation.path)
+                .join(".");
+            const actual = ObjectOverridePatchEngine.get(
+                actualSource,
+                path
+            );
+            const working = ObjectOverridePatchEngine.get(
+                this.session.workingSource,
+                path
+            );
+
+            if (
+                actual.exists === working.exists &&
+                ObjectOverridePatchEngine.equals(
+                    actual.value,
+                    working.value
+                )
+            ) {
+                continue;
+            }
+
+            if (actual.exists)
+                this.session.setField(path, actual.value);
+            else
+                this.session.removeField(path);
+        }
     }
 
 
@@ -502,6 +734,7 @@ class ItemSheetOverrideController {
             return;
 
         this.session.beginEditing();
+        this._dirtyControlPaths.clear();
         const state = captureViewState(this.syntheticSheet);
         this.syntheticSheet._mode = EDIT_MODE;
 
@@ -513,6 +746,51 @@ class ItemSheetOverrideController {
     }
 
 
+    _scopedSubmitData(submitData) {
+        const scoped = {};
+        const form = this.syntheticSheet?.element;
+
+        for (const dirtyPath of this._dirtyControlPaths) {
+            const path = atomicControlPath(dirtyPath);
+            const prepared = ObjectOverridePatchEngine.get(
+                submitData,
+                path
+            );
+            const working = ObjectOverridePatchEngine.get(
+                this.session.workingSource,
+                path
+            );
+            let value = prepared.exists
+                ? prepared.value
+                : working.value;
+
+            if (path === dirtyPath) {
+                const control = form?.querySelector(
+                    `[name="${CSS.escape(dirtyPath)}"]`
+                );
+
+                if (control) {
+                    value = coerceControlValue(
+                        control,
+                        prepared.exists
+                            ? prepared.value
+                            : undefined,
+                        working.value
+                    );
+                }
+            }
+            else if (!prepared.exists) {
+                continue;
+            }
+
+            if (pathIsSafe(path, value))
+                scoped[path] = value;
+        }
+
+        return scoped;
+    }
+
+
     async applyEditing() {
         if (!this.session.editing)
             return;
@@ -520,15 +798,30 @@ class ItemSheetOverrideController {
         this._suppressLocalRender = true;
 
         try {
-            await this.syntheticSheet.submit();
+            const form = this.syntheticSheet.element;
+            const event = new Event("submit", {
+                cancelable: true
+            });
+            const formData = new foundry.applications.ux
+                .FormDataExtended(form);
+            const submitData = this.syntheticSheet
+                ._prepareSubmitData(
+                    event,
+                    form,
+                    formData
+                );
+
+            const scopedSubmitData = this._scopedSubmitData(
+                submitData
+            );
+            await this._applySyntheticUpdate(
+                scopedSubmitData,
+                { render: false }
+            );
         }
         finally {
             this._suppressLocalRender = false;
         }
-
-        this.session.captureWorkingSource(
-            this.syntheticDocument.toObject()
-        );
 
         await ObjectOverrideStorageService.save(
             this.originalDocument.uuid,
@@ -540,6 +833,7 @@ class ItemSheetOverrideController {
             }
         );
         this.session.apply();
+        this._dirtyControlPaths.clear();
         this.syntheticSheet.editingDescriptionTarget = null;
         this.syntheticSheet._mode = PLAY_MODE;
 
@@ -557,6 +851,7 @@ class ItemSheetOverrideController {
             return;
 
         this.session.cancel();
+        this._dirtyControlPaths.clear();
         this._replaceSyntheticSource(
             this.session.workingSource
         );
@@ -573,10 +868,35 @@ class ItemSheetOverrideController {
 
 
     async resetField(path) {
-        if (!this.session.editing || !path)
+        return this.resetFields([path]);
+    }
+
+
+    async resetFields(paths) {
+        if (!this.session.editing)
             return;
 
-        this.session.resetField(path);
+        const normalizedPaths = [
+            ...new Set(
+                Array.from(paths ?? [])
+                    .map(path => String(path ?? "").trim())
+                    .filter(Boolean)
+            )
+        ];
+
+        if (!normalizedPaths.length)
+            return;
+
+        for (const path of normalizedPaths)
+            this.session.resetField(path);
+
+        for (const path of normalizedPaths) {
+            for (const dirtyPath of this._dirtyControlPaths) {
+                if (atomicControlPath(dirtyPath) === path)
+                    this._dirtyControlPaths.delete(dirtyPath);
+            }
+        }
+
         this._replaceSyntheticSource(
             this.session.workingSource
         );
@@ -600,6 +920,7 @@ class ItemSheetOverrideController {
         }
 
         this.session.resetAll();
+        this._dirtyControlPaths.clear();
 
         if (!editing)
             this.session.apply();
@@ -701,6 +1022,7 @@ class ItemSheetOverrideController {
             const section
             of app.element.querySelectorAll(
                 "section[data-tab='activities'], " +
+                "section[data-tab='contents'], " +
                 "section[data-tab='effects'], " +
                 "section[data-tab='advancement']"
             )
@@ -761,12 +1083,12 @@ class ItemSheetOverrideController {
         for (
             const control
             of app.element.querySelectorAll(
-                "input[name], select[name], textarea[name]"
+                NAMED_CONTROL_SELECTOR
             )
         ) {
             const safe = editing && pathIsSafe(
-                control.name,
-                control.value
+                controlPath(control),
+                controlValue(control)
             );
             blockControl(control, !safe);
         }
@@ -821,15 +1143,6 @@ class ItemSheetOverrideController {
             blockControl(control, !allowed);
         }
 
-        for (
-            const image
-            of app.element.querySelectorAll(
-                "[data-edit='img'], [data-action='editImage']"
-            )
-        ) {
-            blockControl(image);
-        }
-
         this._markBlockedStructures(app);
     }
 
@@ -838,28 +1151,37 @@ class ItemSheetOverrideController {
         if (!this.session.editing)
             return;
 
-        for (
-            const control
-            of app.element.querySelectorAll(
-                "input[name], select[name], textarea[name]"
-            )
-        ) {
-            const path = control.name;
+        const insertReset = (
+            host,
+            paths,
+            placement = "field"
+        ) => {
+            if (!host || !paths.length)
+                return;
+
+            const normalizedPaths = [...new Set(paths)];
+            const key = normalizedPaths.join("|");
 
             if (
-                !pathIsSafe(path, control.value) ||
-                !this.session.hasDifference(path) ||
-                control.nextElementSibling
-                    ?.matches("[data-cc-override-reset-field]")
+                host.querySelector(
+                    `:scope > [data-cc-override-reset-key="${CSS.escape(key)}"]`
+                )
             ) {
-                continue;
+                return;
             }
+
+            host.classList.add(
+                "cc-override-reset-host",
+                `cc-override-reset-host-${placement}`
+            );
 
             const button = document.createElement("button");
             button.type = "button";
             button.className =
                 "unbutton cc-override-reset-field";
-            button.dataset.ccOverrideResetField = path;
+            button.dataset.ccOverrideResetKey = key;
+            button.dataset.ccOverrideResetFields =
+                JSON.stringify(normalizedPaths);
             button.dataset.tooltip =
                 localize("ObjectOverrideResetField");
             button.setAttribute(
@@ -868,12 +1190,137 @@ class ItemSheetOverrideController {
             );
             button.innerHTML =
                 '<i class="fa-solid fa-rotate-left" inert></i>';
-            button.addEventListener("click", event => {
-                event.preventDefault();
-                event.stopPropagation();
-                void this.resetField(path);
-            });
-            control.insertAdjacentElement("afterend", button);
+            host.append(button);
+        };
+
+        for (
+            const compact
+            of app.element.querySelectorAll(
+                ".sheet-header .weight, .sheet-header .price"
+            )
+        ) {
+            const paths = Array.from(
+                compact.querySelectorAll(
+                    NAMED_CONTROL_SELECTOR
+                ),
+                control => controlPath(control)
+            ).filter(path =>
+                pathIsSafe(path) &&
+                this.session.hasDifference(path)
+            );
+
+            insertReset(compact, paths, "compact");
+        }
+
+        const propertyControls = app.element.querySelectorAll(
+            "[name^='system.properties.']"
+        );
+
+        if (
+            propertyControls.length &&
+            this.session.hasDifference("system.properties")
+        ) {
+            insertReset(
+                propertyControls[0].closest(".form-group"),
+                ["system.properties"],
+                "properties"
+            );
+        }
+
+        if (this.session.hasDifference("img")) {
+            insertReset(
+                app.element.querySelector(".sheet-header .left"),
+                ["img"],
+                "image"
+            );
+        }
+
+        for (
+            const card
+            of app.element.querySelectorAll(
+                ".card.description[data-target]"
+            )
+        ) {
+            const path = String(card.dataset.target ?? "").trim();
+
+            if (
+                pathIsSafe(path, "") &&
+                this.session.hasDifference(path)
+            ) {
+                insertReset(
+                    card.querySelector(":scope > .header"),
+                    [path],
+                    "description"
+                );
+            }
+        }
+
+        for (
+            const labelTop
+            of app.element.querySelectorAll(
+                ".form-group.label-top"
+            )
+        ) {
+            const paths = Array.from(
+                labelTop.querySelectorAll(
+                    NAMED_CONTROL_SELECTOR
+                ),
+                control => controlPath(control)
+            ).filter(path =>
+                pathIsSafe(path) &&
+                this.session.hasDifference(path)
+            );
+
+            if (paths.length) {
+                labelTop.classList.add(
+                    "cc-override-reset-fields-grouped"
+                );
+                insertReset(labelTop, paths, "label-top");
+            }
+        }
+
+        for (
+            const control
+            of app.element.querySelectorAll(
+                NAMED_CONTROL_SELECTOR
+            )
+        ) {
+            const path = controlPath(control);
+            const compact = control.closest(
+                ".sheet-header .weight, .sheet-header .price"
+            );
+
+            if (
+                compact ||
+                control.closest(
+                    ".cc-override-reset-fields-grouped"
+                ) ||
+                path.startsWith("system.properties.") ||
+                !pathIsSafe(path, controlValue(control)) ||
+                !this.session.hasDifference(path)
+            ) {
+                continue;
+            }
+
+            let host = control.closest(".form-group");
+            let placement = host?.classList.contains("label-top")
+                ? "label-top"
+                : "form-group";
+
+            if (control.classList.contains("document-name")) {
+                host = control.closest(".identity-info");
+                placement = "name";
+            }
+            else if (control.closest(".item-rarity")) {
+                host = control.closest(".item-rarity");
+                placement = "subtitle";
+            }
+            else if (!host) {
+                host = control.parentElement;
+                placement = "fallback";
+            }
+
+            insertReset(host, [path], placement);
         }
     }
 
@@ -886,9 +1333,52 @@ class ItemSheetOverrideController {
 
         preparedRoots.add(root);
 
+        const markDirtyControl = event => {
+            if (!this.session.editing)
+                return;
+
+            const control = event.target?.closest?.(
+                NAMED_CONTROL_SELECTOR
+            );
+            const path = controlPath(control);
+
+            if (pathIsSafe(path, controlValue(control)))
+                this._dirtyControlPaths.add(path);
+
+        };
+
+        root.addEventListener(
+            "input",
+            markDirtyControl,
+            true
+        );
+        root.addEventListener(
+            "change",
+            markDirtyControl,
+            true
+        );
+
         root.addEventListener("drop", event => {
             if (this.view === "original")
                 return;
+
+            const safeDropControl = event.target.closest?.(
+                NAMED_CONTROL_SELECTOR
+            );
+
+            if (
+                this.session.editing &&
+                safeDropControl &&
+                !safeDropControl.closest(
+                    ".cc-override-locked-structure"
+                ) &&
+                pathIsSafe(
+                    controlPath(safeDropControl),
+                    controlValue(safeDropControl)
+                )
+            ) {
+                return;
+            }
 
             if (
                 event.target.closest(
@@ -908,6 +1398,24 @@ class ItemSheetOverrideController {
         root.addEventListener("dragover", event => {
             if (this.view === "original")
                 return;
+
+            const safeDropControl = event.target.closest?.(
+                NAMED_CONTROL_SELECTOR
+            );
+
+            if (
+                this.session.editing &&
+                safeDropControl &&
+                !safeDropControl.closest(
+                    ".cc-override-locked-structure"
+                ) &&
+                pathIsSafe(
+                    controlPath(safeDropControl),
+                    controlValue(safeDropControl)
+                )
+            ) {
+                return;
+            }
 
             event.preventDefault();
             event.stopImmediatePropagation();
@@ -939,15 +1447,24 @@ class ItemSheetOverrideController {
         root.addEventListener("click", event => {
             const target = event.target;
             const reset = target.closest(
-                "[data-cc-override-reset-field]"
+                "[data-cc-override-reset-fields]"
             );
 
             if (reset) {
                 event.preventDefault();
                 event.stopImmediatePropagation();
-                void this.resetField(
-                    reset.dataset.ccOverrideResetField
-                );
+                let paths = [];
+
+                try {
+                    paths = JSON.parse(
+                        reset.dataset.ccOverrideResetFields
+                    );
+                }
+                catch {
+                    paths = [];
+                }
+
+                void this.resetFields(paths);
                 return;
             }
 
@@ -1009,6 +1526,30 @@ class ItemSheetOverrideController {
                 "[data-action]"
             )?.dataset.action;
 
+            if (action === "toggleState") {
+                const path = target.closest(
+                    "[data-property]"
+                )?.dataset.property;
+
+                if (path)
+                    this._dirtyControlPaths.add(path);
+            }
+
+            if (action === "editImage") {
+                const path = target.closest(
+                    "[data-edit]"
+                )?.dataset.edit;
+
+                if (pathIsSafe(path, ""))
+                    this._dirtyControlPaths.add(path);
+            }
+
+            if (["addRecovery", "deleteRecovery"].includes(action))
+                this._dirtyControlPaths.add("system.uses.recovery");
+
+            if (action === "deleteCraft")
+                this._dirtyControlPaths.add("system.craft");
+
             if (action === "changeMode") {
                 event.preventDefault();
                 event.stopImmediatePropagation();
@@ -1062,10 +1603,27 @@ class ItemSheetOverrideController {
         if (this.disposed)
             return;
 
-        if (app === this.originalSheet)
+        if (app === this.originalSheet) {
             this.view = "original";
-        else if (app === this.syntheticSheet)
+
+            if (this._openModifiedOnFirstRender) {
+                this._openModifiedOnFirstRender = false;
+
+                Promise.resolve().then(() =>
+                    this.show("modified")
+                ).catch(error => {
+                    console.error(
+                        `${MODULE_ID} | Initial modified view failed`,
+                        error
+                    );
+                    ui.notifications.error(error.message);
+                });
+                return;
+            }
+        }
+        else if (app === this.syntheticSheet) {
             this.view = "modified";
+        }
 
         this._injectViewSwitch(app);
         this._configureControls(app);
@@ -1079,24 +1637,30 @@ class ItemSheetOverrideController {
         if (
             this.disposed ||
             !this.session.editing ||
-            app?.constructor?.name !== "SourceConfig" ||
+            !SAFE_AUXILIARY_SHEET_CLASS_NAMES.has(
+                app?.constructor?.name
+            ) ||
             app.document !== this.syntheticDocument
         ) {
             return false;
         }
 
-        app._processSubmitData = async (
-            _event,
-            _form,
-            submitData,
-            options = {}
-        ) => {
-            await this._applySyntheticUpdate(
+        if (app.constructor.name === "SourceConfig") {
+            app._processSubmitData = async (
+                _event,
+                _form,
                 submitData,
-                { ...options, render: false }
-            );
-            return { updated: this.syntheticDocument };
-        };
+                options = {}
+            ) => {
+                await this._applySyntheticUpdate(
+                    submitData,
+                    { ...options, render: false }
+                );
+                return { updated: this.syntheticDocument };
+            };
+        }
+
+        app._ccOverrideController = this;
         setApplicationEditable(app, true);
         return true;
     }
@@ -1105,6 +1669,14 @@ class ItemSheetOverrideController {
     onClose(app) {
         if (this.switching || this.disposed)
             return;
+
+        if (SAFE_AUXILIARY_SHEET_CLASS_NAMES.has(
+            app?.constructor?.name
+        )) {
+            clearApplicationEditable(app);
+            delete app._ccOverrideController;
+            return;
+        }
 
         if (
             app !== this.originalSheet &&
@@ -1137,7 +1709,9 @@ class ItemSheetOverrideController {
 
 
 function eligibleItemSheet(app) {
-    return app?.constructor?.name === "ItemSheet5e" &&
+    return ITEM_SHEET_CLASS_NAMES.has(
+        app?.constructor?.name
+    ) &&
         app.document?.documentName === "Item" &&
         Boolean(app.document.pack) &&
         game.user.can("SETTINGS_MODIFY");
@@ -1171,8 +1745,11 @@ export function registerItemSheetOverridePrototype() {
 
 
 export {
+    coerceControlValue,
+    controlValue,
     ItemSheetOverrideController,
     pathIsSafe,
+    replaceSyntheticDocumentSource,
     safeStoredPatch,
     safeUpdateData
 };

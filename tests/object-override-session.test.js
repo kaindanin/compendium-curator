@@ -12,6 +12,9 @@ import {
     normalizePatch
 } from "../scripts/overrides/object-override-storage-service.js";
 import {
+    coerceControlValue,
+    controlValue,
+    replaceSyntheticDocumentSource,
     safeStoredPatch,
     safeUpdateData
 } from "../scripts/hooks/item-sheet-overrides.js";
@@ -161,7 +164,7 @@ test("rejects unsafe patch paths", () => {
 });
 
 
-test("sheet adapter accepts scalars and rejects complex structures", () => {
+test("accepts serializable fields and rejects embedded structures", () => {
     assert.deepEqual(
         safeUpdateData({
             name: "Modified",
@@ -175,7 +178,16 @@ test("sheet adapter accepts scalars and rejects complex structures", () => {
                     value: "<p>Changed.</p>"
                 },
                 quantity: 2,
-                properties: ["mgc"],
+                properties: ["ada", "mgc"],
+                damage: {
+                    parts: [["1d8", "slashing"]]
+                },
+                uses: {
+                    recovery: [{
+                        period: "day",
+                        type: "recoverAll"
+                    }]
+                },
                 activities: {
                     attack: {
                         name: "Changed attack"
@@ -191,10 +203,203 @@ test("sheet adapter accepts scalars and rejects complex structures", () => {
         }),
         {
             name: "Modified",
+            img: "icons/changed.webp",
             "system.source.book": "DMG",
             "system.source.custom": "Curator",
             "system.description.value": "<p>Changed.</p>",
-            "system.quantity": 2
+            "system.quantity": 2,
+            "system.properties": ["ada", "mgc"],
+            "system.damage.parts": [["1d8", "slashing"]],
+            "system.uses.recovery": [{
+                period: "day",
+                type: "recoverAll"
+            }]
+        }
+    );
+});
+
+
+test("accepts checkbox maps produced by D&D5e item forms", () => {
+    assert.deepEqual(
+        safeUpdateData({
+            system: {
+                properties: {
+                    ada: true,
+                    stealthDisadvantage: false,
+                    foc: true,
+                    mgc: true
+                }
+            }
+        }),
+        {
+            "system.properties.ada": true,
+            "system.properties.stealthDisadvantage": false,
+            "system.properties.foc": true,
+            "system.properties.mgc": true
+        }
+    );
+});
+
+
+test("rebuilds the complete synthetic source in one root update", () => {
+    const calls = [];
+    const document = {
+        updateSource(source, options) {
+            calls.push({ source, options });
+        }
+    };
+    const source = {
+        name: "Magic Missile",
+        system: {
+            range: { value: 150, units: "ft" }
+        }
+    };
+
+    assert.equal(
+        replaceSyntheticDocumentSource(document, source),
+        document
+    );
+    assert.deepEqual(calls, [{
+        source,
+        options: { recursive: false }
+    }]);
+    assert.notEqual(calls[0].source, source);
+    assert.notEqual(calls[0].source.system, source.system);
+});
+
+
+test("reads D&D5e checkbox attributes instead of native properties", () => {
+    const checked = {
+        matches(selector) {
+            return selector === "dnd5e-checkbox";
+        },
+        hasAttribute(name) {
+            return name === "checked";
+        }
+    };
+    const unchecked = {
+        ...checked,
+        hasAttribute() {
+            return false;
+        }
+    };
+
+    assert.equal(controlValue(checked), true);
+    assert.equal(controlValue(unchecked), false);
+    assert.equal(coerceControlValue(checked, true), true);
+    assert.equal(coerceControlValue(unchecked, false), false);
+});
+
+
+test("keeps prepared collections from D&D5e compound controls", () => {
+    const values = ["slashing", "fire"];
+    const multiSelect = {
+        value: "",
+        matches(selector) {
+            return selector.includes("multi-select");
+        },
+        querySelectorAll() {
+            return [];
+        }
+    };
+
+    assert.deepEqual(
+        coerceControlValue(multiSelect, values),
+        values
+    );
+});
+
+
+test("reads formula values from their internal D&D5e input", () => {
+    const formula = {
+        tagName: "FORMULA-INPUT",
+        value: "",
+        matches(selector) {
+            return selector === "formula-input";
+        },
+        querySelector(selector) {
+            return selector === "input" ? { value: "2 + @mod" } : null;
+        }
+    };
+
+    assert.equal(controlValue(formula), "2 + @mod");
+    assert.equal(
+        coerceControlValue(formula, "2 + @mod"),
+        "2 + @mod"
+    );
+    formula.querySelector = selector =>
+        selector === "input" ? { value: "150" } : null;
+    assert.equal(coerceControlValue(formula, "150", 120), 150);
+    formula.querySelector = selector =>
+        selector === "input" ? { value: "" } : null;
+    assert.equal(coerceControlValue(formula, undefined), "");
+    assert.equal(coerceControlValue(formula, null), "");
+    assert.equal(coerceControlValue(formula, null, 120), null);
+});
+
+
+test("trusts prepared values from unknown form-associated controls", () => {
+    const customControl = {
+        tagName: "DND5E-FUTURE-CONTROL",
+        value: "",
+        matches() {
+            return false;
+        }
+    };
+    const prepared = { mode: "safe", values: [1, 2] };
+
+    assert.deepEqual(
+        coerceControlValue(customControl, prepared),
+        prepared
+    );
+});
+
+
+test("coerces optional numeric controls without storing empty text", () => {
+    const numberInput = {
+        value: "",
+        matches(selector) {
+            return selector.includes("input[type='number']");
+        }
+    };
+
+    assert.equal(coerceControlValue(numberInput, null), null);
+    numberInput.value = "17";
+    assert.equal(coerceControlValue(numberInput, 0), 17);
+});
+
+
+test("filters derived source labels from stored patches", () => {
+    const patch = safeStoredPatch([
+        { op: "set", path: "/system/source/book", value: "PHB" },
+        { op: "remove", path: "/system/source/label" },
+        { op: "remove", path: "/system/source/value" },
+        { op: "remove", path: "/system/source/slug" },
+        { op: "remove", path: "/system/source/bookPlaceholder" }
+    ]);
+
+    assert.deepEqual(patch, [
+        { op: "set", path: "/system/source/book", value: "PHB" }
+    ]);
+});
+
+
+test("keeps document structures with their own lifecycle blocked", () => {
+    assert.deepEqual(
+        safeUpdateData({
+            system: {
+                activities: {
+                    attack: { name: "Unsafe activity" }
+                },
+                advancement: [{ type: "ItemGrant" }],
+                contents: [{ id: "embedded-item" }],
+                container: "parent-item",
+                equipped: true
+            },
+            effects: [{ name: "Unsafe effect" }]
+        }),
+        {
+            "system.equipped": true
         }
     );
 });
@@ -502,6 +707,11 @@ test("filters unsafe persisted paths before applying them", () => {
                 op: "set",
                 path: "/system/quantity",
                 value: 3
+            },
+            {
+                op: "replace",
+                path: "/system/properties",
+                value: ["ada", "mgc"]
             }
         ]),
         [
@@ -514,6 +724,11 @@ test("filters unsafe persisted paths before applying them", () => {
                 op: "set",
                 path: "/system/quantity",
                 value: 3
+            },
+            {
+                op: "replace",
+                path: "/system/properties",
+                value: ["ada", "mgc"]
             }
         ]
     );

@@ -2989,12 +2989,88 @@
 
 
 .cc-override-reset-field {
-    flex: 0 0 auto;
+    position: absolute;
+    z-index: 2;
 
-    width: 24px;
-    min-width: 24px;
-    height: 24px;
-    margin-left: 0.2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 18px;
+    min-width: 18px;
+    height: 18px;
+    margin: 0;
+    padding: 0;
+
+    border-radius: 3px;
+    opacity: 0.78;
+}
+
+
+.cc-override-reset-field:hover,
+.cc-override-reset-field:focus-visible {
+    opacity: 1;
+}
+
+
+.cc-override-reset-host {
+    position: relative !important;
+}
+
+
+.cc-override-reset-host-name > .cc-override-reset-field {
+    top: 4px;
+    right: -20px;
+}
+
+
+.cc-override-reset-host-subtitle > .cc-override-reset-field {
+    top: 4px;
+    right: -20px;
+}
+
+
+.cc-override-reset-host-image > .cc-override-reset-field {
+    top: 3px;
+    right: 3px;
+}
+
+
+.cc-override-reset-host-description > .cc-override-reset-field {
+    position: static;
+    flex: 0 0 18px;
+    margin-left: 4px;
+}
+
+
+.cc-override-reset-host-compact > .cc-override-reset-field {
+    top: 4px;
+    right: -19px;
+}
+
+
+.cc-override-reset-host-form-group > .cc-override-reset-field {
+    top: 4px;
+    right: -20px;
+}
+
+
+.cc-override-reset-host-label-top > .cc-override-reset-field,
+.cc-override-reset-host-properties > .cc-override-reset-field {
+    top: -2px;
+    right: 1px;
+}
+
+
+.cc-override-reset-host-label-top > label,
+.cc-override-reset-host-properties > label {
+    padding-right: 20px;
+}
+
+
+.cc-override-reset-host-fallback > .cc-override-reset-field {
+    top: 4px;
+    right: 2px;
 }
 
 
