@@ -2228,7 +2228,7 @@ function eligibleItemSheet(app) {
     ) &&
         app.document?.documentName === "Item" &&
         Boolean(app.document.pack) &&
-        game.user.can("SETTINGS_MODIFY");
+        (game.user.isGM || game.user.can("SETTINGS_MODIFY"));
 }
 
 
