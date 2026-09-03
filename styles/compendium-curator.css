@@ -2911,6 +2911,12 @@
 
 .cc-item-override-original .window-header > .header-elements + .header-control,
 .cc-item-override-modified .window-header > .header-elements + .header-control {
+    margin-left: 0;
+}
+
+
+.cc-item-override-original .window-header .source-book,
+.cc-item-override-modified .window-header .source-book {
     margin-left: auto;
 }
 
