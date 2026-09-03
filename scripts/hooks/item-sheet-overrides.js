@@ -7,6 +7,9 @@ import {
 import {
     ObjectOverrideStorageService
 } from "../overrides/object-override-storage-service.js";
+import {
+    ObjectOverrideResolver
+} from "../overrides/object-override-resolver.js";
 
 
 const PLAY_MODE = 1;
@@ -481,9 +484,9 @@ class ItemSheetOverrideController {
             this.originalDocument,
             {
                 appliedPatch: safeStoredPatch(
-                    ObjectOverrideStorageService.getPatch(
-                        this.originalDocument.uuid
-                    )
+                    ObjectOverrideResolver.getRecord(
+                        this.originalDocument
+                    )?.patch ?? []
                 ),
                 atomicPaths: ATOMIC_PATCH_PATHS
             }

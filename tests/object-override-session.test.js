@@ -12,6 +12,9 @@ import {
     normalizePatch
 } from "../scripts/overrides/object-override-storage-service.js";
 import {
+    ObjectOverrideResolver
+} from "../scripts/overrides/object-override-resolver.js";
+import {
     coerceControlValue,
     controlValue,
     replaceSyntheticDocumentSource,
@@ -664,6 +667,106 @@ test("normalizes persisted override records safely", () => {
         }]
     );
     assert.equal(Object.keys(storage.overrides).length, 1);
+});
+
+
+test("resolves a compendium document from its original source plus patch", () => {
+    const source = originalItem();
+    const patch = [{
+        op: "set",
+        path: "/name",
+        value: "Curated Longsword"
+    }, {
+        op: "set",
+        path: "/system/quantity",
+        value: 3
+    }];
+    const storage = {
+        get(uuid) {
+            assert.equal(uuid, source.uuid);
+            return {
+                documentName: "Item",
+                documentType: "weapon",
+                patch
+            };
+        }
+    };
+
+    const resolved = ObjectOverrideResolver.resolveDocument(
+        {
+            ...source,
+            documentName: "Item",
+            type: "weapon"
+        },
+        { storage }
+    );
+
+    assert.equal(resolved.originalSource.name, "Longsword");
+    assert.equal(resolved.source.name, "Curated Longsword");
+    assert.equal(resolved.source.system.quantity, 3);
+    assert.deepEqual(source.toObject(), resolved.originalSource);
+});
+
+
+test("does not apply an override saved for another document class or type", () => {
+    const source = originalItem();
+    const storage = {
+        get() {
+            return {
+                documentName: "Actor",
+                documentType: "npc",
+                patch: [{
+                    op: "set",
+                    path: "/name",
+                    value: "Wrong document"
+                }]
+            };
+        }
+    };
+
+    const resolved = ObjectOverrideResolver.resolveDocument(
+        {
+            ...source,
+            documentName: "Item",
+            type: "weapon"
+        },
+        { storage }
+    );
+
+    assert.equal(resolved.source.name, "Longsword");
+    assert.deepEqual(resolved.patch, []);
+    assert.equal(resolved.record, null);
+});
+
+
+test("fails closed when a stored patch contains an unsafe path", () => {
+    const source = originalItem();
+    const storage = {
+        get() {
+            return {
+                documentName: "Item",
+                documentType: "weapon",
+                patch: [{
+                    op: "set",
+                    path: "/__proto__/polluted",
+                    value: true
+                }]
+            };
+        }
+    };
+
+    const resolved = ObjectOverrideResolver.resolveDocument(
+        {
+            ...source,
+            documentName: "Item",
+            type: "weapon"
+        },
+        { storage }
+    );
+
+    assert.equal(resolved.source.name, "Longsword");
+    assert.equal({}.polluted, undefined);
+    assert.deepEqual(resolved.patch, []);
 });
 
 
