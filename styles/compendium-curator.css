@@ -2896,15 +2896,8 @@
 }
 
 
-.cc-item-override-original
-    .window-header > .mode-slider {
-    margin-left: 0;
-    margin-right: auto;
-}
-
-
-.cc-item-override-modified
-    .window-header > .mode-slider {
+.cc-item-override-original .window-header > .mode-slider,
+.cc-item-override-modified .window-header > .mode-slider {
     margin-left: 0;
     margin-right: 0;
 }
