@@ -2903,6 +2903,18 @@
 }
 
 
+.cc-item-override-original .window-header,
+.cc-item-override-modified .window-header {
+    justify-content: flex-start;
+}
+
+
+.cc-item-override-original .window-header > .header-elements + .header-control,
+.cc-item-override-modified .window-header > .header-elements + .header-control {
+    margin-left: auto;
+}
+
+
 .cc-item-override-reset-all {
     margin-right: auto;
 }
