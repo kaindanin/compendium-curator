@@ -124,8 +124,11 @@ export function registerCompendiumBrowserHooks() {
     });
 
     Hooks.on(OBJECT_OVERRIDES_CHANGED_HOOK, () => {
-        for (const app of openCompendiumBrowsers)
-            projectCompendiumBrowserResults(app.element);
+        for (const app of openCompendiumBrowsers) {
+            void app.render({
+                parts: ["results"]
+            });
+        }
     });
 
 }

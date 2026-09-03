@@ -2101,7 +2101,24 @@ class ItemSheetOverrideController {
             return;
 
         if (app === this.originalSheet) {
+            const restoreModified =
+                this.view === "modified" &&
+                !this.switching;
+
             this.view = "original";
+
+            if (restoreModified) {
+                Promise.resolve().then(() =>
+                    this.show("modified")
+                ).catch(error => {
+                    console.error(
+                        `${MODULE_ID} | Modified view restore failed`,
+                        error
+                    );
+                    ui.notifications.error(error.message);
+                });
+                return;
+            }
 
             if (this._openModifiedOnFirstRender) {
                 this._openModifiedOnFirstRender = false;

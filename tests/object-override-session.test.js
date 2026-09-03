@@ -15,6 +15,7 @@ import {
     ObjectOverrideResolver
 } from "../scripts/overrides/object-override-resolver.js";
 import {
+    projectCompendiumEntryElement,
     resolveCompendiumIndexEntry
 } from "../scripts/overrides/object-override-projection.js";
 import {
@@ -827,6 +828,40 @@ test("resolves a compendium index entry without loading its document", () => {
     assert.equal(toObjectCalls, 1);
     assert.equal(resolved.source.name, "Curated Longsword");
     assert.equal(resolved.source.img, "icons/curated.webp");
+});
+
+
+test("projects a modified name into the title without removing its subtitle", () => {
+    const title = { textContent: "Original" };
+    const subtitle = { textContent: "Conjuro" };
+    const image = {
+        attributes: {},
+        setAttribute(name, value) {
+            this.attributes[name] = value;
+        }
+    };
+    const element = {
+        dataset: {},
+        querySelector(selector) {
+            if (selector.includes(".name .title"))
+                return title;
+            if (selector === "img")
+                return image;
+            return null;
+        }
+    };
+
+    assert.equal(
+        projectCompendiumEntryElement(element, {
+            patch: [{ op: "set", path: "/name", value: "Curated" }],
+            source: { name: "Curated", img: "icons/curated.webp" }
+        }),
+        true
+    );
+    assert.equal(title.textContent, "Curated");
+    assert.equal(subtitle.textContent, "Conjuro");
+    assert.equal(image.attributes.alt, "Curated");
+    assert.equal(image.attributes.src, "icons/curated.webp");
 });
 
 

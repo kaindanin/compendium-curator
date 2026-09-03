@@ -108,7 +108,7 @@ export function projectCompendiumEntryElement(element, resolved) {
 
     if (name) {
         const label = element.querySelector(
-            ".entry-name, .name, h3, h4"
+            ".entry-name, .name .title, h3, h4, .name"
         );
 
         if (label)
@@ -122,6 +122,55 @@ export function projectCompendiumEntryElement(element, resolved) {
 
     element.dataset.ccOverride = "true";
     return true;
+}
+
+
+async function projectCompendiumBrowserTooltip(
+    element,
+    pack,
+    entry,
+    storage
+) {
+    if (pack?.documentName !== "Item")
+        return;
+
+    try {
+        const original = await pack.getDocument(entryId(entry));
+
+        if (!original || !element.isConnected)
+            return;
+
+        const resolved = ObjectOverrideResolver.resolveDocument(
+            original,
+            { storage }
+        );
+
+        if (!resolved.patch.length)
+            return;
+
+        const ItemClass = CONFIG.Item.documentClass;
+        const synthetic = new ItemClass(
+            resolved.source,
+            { pack: pack.collection }
+        );
+        const tooltip = await (
+            synthetic.richTooltip?.() ??
+            synthetic.system?.richTooltip?.()
+        );
+
+        if (!tooltip?.content || !element.isConnected)
+            return;
+
+        element.dataset.tooltip = tooltip.content;
+        element.dataset.tooltipClass = tooltip.classes?.join(" ") ??
+            "dnd5e2 dnd5e-tooltip item-tooltip themed theme-light";
+    }
+    catch (error) {
+        console.warn(
+            "Compendium Curator | Override tooltip projection failed",
+            error
+        );
+    }
 }
 
 
@@ -155,14 +204,25 @@ export function projectCompendiumBrowserResults(root) {
         if (!found)
             continue;
 
+        const resolved = resolveCompendiumIndexEntry(
+            found.pack,
+            found.entry,
+            { storage }
+        );
+
         projectCompendiumEntryElement(
             element,
-            resolveCompendiumIndexEntry(
+            resolved
+        );
+
+        if (resolved?.patch?.length) {
+            void projectCompendiumBrowserTooltip(
+                element,
                 found.pack,
                 found.entry,
-                { storage }
-            )
-        );
+                storage
+            );
+        }
     }
 }
 
@@ -170,5 +230,6 @@ export function projectCompendiumBrowserResults(root) {
 export {
     documentUuid,
     indexSource,
+    projectCompendiumBrowserTooltip,
     storageSnapshot
 };
