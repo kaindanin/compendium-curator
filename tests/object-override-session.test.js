@@ -16,6 +16,7 @@ import {
 } from "../scripts/overrides/object-override-resolver.js";
 import {
     projectCompendiumEntryElement,
+    projectCompendiumBrowserTooltip,
     resolveCompendiumIndexEntry
 } from "../scripts/overrides/object-override-projection.js";
 import {
@@ -862,6 +863,69 @@ test("projects a modified name into the title without removing its subtitle", ()
     assert.equal(subtitle.textContent, "Conjuro");
     assert.equal(image.attributes.alt, "Curated");
     assert.equal(image.attributes.src, "icons/curated.webp");
+});
+
+test("projects an override tooltip onto the Browser hover target", async () => {
+    const itemName = {
+        dataset: {
+            tooltip: "original tooltip",
+            tooltipClass: "original-class"
+        }
+    };
+    const element = {
+        isConnected: true,
+        querySelector(selector) {
+            return selector === ".item-name" ? itemName : null;
+        }
+    };
+    const originalConfig = globalThis.CONFIG;
+    const originalGame = globalThis.game;
+
+    globalThis.CONFIG = {
+        Item: {
+            documentClass: class {
+                constructor(source) {
+                    this.source = source;
+                }
+
+                async richTooltip() {
+                    return {
+                        content: "modified tooltip",
+                        classes: [ "dnd5e2", "item-tooltip" ]
+                    };
+                }
+            }
+        }
+    };
+    globalThis.game = {
+        packs: new Map([[ "world.items", {
+            documentName: "Item",
+            collection: "world.items",
+            async getDocument() {
+                return {
+                    uuid: "Compendium.world.items.Item.test",
+                    documentName: "Item",
+                    toObject: () => ({ name: "Original" })
+                };
+            }
+        } ]])
+    };
+
+    await projectCompendiumBrowserTooltip(
+        element,
+        game.packs.get("world.items"),
+        { _id: "test" },
+        {
+            get: () => ({
+                patch: [{ op: "set", path: "name", value: "Modified" }]
+            })
+        }
+    );
+
+    assert.equal(itemName.dataset.tooltip, "modified tooltip");
+    assert.equal(itemName.dataset.tooltipClass, "dnd5e2 item-tooltip");
+    globalThis.CONFIG = originalConfig;
+    globalThis.game = originalGame;
 });
 
 

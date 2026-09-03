@@ -108,7 +108,7 @@ export function projectCompendiumEntryElement(element, resolved) {
 
     if (name) {
         const label = element.querySelector(
-            ".entry-name, .name .title, h3, h4, .name"
+            ".entry-name, .name .title, h3, h4"
         );
 
         if (label)
@@ -161,9 +161,19 @@ async function projectCompendiumBrowserTooltip(
         if (!tooltip?.content || !element.isConnected)
             return;
 
-        element.dataset.tooltip = tooltip.content;
-        element.dataset.tooltipClass = tooltip.classes?.join(" ") ??
+        const tooltipTarget = element.querySelector(".item-name") ?? element;
+        const tooltipClass = tooltip.classes?.join(" ") ??
             "dnd5e2 dnd5e-tooltip item-tooltip themed theme-light";
+
+        /*
+         * The Browser deliberately moves its tooltip attributes from the
+         * result row onto .item-name, so the hover target is constrained to
+         * the document link instead of Curator's controls.  Project the
+         * synthetic tooltip onto that same native target; decorating only
+         * the <li> leaves the original tooltip in effect.
+         */
+        tooltipTarget.dataset.tooltip = tooltip.content;
+        tooltipTarget.dataset.tooltipClass = tooltipClass;
     }
     catch (error) {
         console.warn(
