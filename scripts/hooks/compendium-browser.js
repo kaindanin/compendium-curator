@@ -4,6 +4,12 @@ import { StorageService } from "../services/storage-service.js";
 import { MODULE_ID, DUPLICATE_PRIORITY_SETTING, STORAGE_CHANGED_HOOK } from "../settings.js";
 import { TableManagerApplication } from "../applications/table-manager-application.js";
 import { ensureDnd5eDistributionIndexes } from "../ui/dnd5e-document-list.js";
+import {
+    OBJECT_OVERRIDES_CHANGED_HOOK
+} from "../settings.js";
+import {
+    projectCompendiumBrowserResults
+} from "../overrides/object-override-projection.js";
 
 const openCompendiumBrowsers = new Set();
 const duplicateIdentityCache = new Map();
@@ -115,6 +121,11 @@ export function registerCompendiumBrowserHooks() {
 
         refreshOpenCompendiumBrowsers();
 
+    });
+
+    Hooks.on(OBJECT_OVERRIDES_CHANGED_HOOK, () => {
+        for (const app of openCompendiumBrowsers)
+            projectCompendiumBrowserResults(app.element);
     });
 
 }
@@ -251,6 +262,7 @@ function onRenderCompendiumBrowser(app) {
     clearSelection(app);
 
     observeCompendiumResults(app);
+    projectCompendiumBrowserResults(app.element);
 
     if (canCurate())
         createModeToolbar(app);
@@ -362,6 +374,7 @@ function observeCompendiumResults(app) {
         if (!itemsChanged)
             return;
 
+        projectCompendiumBrowserResults(app.element);
         createMasterCheckbox(app);
         refreshMasterCheckbox(app);
 

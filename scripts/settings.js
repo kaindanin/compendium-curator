@@ -5,6 +5,8 @@ export const STORAGE_CHANGED_HOOK = `${MODULE_ID}.storageChanged`;
 export const TABLE_DEFAULTS_SETTING = "tableDefaults";
 export const TABLE_PROFILES_SETTING = "tableProfiles";
 export const OBJECT_OVERRIDES_SETTING = "objectOverrides";
+export const OBJECT_OVERRIDES_CHANGED_HOOK =
+    `${MODULE_ID}.objectOverridesChanged`;
 
 export function registerSettings({ tableDefaultsMenuType } = {}) {
 
@@ -125,6 +127,13 @@ export function registerSettings({ tableDefaultsMenuType } = {}) {
             default: {
                 version: 1,
                 overrides: {}
+            },
+
+            onChange: overrides => {
+                Hooks.callAll(
+                    OBJECT_OVERRIDES_CHANGED_HOOK,
+                    overrides
+                );
             }
         }
     );

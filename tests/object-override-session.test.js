@@ -15,6 +15,9 @@ import {
     ObjectOverrideResolver
 } from "../scripts/overrides/object-override-resolver.js";
 import {
+    resolveCompendiumIndexEntry
+} from "../scripts/overrides/object-override-projection.js";
+import {
     coerceControlValue,
     controlValue,
     replaceSyntheticDocumentSource,
@@ -767,6 +770,59 @@ test("fails closed when a stored patch contains an unsafe path", () => {
     assert.equal(resolved.source.name, "Longsword");
     assert.equal({}.polluted, undefined);
     assert.deepEqual(resolved.patch, []);
+});
+
+
+test("resolves a compendium index entry without loading its document", () => {
+    let toObjectCalls = 0;
+    const pack = {
+        collection: "test.items",
+        documentName: "Item"
+    };
+    const entry = {
+        _id: "item-1",
+        type: "weapon",
+        toObject() {
+            toObjectCalls += 1;
+            return {
+                _id: "item-1",
+                name: "Longsword",
+                type: "weapon",
+                img: "icons/original.webp"
+            };
+        }
+    };
+    const storage = {
+        get(uuid) {
+            assert.equal(
+                uuid,
+                "Compendium.test.items.Item.item-1"
+            );
+            return {
+                documentName: "Item",
+                documentType: "weapon",
+                patch: [{
+                    op: "set",
+                    path: "/name",
+                    value: "Curated Longsword"
+                }, {
+                    op: "set",
+                    path: "/img",
+                    value: "icons/curated.webp"
+                }]
+            };
+        }
+    };
+
+    const resolved = resolveCompendiumIndexEntry(
+        pack,
+        entry,
+        { storage }
+    );
+
+    assert.equal(toObjectCalls, 1);
+    assert.equal(resolved.source.name, "Curated Longsword");
+    assert.equal(resolved.source.img, "icons/curated.webp");
 });
 
 

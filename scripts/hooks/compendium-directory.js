@@ -1,3 +1,10 @@
+import {
+    OBJECT_OVERRIDES_CHANGED_HOOK
+} from "../settings.js";
+import {
+    projectCompendiumDirectory
+} from "../overrides/object-override-projection.js";
+
 const MODULE_ID = "compendium-curator";
 const controllers = new Set();
 const controllersByApp = new WeakMap();
@@ -678,6 +685,10 @@ class CompendiumDirectoryController {
             )
         );
         this._renderSelectionUi();
+        projectCompendiumDirectory(
+            this.app.element,
+            this.pack
+        );
     }
 
 
@@ -738,6 +749,11 @@ class CompendiumDirectoryController {
 
 
 export function registerCompendiumDirectoryEnhancements() {
+    Hooks.on(OBJECT_OVERRIDES_CHANGED_HOOK, () => {
+        for (const controller of controllers)
+            controller.scheduleRefresh();
+    });
+
     Hooks.on("renderApplicationV2", app => {
         if (!eligibleDirectory(app))
             return;
