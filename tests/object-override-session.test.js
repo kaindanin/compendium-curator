@@ -18,6 +18,10 @@ import {
     resolveCompendiumIndexEntry
 } from "../scripts/overrides/object-override-projection.js";
 import {
+    compendiumSourceUuid,
+    materializeItemOverride
+} from "../scripts/overrides/object-override-import.js";
+import {
     coerceControlValue,
     controlValue,
     replaceSyntheticDocumentSource,
@@ -823,6 +827,60 @@ test("resolves a compendium index entry without loading its document", () => {
     assert.equal(toObjectCalls, 1);
     assert.equal(resolved.source.name, "Curated Longsword");
     assert.equal(resolved.source.img, "icons/curated.webp");
+});
+
+
+test("materializes a compendium override into a new Actor Item source", () => {
+    const source = {
+        _id: "actor-item-id",
+        name: "Longsword",
+        type: "weapon",
+        system: { quantity: 1 },
+        flags: {
+            core: {
+                sourceId: "Compendium.test.items.Item.item-1"
+            }
+        }
+    };
+    const storage = {
+        get(uuid) {
+            assert.equal(uuid, source.flags.core.sourceId);
+            return {
+                documentName: "Item",
+                documentType: "weapon",
+                patch: [{
+                    op: "set",
+                    path: "/name",
+                    value: "Curated Longsword"
+                }, {
+                    op: "set",
+                    path: "/system/quantity",
+                    value: 4
+                }]
+            };
+        }
+    };
+
+    const materialized = materializeItemOverride(
+        source,
+        { storage }
+    );
+
+    assert.equal(compendiumSourceUuid(source), source.flags.core.sourceId);
+    assert.equal(materialized.name, "Curated Longsword");
+    assert.equal(materialized.system.quantity, 4);
+    assert.equal(materialized._id, "actor-item-id");
+    assert.equal(source.name, "Longsword");
+    assert.equal(source.system.quantity, 1);
+});
+
+
+test("does not materialize a world Item without a compendium source", () => {
+    assert.equal(materializeItemOverride({
+        name: "World item",
+        type: "weapon",
+        flags: {}
+    }), null);
 });
 
 

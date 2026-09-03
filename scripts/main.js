@@ -54,6 +54,9 @@ import {
 import {
     ObjectOverrideStorageService
 } from "./overrides/object-override-storage-service.js";
+import {
+    registerObjectOverrideActorImport
+} from "./overrides/object-override-import.js";
 
 Hooks.once("init", () => {
 
@@ -77,6 +80,7 @@ Hooks.once("init", () => {
     registerTableManagerFilterGroupFolders();
     registerTableManagerBulkActions();
     registerItemSheetOverridePrototype();
+    registerObjectOverrideActorImport();
     registerCompendiumDirectoryEnhancements();
 
     debug("Settings registradas");
