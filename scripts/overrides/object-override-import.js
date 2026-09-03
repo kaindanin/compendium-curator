@@ -4,6 +4,7 @@ import {
 import {
     ObjectOverrideStorageService
 } from "./object-override-storage-service.js";
+import { MODULE_ID } from "../settings.js";
 
 
 function clone(value) {
@@ -12,15 +13,19 @@ function clone(value) {
 
 
 export function compendiumSourceUuid(source) {
-    const uuid = String(
-        source?.flags?.core?.sourceId ??
-        source?.flags?.core?.sourceUuid ??
-        ""
-    ).trim();
+    // Foundry 14 imports use _stats; retain legacy flags for older sources.
+    for (const value of [
+        source?._stats?.compendiumSource,
+        source?.flags?.core?.sourceId,
+        source?.flags?.core?.sourceUuid
+    ]) {
+        const uuid = String(value ?? "").trim();
 
-    return uuid.startsWith("Compendium.")
-        ? uuid
-        : null;
+        if (uuid.startsWith("Compendium."))
+            return uuid;
+    }
+
+    return null;
 }
 
 
@@ -33,6 +38,16 @@ export function materializeItemOverride(
     source,
     { storage = ObjectOverrideStorageService } = {}
 ) {
+    // An inventory copy is a snapshot, even when no override existed at import.
+    // Passing it to another Actor must preserve subsequent inventory edits.
+    if (source?.flags?.[MODULE_ID]?.objectOverrideDetached)
+        return null;
+
+    const duplicateSource = String(source?._stats?.duplicateSource ?? "");
+
+    if (duplicateSource && !duplicateSource.startsWith("Compendium."))
+        return null;
+
     const sourceUuid = compendiumSourceUuid(source);
 
     if (!sourceUuid)
@@ -50,9 +65,11 @@ export function materializeItemOverride(
         { storage }
     );
 
-    return resolved.patch.length
-        ? resolved.source
-        : null;
+    const snapshot = resolved.source;
+    snapshot.flags ??= {};
+    snapshot.flags[MODULE_ID] ??= {};
+    snapshot.flags[MODULE_ID].objectOverrideDetached = true;
+    return snapshot;
 }
 
 
