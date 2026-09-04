@@ -1,3 +1,12 @@
+import {
+    ObjectOverrideResolver
+} from "../overrides/object-override-resolver.js";
+import {
+    findCompendiumIndexEntry,
+    projectCompendiumBrowserTooltip,
+    storageSnapshot
+} from "../overrides/object-override-projection.js";
+
 const DISTRIBUTION_INDEX_FIELDS = {
     Item: [
         "system.rarity",
@@ -385,7 +394,8 @@ function getDocumentSource(source) {
 function buildDocumentEntry(
     uuid,
     document,
-    documentClass
+    documentClass,
+    storage
 ) {
 
     if (!document) {
@@ -403,32 +413,54 @@ function buildDocumentEntry(
 
     }
 
+    // Project only the presentation. Keep the distribution cache and the
+    // original eligibility metadata intact, including the zero-price rule.
+    let displayDocument = document;
+    let baselineDocument = document;
+    if (uuid.startsWith("Compendium.") && storage.get(uuid)) {
+        const resolved = ObjectOverrideResolver.resolveDocument({
+            uuid,
+            documentName: documentClass,
+            type: document.type,
+            toObject: () => document.toObject?.() ?? document
+        }, { storage });
+        displayDocument = resolved.source;
+        baselineDocument = resolved.originalSource;
+    }
+
+    const originalSource = baselineDocument.system?.source;
+    const displaySource = displayDocument.system?.source;
+    const sourceChanged = displaySource?.book !== originalSource?.book ||
+        displaySource?.custom !== originalSource?.custom;
+    // Cached source.value/label are derived from the official book. They
+    // must not mask an edited book or custom source in the displayed row.
+    const source = sourceChanged && typeof displaySource === "object"
+        ? String(displaySource?.custom || displaySource?.book ||
+            document.system?.source?.book || "")
+        : getDocumentSource(sourceChanged ? displaySource : document.system?.source);
+
     const subtitle =
         CONFIG[
             documentClass
         ]
             ?.typeLabels
-            ?.[document.type] ??
+            ?.[displayDocument.type] ??
         "";
 
     return {
         uuid,
 
         name:
-            document.name ??
+            displayDocument.name ??
             uuid,
 
         img:
-            document.img ??
+            displayDocument.img ??
             null,
 
         subtitle,
 
-        source:
-            getDocumentSource(
-                document.system
-                    ?.source
-            ),
+        source,
 
         documentName:
             documentClass ?? null,
@@ -487,6 +519,8 @@ export async function prepareDnd5eDocumentEntries(
             )
         );
 
+    const storage = storageSnapshot();
+
     return sortDocumentEntries(
         entries.map(
             (uuid, index) => {
@@ -497,7 +531,8 @@ export async function prepareDnd5eDocumentEntries(
                 return buildDocumentEntry(
                     uuid,
                     document,
-                    document?.documentName
+                    document?.documentName,
+                    storage
                 );
 
             }
@@ -517,6 +552,8 @@ export async function prepareDnd5eDocumentEntries(
 export function prepareDnd5eIndexedEntries(
     uuids
 ) {
+
+    const storage = storageSnapshot();
 
     const entries =
         Array.from(
@@ -563,7 +600,8 @@ export function prepareDnd5eIndexedEntries(
                         return buildDocumentEntry(
                             uuid,
                             cachedEntry,
-                            cachedPack.documentName
+                            cachedPack.documentName,
+                            storage
                         );
 
                     }
@@ -586,7 +624,8 @@ export function prepareDnd5eIndexedEntries(
                         return buildDocumentEntry(
                             uuid,
                             indexEntry,
-                            pack.documentName
+                            pack.documentName,
+                            storage
                         );
 
                     }
@@ -606,7 +645,8 @@ export function prepareDnd5eIndexedEntries(
                         return buildDocumentEntry(
                             uuid,
                             document,
-                            document.documentName
+                            document.documentName,
+                            storage
                         );
 
                     }
@@ -635,6 +675,8 @@ export function activateDnd5eDocumentEntries(
 
     if (!root)
         return;
+
+    const storage = storageSnapshot();
 
     for (
         const element
@@ -682,6 +724,17 @@ export function activateDnd5eDocumentEntries(
 
         openControl.dataset.tooltipDirection =
             "RIGHT";
+
+        // Reuse the native synthetic tooltip already used in the Browser.
+        // Only overridden rows load a full document; weights keep no hover.
+        if (storage.get(uuid)) {
+            const indexed = findCompendiumIndexEntry(uuid);
+            if (indexed) {
+                void projectCompendiumBrowserTooltip(
+                    openControl, indexed.pack, indexed.entry, storage
+                );
+            }
+        }
 
 
         /*

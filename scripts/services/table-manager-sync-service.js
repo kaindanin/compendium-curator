@@ -1,5 +1,6 @@
 import {
-    STORAGE_CHANGED_HOOK
+    STORAGE_CHANGED_HOOK,
+    OBJECT_OVERRIDES_CHANGED_HOOK
 } from "../settings.js";
 import {
     TableProfileStorageService
@@ -137,6 +138,10 @@ function scheduleManagerRefresh(
 
     const previous = syncTimers.get(manager);
 
+    // A display-only refresh must not cancel pending document/filter sync.
+    if (previous && !synchronize)
+        return;
+
     if (previous)
         clearTimeout(previous);
 
@@ -226,6 +231,12 @@ export function registerTableManagerSynchronization() {
             });
         }
     );
+
+    // Overrides change presentation, not the saved inclusion criteria.
+    // Refresh open tables and categories without rewriting their matches.
+    Hooks.on(OBJECT_OVERRIDES_CHANGED_HOOK, () => {
+        refreshOpenManagers({ delay: 0, synchronize: false });
+    });
 
     /*
      * Los filtros representan criterios vivos.
