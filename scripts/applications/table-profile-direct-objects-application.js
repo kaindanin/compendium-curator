@@ -123,24 +123,6 @@ export class TableProfileDirectObjectsApplication
                 return;
             }
 
-            if (
-                searchField &&
-                this.browserApp?.currentFilters
-            ) {
-                const name = String(
-                    target.value ?? ""
-                );
-
-                if (name) {
-                    this.browserApp.currentFilters.name =
-                        name;
-                }
-                else {
-                    delete this.browserApp
-                        .currentFilters.name;
-                }
-            }
-
             this.scheduleRefresh();
         };
 
@@ -264,14 +246,16 @@ export class TableProfileDirectObjectsApplication
                     this._refreshGeneration;
 
                 try {
-                    const draft =
+                    // Mirror the native query, including its current tab and
+                    // cleared search. Draft capture reads DOM controls which
+                    // may still contain values from a previous partial render.
+                    // D&D5e owns currentFilters and returns a merged snapshot;
+                    // never attempt to update that snapshot from our listeners.
+                    const candidates =
                         await TableProfileService
-                            .createContentDraft(
+                            .getBrowserCandidates(
                                 this.browserApp
                             );
-                    const candidates = (
-                        draft?.matches ?? []
-                    ).map(uuid => ({ uuid }));
 
                     if (
                         generation !==
