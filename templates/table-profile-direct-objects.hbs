@@ -1,7 +1,7 @@
 <div class="cc-table-profile-direct-objects">
     {{#if exists}}
         <header class="cc-table-profile-direct-objects-header">
-            <h2>{{profileName}}</h2>
+            {{#unless embedded}}<h2>{{profileName}}</h2>{{/unless}}
             <p class="hint">
                 {{localize "COMPENDIUM_CURATOR.ProfileInclusionsLiveHint"}}
             </p>
@@ -58,7 +58,7 @@
                     </button>
                 </header>
 
-                <div class="cc-table-profile-direct-objects-panel-body">
+                <div class="cc-table-profile-direct-objects-panel-body" data-cc-scroll-key="inclusion-results">
                     {{#if hasCandidates}}
                         <section class="inventory-element cc-dnd5e-document-list">
                             <section class="items-list browser-results">
@@ -163,7 +163,7 @@
                     </button>
                 </header>
 
-                <div class="cc-table-profile-direct-objects-panel-body">
+                <div class="cc-table-profile-direct-objects-panel-body" data-cc-scroll-key="inclusion-selected">
                     {{#if hasInclusions}}
                         <section class="inventory-element cc-dnd5e-document-list">
                             <section class="items-list browser-results">
@@ -241,6 +241,7 @@
             </section>
         </div>
 
+        {{#unless embedded}}
         <footer class="cc-table-profile-direct-objects-footer">
             <button type="button" data-action="cancel">
                 <i class="fas fa-xmark"></i>
@@ -251,6 +252,7 @@
                 {{localize "COMPENDIUM_CURATOR.TableDefaultsSave"}}
             </button>
         </footer>
+        {{/unless}}
     {{else}}
         <p class="hint cc-table-profile-direct-objects-missing">
             {{localize "COMPENDIUM_CURATOR.TableProfileNotFound"}}

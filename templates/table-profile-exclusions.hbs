@@ -1,5 +1,6 @@
 <div class="cc-table-profile-exclusions">
 
+    {{#unless embedded}}
     <header
         class="cc-table-profile-exclusions-header"
     >
@@ -15,10 +16,12 @@
         </p>
 
     </header>
+    {{/unless}}
 
 
     <div
         class="cc-table-profile-exclusion-results"
+        data-cc-scroll-key="exclusion-results"
     >
 
         {{#if hasCandidates}}
@@ -65,7 +68,7 @@
                             {{#each candidates}}
 
                                 <li
-                                    class="item cc-dnd5e-document-entry"
+                                    class="item cc-dnd5e-document-entry {{#if excluded}}cc-hidden-entry{{/if}}"
                                     data-uuid="{{uuid}}"
                                 >
 
@@ -138,6 +141,7 @@
 
                                             <dnd5e-checkbox
                                                 class="cc-table-profile-exclusion-checkbox"
+                                                aria-label="{{localize 'COMPENDIUM_CURATOR.ManualExclusions'}}: {{name}}"
                                                 data-uuid="{{uuid}}"
                                                 {{#if excluded}}
                                                     checked
@@ -173,6 +177,7 @@
     </div>
 
 
+    {{#unless embedded}}
     <footer
         class="cc-table-profile-exclusions-footer"
     >
@@ -203,5 +208,6 @@
         </button>
 
     </footer>
+    {{/unless}}
 
 </div>

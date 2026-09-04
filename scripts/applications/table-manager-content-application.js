@@ -1,446 +1,207 @@
-import {
-    TableProfileStorageService
-} from "../services/table-profile-storage-service.js";
-import {
-    TableProfileFilterGroupLinkService
-} from "../services/table-profile-filter-group-link-service.js";
-import {
-    canUseTableChild,
-    getTableChildren,
-    setTableChildEnabled
-} from "../services/table-profile-relations-service.js";
+import { TableProfileDirectObjectsApplication } from "./table-profile-direct-objects-application.js";
+import { TableProfileStorageService } from "../services/table-profile-storage-service.js";
+import { StorageService } from "../services/storage-service.js";
+import { canUseTableChild, getTableChildren } from "../services/table-profile-relations-service.js";
+import { categoryContentUuids, tableContentUuids, saveTableContent } from "../services/table-content-workspace-service.js";
+import { prepareDnd5eIndexedEntries } from "../ui/dnd5e-document-list.js";
 
-const {
-    ApplicationV2,
-    HandlebarsApplicationMixin
-} = foundry.applications.api;
-
-function text(es, en) {
-    return game.i18n.lang.startsWith("es")
-        ? es
-        : en;
+function text(es, en) { return game.i18n.lang.startsWith("es") ? es : en; }
+function checked(control) {
+    return typeof control.checked === "boolean" ? control.checked : control.hasAttribute("checked");
 }
-
 function sortByName(entries) {
-    return [...entries].sort((a, b) =>
-        String(a?.name ?? "").localeCompare(
-            String(b?.name ?? ""),
-            game.i18n.lang,
-            { sensitivity: "base" }
-        )
-    );
+    return entries.sort((a, b) => String(a.name).localeCompare(String(b.name), game.i18n.lang));
 }
+const template = name => ({
+    "table-manager-content": "modules/compendium-curator/templates/table-manager-content.hbs",
+    "table-content-preview": "modules/compendium-curator/templates/table-content-preview.hbs",
+    "table-profile-direct-objects": "modules/compendium-curator/templates/table-profile-direct-objects.hbs",
+    "table-profile-exclusions": "modules/compendium-curator/templates/table-profile-exclusions.hbs"
+})[name];
 
-export class TableManagerContentApplication
-    extends HandlebarsApplicationMixin(
-        ApplicationV2
-    ) {
-
-    constructor(
-        managerApp,
-        profileId,
-        options = {}
-    ) {
-        super({
-            ...options,
-            window: {
-                ...(options.window ?? {}),
-                title: text(
-                    "Gestionar contenido",
-                    "Manage content"
-                )
+/** Reuses the two-list inclusion editor and its live Browser subscription. */
+export class TableManagerContentApplication extends TableProfileDirectObjectsApplication {
+    constructor(managerApp, profileId, options = {}) {
+        super(managerApp?.browserApp, managerApp, profileId, options);
+        this._categoryIds = null;
+        this._tableIds = null;
+        this._excluded = null;
+        this._expanded = new Set();
+        this._previewCache = new Map();
+        this._scrollPositions = new Map();
+        this._saving = false;
+        this._managerRenderHook = Hooks.on("renderApplicationV2", app => {
+            if (app === this.managerApp && this.rendered && !this._saving) {
+                this._previewCache.clear();
+                void this.render({ force: true });
             }
         });
-
-        this.managerApp = managerApp;
-        this.browserApp =
-            managerApp?.browserApp ?? null;
-        this.profileId = profileId;
-        this._managerCloseHook =
-            Hooks.on(
-                "closeApplicationV2",
-                app => {
-                    if (
-                        app === this.managerApp &&
-                        this.rendered
-                    ) {
-                        void this.close();
-                    }
-                }
-            );
     }
 
     static DEFAULT_OPTIONS = {
-        id:
-            "compendium-curator-table-manager-content",
-        classes: [
-            "dnd5e2",
-            "compendium-curator",
-            "cc-table-filter-group-app"
-        ],
-        position: {
-            width: 600,
-            height: 560
-        },
-        actions: {
-            save: this.#onSave,
-            cancel: this.#onCancel
-        }
+        id: "compendium-curator-table-manager-content",
+        classes: ["dnd5e2", "compendium-curator", "cc-table-filter-group-app", "cc-table-content-workspace"],
+        window: { title: "COMPENDIUM_CURATOR.ManageContent" },
+        position: { width: 920, height: 720 },
+        actions: { save: this.#onSave, cancel: this.#onCancel }
     };
+    static PARTS = { body: { template: template("table-manager-content") } };
 
-    static PARTS = {
-        body: {
-            template:
-                "modules/compendium-curator/templates/table-manager-content.hbs"
+    _categoryPreview(category) {
+        const key = `category:${category.id}`;
+        if (!this._previewCache.has(key))
+            this._previewCache.set(key, categoryContentUuids(this.browserApp, category));
+        return this._previewCache.get(key);
+    }
+
+    async _previewRow(kind, source, profiles, categories) {
+        const key = `${kind}:${source.id}`;
+        const row = { id: source.id, name: source.name, key, open: this._expanded.has(key) };
+        if (!row.open) return row;
+        try {
+            if (!this._previewCache.has(key)) {
+                this._previewCache.set(key, kind === "category"
+                    ? categoryContentUuids(this.browserApp, source)
+                    : tableContentUuids(this.browserApp, source.id, profiles, categories));
+            }
+            const entries = prepareDnd5eIndexedEntries(await this._previewCache.get(key));
+            row.count = entries.length;
+            row.previewHtml = await foundry.applications.handlebars.renderTemplate(
+                template("table-content-preview"), { entries, key }
+            );
         }
-    };
+        catch (error) {
+            this._previewCache.delete(key);
+            row.error = text("No se pudo cargar la vista previa.", "The preview could not be loaded.");
+            console.error("Compendium Curator | Content preview failed.", error);
+        }
+        return row;
+    }
 
     async _prepareContext(options) {
-        const context =
-            await super._prepareContext(options);
-        const profiles =
-            TableProfileStorageService
-                .getProfiles();
-        const profile =
-            profiles?.[this.profileId];
-
-        if (!profile) {
-            context.exists = false;
-            return context;
-        }
-
-        context.exists = true;
-        context.profileName = profile.name;
-        context.titleLabel = text(
-            "Gestionar contenido",
-            "Manage content"
-        );
+        for (const element of this.element?.querySelectorAll?.("[data-cc-scroll-key]") ?? [])
+            this._scrollPositions.set(element.dataset.ccScrollKey, element.scrollTop);
+        const context = await super._prepareContext(options);
+        if (!context.exists) return context;
+        const profiles = TableProfileStorageService.getProfiles();
+        const profile = profiles[this.profileId];
+        const categories = TableProfileStorageService.getFilterGroups();
+        this._categoryIds ??= new Set(profile.filterGroupIds ?? []);
+        this._tableIds ??= new Set(getTableChildren(profile, profiles).filter(c => c.enabled).map(c => c.profileId));
+        this._excluded ??= new Set(profile.manualExcludes ?? []);
+        context.supportsLocalContent = profile.type === "content";
         context.intro = text(
-            "Selecciona las Categorías y enlaza las otras tablas que forman parte de esta tabla. Las inclusiones manuales se gestionan en Reglas de objetos.",
-            "Select Categories and link the other tables that belong to this table. Manual inclusions are managed under Item rules."
+            "Selecciona el contenido de esta tabla. Las vistas previas son de solo lectura; las tablas enlazadas conservan su configuración original.",
+            "Select this table's content. Previews are read-only; linked tables keep their original configuration."
         );
-        context.filterGroupsLabel = text(
-            "Categorías",
-            "Categories"
+        context.categoriesLabel = text("Categorías", "Categories");
+        context.tablesLabel = text("Tablas", "Tables");
+        context.previewHint = text("Vista previa del contenido de origen, sin edición.", "Read-only preview of the source content.");
+        context.exclusionsHint = text(
+            "Marca objetos para excluirlos de esta tabla. Seguirán visibles en gris: no se ocultan en Curator ni se alteran las tablas enlazadas.",
+            "Check objects to exclude them from this table. They remain visible in gray: this does not hide them in Curator or alter linked tables."
         );
-        context.otherTablesLabel = text(
-            "Otras tablas",
-            "Other tables"
+        for (const key of ["categories", "tables", "inclusions", "exclusions"])
+            context[`${key}Open`] = this._expanded.has(key);
+        context.groups = context.supportsLocalContent ? await Promise.all(sortByName(Object.values(categories)).map(async category => ({
+            ...await this._previewRow("category", category, profiles, categories),
+            checked: this._categoryIds.has(category.id)
+        }))) : [];
+        const configured = new Set(getTableChildren(profile, profiles).map(c => c.profileId));
+        context.tables = await Promise.all(sortByName(Object.values(profiles).filter(candidate =>
+            candidate.version === 2 && candidate.id !== profile.id &&
+            (configured.has(candidate.id) || canUseTableChild(profile.id, candidate.id, profiles))
+        )).map(async candidate => ({
+            ...await this._previewRow("table", candidate, profiles, categories),
+            checked: this._tableIds.has(candidate.id)
+        })));
+        context.selectedGroupCount = this._categoryIds.size;
+        context.selectedTableCount = this._tableIds.size;
+        context.excludedCount = this._excluded.size;
+        context.inclusionsHtml = await foundry.applications.handlebars.renderTemplate(
+            template("table-profile-direct-objects"), { ...context, embedded: true }
         );
-        context.noOtherTablesLabel = text(
-            "No hay otras tablas disponibles.",
-            "There are no other tables available."
-        );
-        context.supportsFilterGroups =
-            profile.type === "content";
-
-        const selectedGroupIds =
-            new Set(
-                profile.filterGroupIds ?? []
+        if (context.exclusionsOpen && context.supportsLocalContent) {
+            const hidden = new Set(StorageService.getHiddenUuids());
+            const uuids = new Set(this._selection.values().filter(uuid => !hidden.has(uuid)));
+            for (const id of this._categoryIds) {
+                if (!categories[id]) continue;
+                for (const uuid of await this._categoryPreview(categories[id])) uuids.add(uuid);
+            }
+            // Keep old exclusions manageable even if their source is deselected.
+            for (const uuid of this._excluded) uuids.add(uuid);
+            const candidates = prepareDnd5eIndexedEntries(uuids).map(entry => ({
+                ...entry, excluded: this._excluded.has(entry.uuid)
+            }));
+            context.exclusionsHtml = await foundry.applications.handlebars.renderTemplate(
+                template("table-profile-exclusions"), { embedded: true, candidates, hasCandidates: candidates.length > 0 }
             );
-        const allProfiles =
-            Object.values(profiles);
-
-        context.groups = context.supportsFilterGroups
-            ? sortByName(
-                Object.values(
-                    TableProfileStorageService
-                        .getFilterGroups()
-                ).map(group => ({
-                    id: group.id,
-                    name: group.name,
-                    checked:
-                        selectedGroupIds.has(
-                            group.id
-                        ),
-                    matchCount:
-                        new Set([
-                            ...(group.matches ?? []),
-                            ...(group.manualIncludes ?? [])
-                        ]).size,
-                    useCount:
-                        allProfiles.filter(
-                            candidate =>
-                                Array.from(
-                                    candidate
-                                        .filterGroupIds ??
-                                    []
-                                ).includes(
-                                    group.id
-                                )
-                        ).length
-                }))
-            )
-            : [];
-
-        context.hasGroups =
-            context.groups.length > 0;
-
-        const configured = new Map(
-            getTableChildren(
-                profile,
-                profiles
-            ).map(child => [
-                child.profileId,
-                child
-            ])
-        );
-
-        context.tables = sortByName(
-            allProfiles
-                .filter(candidate =>
-                    candidate?.version === 2 &&
-                    candidate.id !== profile.id &&
-                    (
-                        configured.has(candidate.id) ||
-                        canUseTableChild(
-                            profile.id,
-                            candidate.id,
-                            profiles
-                        )
-                    )
-                )
-                .map(candidate => {
-                    const relation =
-                        configured.get(
-                            candidate.id
-                        );
-
-                    return {
-                        id: candidate.id,
-                        name: candidate.name,
-                        checked:
-                            relation?.enabled === true
-                    };
-                })
-        );
-
-        context.hasTables =
-            context.tables.length > 0;
-        context.selectedGroupCount =
-            context.groups.filter(
-                group => group.checked
-            ).length;
-        context.selectedTableCount =
-            context.tables.filter(
-                table => table.checked
-                ).length;
-        context.manualObjectCount =
-            profile.directUuids?.length ?? 0;
-        context.selectedSummary =
-            context.supportsFilterGroups
-                ? text(
-                    `${context.selectedGroupCount} categorías · ${context.manualObjectCount} inclusiones manuales · ${context.selectedTableCount} tablas`,
-                    `${context.selectedGroupCount} categories · ${context.manualObjectCount} manual inclusions · ${context.selectedTableCount} tables`
-                )
-                : text(
-                    `${context.selectedTableCount} tablas`,
-                    `${context.selectedTableCount} tables`
-                );
-
+        }
         return context;
     }
 
     async _onRender(context, options) {
-        await super._onRender(
-            context,
-            options
-        );
-
-        const summary =
-            this.element.querySelector(
-                "[data-cc-content-selected-summary]"
-            );
-
-        const refreshSummary = () => {
-            if (!summary)
-                return;
-
-            const groupCount =
-                this.element.querySelectorAll(
-                    '[name="filterGroupIds"]:checked'
-                ).length;
-            const tableCount =
-                this.element.querySelectorAll(
-                    '[name="tableProfileIds"]:checked'
-                ).length;
-
-            summary.textContent =
-                context.supportsFilterGroups
-                    ? text(
-                        `${groupCount} categorías · ${context.manualObjectCount} inclusiones manuales · ${tableCount} tablas`,
-                        `${groupCount} categories · ${context.manualObjectCount} manual inclusions · ${tableCount} tables`
-                    )
-                    : text(
-                        `${tableCount} tablas`,
-                        `${tableCount} tables`
-                    );
-        };
-
-        for (
-            const checkbox
-            of this.element.querySelectorAll(
-                '[name="filterGroupIds"], ' +
-                '[name="tableProfileIds"]'
-            )
-        ) {
-            checkbox.addEventListener(
-                "change",
-                refreshSummary
-            );
+        await super._onRender(context, options);
+        for (const details of this.element.querySelectorAll("details[data-cc-content-key]")) {
+            details.addEventListener("toggle", () => {
+                const key = details.dataset.ccContentKey;
+                const wasOpen = this._expanded.has(key);
+                if (details.open) this._expanded.add(key);
+                else this._expanded.delete(key);
+                if (details.open && !wasOpen && (key.includes(":") || key === "exclusions"))
+                    void this.render({ force: true });
+            });
         }
-
+        for (const control of this.element.querySelectorAll("summary input"))
+            control.addEventListener("click", event => event.stopPropagation());
+        for (const control of this.element.querySelectorAll('[name="filterGroupIds"], [name="tableProfileIds"]')) {
+            control.addEventListener("change", () => {
+                const selected = control.name === "filterGroupIds" ? this._categoryIds : this._tableIds;
+                if (checked(control)) selected.add(control.value);
+                else selected.delete(control.value);
+                void this.render({ force: true });
+            });
+        }
+        for (const control of this.element.querySelectorAll(".cc-table-profile-exclusion-checkbox")) {
+            control.addEventListener("change", () => {
+                const selected = checked(control);
+                if (selected) this._excluded.add(control.dataset.uuid);
+                else this._excluded.delete(control.dataset.uuid);
+                control.closest(".cc-dnd5e-document-entry")?.classList.toggle("cc-hidden-entry", selected);
+                this.element.querySelector("[data-cc-excluded-count]").textContent = this._excluded.size;
+            });
+        }
+        for (const element of this.element.querySelectorAll("[data-cc-scroll-key]"))
+            element.scrollTop = this._scrollPositions.get(element.dataset.ccScrollKey) ?? 0;
     }
 
     static async #onSave(event, target) {
         event.preventDefault();
-
-        const profiles =
-            TableProfileStorageService
-                .getProfiles();
-        const profile =
-            profiles?.[this.profileId];
-
-        if (!profile)
-            return;
-
-        const relationRows =
-            Array.from(
-                this.element.querySelectorAll(
-                    "[data-cc-table-content-row]"
-                )
-            );
-
-        const requestedRelations = [];
-
-        for (const row of relationRows) {
-            const checkbox = row.querySelector(
-                '[name="tableProfileIds"]'
-            );
-            const childProfileId = String(
-                checkbox?.value ?? ""
-            ).trim();
-
-            if (!childProfileId)
-                continue;
-
-            requestedRelations.push({
-                profileId: childProfileId,
-                enabled:
-                    checkbox?.checked === true
-            });
-        }
-
+        if (this._saving || !this._selection || !this._categoryIds) return;
+        this._saving = true;
         target.disabled = true;
-
         try {
-            if (profile.type === "content") {
-                const selectedGroupIds =
-                    Array.from(
-                        this.element.querySelectorAll(
-                            '[name="filterGroupIds"]:checked'
-                        )
-                    ).map(input =>
-                        input.value
-                    );
-
-                await TableProfileFilterGroupLinkService
-                    .setProfileFilterGroups(
-                        this.profileId,
-                        selectedGroupIds
-                    );
-            }
-
-            const currentProfile =
-                TableProfileStorageService
-                    .getProfiles()?.[
-                        this.profileId
-                    ];
-            const currentProfiles =
-                TableProfileStorageService
-                    .getProfiles();
-            const currentRelations =
-                new Map(
-                    getTableChildren(
-                        currentProfile,
-                        currentProfiles
-                    ).map(child => [
-                        child.profileId,
-                        child
-                    ])
-                );
-
-            for (
-                const requested
-                of requestedRelations
-            ) {
-                const current =
-                    currentRelations.get(
-                        requested.profileId
-                    );
-
-                if (
-                    current?.enabled !==
-                        requested.enabled &&
-                    !(
-                        !current &&
-                        !requested.enabled
-                    )
-                ) {
-                    await setTableChildEnabled(
-                        this.profileId,
-                        requested.profileId,
-                        requested.enabled
-                    );
-                }
-            }
-
-            if (this.managerApp?.rendered) {
-                await this.managerApp.render({
-                    force: true
-                });
-            }
-
+            await saveTableContent(this.profileId, {
+                categoryIds: this._categoryIds, tableIds: this._tableIds,
+                inclusions: this._selection.values(), exclusions: this._excluded
+            });
+            if (this.managerApp?.rendered) await this.managerApp.render({ force: true });
             await this.close();
         }
         catch (error) {
-            console.error(
-                "Compendium Curator | Error guardando el contenido de una tabla.",
-                error
-            );
-
-            ui.notifications.error(text(
-                "No se pudo guardar el contenido de la tabla.",
-                "The table content could not be saved."
-            ));
+            console.error("Compendium Curator | Error saving table content.", error);
+            ui.notifications.error(text("No se pudo guardar el contenido de la tabla.", "The table content could not be saved."));
         }
         finally {
-            if (target.isConnected)
-                target.disabled = false;
+            this._saving = false;
+            if (target.isConnected) target.disabled = false;
         }
     }
-
-    static async #onCancel() {
-        await this.close();
-    }
-
+    static async #onCancel() { await this.close(); }
     async _preClose(options) {
-        if (this._managerCloseHook !== null) {
-            Hooks.off(
-                "closeApplicationV2",
-                this._managerCloseHook
-            );
-            this._managerCloseHook = null;
-        }
-
-        if (
-            this.managerApp
-                ?._ccContentManager === this
-        ) {
-            this.managerApp
-                ._ccContentManager = null;
-        }
-
+        Hooks.off("renderApplicationV2", this._managerRenderHook);
+        this._previewCache.clear();
+        if (this.managerApp?._ccContentManager === this) this.managerApp._ccContentManager = null;
         await super._preClose(options);
     }
 }

@@ -1,0 +1,28 @@
+<section class="inventory-element cc-dnd5e-document-list cc-content-preview" data-cc-preview-only>
+    <section class="items-list browser-results">
+        <div class="items-section card">
+            <div class="items-header header">
+                <h3 class="item-name">{{localize "DND5E.CompendiumBrowser.Column.Results"}}</h3>
+                <div class="item-header item-source">{{localize "DND5E.CompendiumBrowser.Column.Source"}}</div>
+            </div>
+            <ol class="item-list unlist" data-cc-scroll-key="{{key}}">
+                {{#each entries}}
+                <li class="item cc-dnd5e-document-entry" data-uuid="{{uuid}}">
+                    <div class="item-row">
+                        <div class="item-name" data-cc-open-document>
+                            {{#if img}}<img class="item-image gold-icon" src="{{img}}" alt="{{name}}" loading="lazy" draggable="false">{{/if}}
+                            <div class="name name-stacked">
+                                <span class="title">{{name}}</span>
+                                {{#if subtitle}}<span class="subtitle">{{localize subtitle}}</span>{{/if}}
+                            </div>
+                        </div>
+                        <div class="item-detail item-source"><span class="condensed">{{source}}</span></div>
+                    </div>
+                </li>
+                {{else}}
+                <li class="hint">{{localize "COMPENDIUM_CURATOR.NoMatchingObjects"}}</li>
+                {{/each}}
+            </ol>
+        </div>
+    </section>
+</section>

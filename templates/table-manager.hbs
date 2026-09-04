@@ -582,30 +582,6 @@
                                         </button>
                                     {{/if}}
 
-                                    {{#if isContent}}
-                                        <button
-                                            type="button"
-                                            data-action="manualExclusions"
-                                            {{#unless hasLocalSources}}disabled{{/unless}}
-                                        >
-                                            <i class="fas fa-ban"></i>
-                                            {{localize "COMPENDIUM_CURATOR.ManualExclusions"}}
-                                        </button>
-
-                                        <div class="cc-table-manager-profile-menu-separator"></div>
-
-                                        <button
-                                            type="button"
-                                            data-action="manageContent"
-                                            data-cc-manage-content
-                                        >
-                                            <i class="fas fa-layer-group"></i>
-                                            {{localize "COMPENDIUM_CURATOR.ManageContent"}}
-                                        </button>
-
-                                        <div class="cc-table-manager-profile-menu-separator"></div>
-                                    {{/if}}
-
                                     <button
                                         type="button"
                                         data-action="renameProfile"
@@ -808,28 +784,6 @@
                                             </summary>
 
                                             <div class="cc-table-item-rules-list">
-                                                <div class="cc-table-item-rule cc-table-manual-inclusions-rule">
-                                                    <span class="cc-table-manual-inclusions-icon">
-                                                        <i class="fas fa-thumbtack"></i>
-                                                    </span>
-                                                    <span class="cc-table-item-rule-content">
-                                                        <span class="cc-table-manual-inclusions-title">
-                                                            <strong>{{localize "COMPENDIUM_CURATOR.ManualInclusions"}}</strong>
-                                                            <span class="cc-table-manual-inclusions-count">
-                                                                {{localize
-                                                                    "COMPENDIUM_CURATOR.GroupObjectCount"
-                                                                    count=inspector.manualObjectCount
-                                                                }}
-                                                            </span>
-                                                        </span>
-                                                        <span class="hint">{{localize "COMPENDIUM_CURATOR.ProfileInclusionsHint"}}</span>
-                                                    </span>
-                                                    <button type="button" data-action="profileInclusions">
-                                                        <i class="fas fa-pen"></i>
-                                                        {{localize "COMPENDIUM_CURATOR.ManageManualInclusions"}}
-                                                    </button>
-                                                </div>
-
                                                 <label
                                                     class="cc-table-item-rule"
                                                     for="cc-exclude-zero-price-{{id}}"

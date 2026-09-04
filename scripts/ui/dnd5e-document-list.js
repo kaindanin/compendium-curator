@@ -737,6 +737,9 @@ export function activateDnd5eDocumentEntries(
         }
 
 
+        if (openControl.closest?.("[data-cc-preview-only]"))
+            continue;
+
         /*
          * Abrir el documento igual que lo hace
          * el Compendium Browser.

@@ -1,148 +1,78 @@
 <div class="cc-table-filter-group">
-
-    <div
-        class="cc-table-filter-group-content"
-        style="overflow-y: auto;"
-    >
+    <div class="cc-table-filter-group-content" data-cc-scroll-key="workspace">
         {{#if exists}}
+        <header><h2>{{profileName}}</h2><p class="hint">{{intro}}</p></header>
+        {{#if supportsLocalContent}}
 
-            <header>
-                <h2 style="margin: 0;">
-                    {{profileName}}
-                </h2>
-
-                <p class="hint cc-table-filter-group-intro">
-                    {{intro}}
-                </p>
-
-                <p
-                    class="hint"
-                    data-cc-content-selected-summary
-                    style="margin-top: 0;"
-                >
-                    {{selectedSummary}}
-                </p>
-            </header>
-
-            {{#if supportsFilterGroups}}
-                <section
-                    class="cc-table-profile-editor-section"
-                    style="margin-top: 0.75rem;"
-                >
-                    <h3 style="margin: 0 0 0.5rem;">
-                        <i class="fas fa-filter"></i>
-                        {{filterGroupsLabel}}
-                    </h3>
-
-                    {{#if hasGroups}}
-                        <div class="cc-table-manager-profiles">
-                            {{#each groups}}
-                                <label
-                                    class="cc-table-manager-filter-group"
-                                >
-                                    <input
-                                        type="checkbox"
-                                        name="filterGroupIds"
-                                        value="{{id}}"
-                                        style="border: 0; box-shadow: none; outline: none;"
-                                        {{#if checked}}checked{{/if}}
-                                    >
-
-                                    <span>{{name}}</span>
-
-                                    <small>
-                                        <i class="fas fa-boxes-stacked"></i>
-                                        {{matchCount}}
-
-                                        &nbsp;·&nbsp;
-
-                                        <i class="fas fa-link"></i>
-                                        {{useCount}}
-                                    </small>
-                                </label>
-                            {{/each}}
-                        </div>
-                    {{else}}
-                        <p class="hint">
-                            {{localize
-                                "COMPENDIUM_CURATOR.NoFilterGroups"
-                            }}
-                        </p>
-                    {{/if}}
-
-                </section>
-            {{/if}}
-
-            <section
-                class="cc-table-profile-editor-section"
-                style="margin-top: 1rem;"
-            >
-                <h3 style="margin: 0 0 0.5rem;">
-                    <i class="fas fa-table-list"></i>
-                    {{otherTablesLabel}}
-                </h3>
-
-                {{#if hasTables}}
-                    <div class="cc-table-manager-profiles">
-                        {{#each tables}}
-                            <label
-                                class="cc-table-manager-filter-group"
-                                data-cc-table-content-row
-                            >
-                                <input
-                                    type="checkbox"
-                                    name="tableProfileIds"
-                                    value="{{id}}"
-                                    style="border: 0; box-shadow: none; outline: none;"
-                                    {{#if checked}}checked{{/if}}
-                                >
-
-                                <span>
-                                    <i class="fas fa-table-list"></i>
-                                    {{name}}
-                                </span>
-                            </label>
-                        {{/each}}
-                    </div>
+        <details class="cc-table-profile-editor-section" data-cc-content-key="categories" {{#if categoriesOpen}}open{{/if}}>
+            <summary class="cc-table-section-summary">
+                <span><i class="fas fa-chevron-down"></i> <i class="fas fa-filter"></i> {{categoriesLabel}}</span>
+                <strong>{{selectedGroupCount}}</strong>
+            </summary>
+            <div class="cc-content-section-body">
+                <p class="hint">{{previewHint}}</p>
+                {{#each groups}}
+                    <details class="cc-content-source-preview" data-cc-content-key="{{key}}" {{#if open}}open{{/if}}>
+                        <summary class="cc-table-section-summary">
+                            <input type="checkbox" name="filterGroupIds" value="{{id}}" aria-label="{{name}}" {{#if checked}}checked{{/if}}>
+                            <span><i class="fas fa-chevron-down"></i> {{name}}</span>
+                            {{#if open}}<small>{{count}}</small>{{/if}}
+                        </summary>
+                        {{#if error}}<p class="hint">{{error}}</p>{{else}}{{{previewHtml}}}{{/if}}
+                    </details>
                 {{else}}
-                    <p class="hint">
-                        {{noOtherTablesLabel}}
-                    </p>
-                {{/if}}
-            </section>
+                    <p class="hint">{{localize "COMPENDIUM_CURATOR.NoMatchingObjects"}}</p>
+                {{/each}}
+            </div>
+        </details>
+        {{/if}}
 
+        <details class="cc-table-profile-editor-section" data-cc-content-key="tables" {{#if tablesOpen}}open{{/if}}>
+            <summary class="cc-table-section-summary">
+                <span><i class="fas fa-chevron-down"></i> <i class="fas fa-table-list"></i> {{tablesLabel}}</span>
+                <strong>{{selectedTableCount}}</strong>
+            </summary>
+            <div class="cc-content-section-body">
+                <p class="hint">{{previewHint}}</p>
+                {{#each tables}}
+                    <details class="cc-content-source-preview" data-cc-content-key="{{key}}" {{#if open}}open{{/if}}>
+                        <summary class="cc-table-section-summary">
+                            <input type="checkbox" name="tableProfileIds" value="{{id}}" aria-label="{{name}}" {{#if checked}}checked{{/if}}>
+                            <span><i class="fas fa-chevron-down"></i> {{name}}</span>
+                            {{#if open}}<small>{{count}}</small>{{/if}}
+                        </summary>
+                        {{#if error}}<p class="hint">{{error}}</p>{{else}}{{{previewHtml}}}{{/if}}
+                    </details>
+                {{else}}
+                    <p class="hint">{{localize "COMPENDIUM_CURATOR.NoMatchingObjects"}}</p>
+                {{/each}}
+            </div>
+        </details>
+        {{#if supportsLocalContent}}
+        <details class="cc-table-profile-editor-section" data-cc-content-key="inclusions" {{#if inclusionsOpen}}open{{/if}}>
+            <summary class="cc-table-section-summary">
+                <span><i class="fas fa-chevron-down"></i> <i class="fas fa-thumbtack"></i> {{localize "COMPENDIUM_CURATOR.ManualInclusions"}}</span>
+                <strong>{{selectedCount}}</strong>
+            </summary>
+            <div class="cc-content-section-body">{{{inclusionsHtml}}}</div>
+        </details>
+        <details class="cc-table-profile-editor-section" data-cc-content-key="exclusions" {{#if exclusionsOpen}}open{{/if}}>
+            <summary class="cc-table-section-summary">
+                <span><i class="fas fa-chevron-down"></i> <i class="fas fa-ban"></i> {{localize "COMPENDIUM_CURATOR.ManualExclusions"}}</span>
+                <strong data-cc-excluded-count>{{excludedCount}}</strong>
+            </summary>
+            <div class="cc-content-section-body">
+                <p class="hint">{{exclusionsHint}}</p>
+                {{{exclusionsHtml}}}
+            </div>
+        </details>
+        {{/if}}
         {{else}}
-
-            <p class="hint">
-                {{localize
-                    "COMPENDIUM_CURATOR.ProfileNameInvalid"
-                }}
-            </p>
-
+            <p class="hint">{{localize "COMPENDIUM_CURATOR.TableProfileNotFound"}}</p>
         {{/if}}
     </div>
-
     <footer class="cc-table-filter-group-footer">
-        <button
-            type="button"
-            data-action="cancel"
-        >
-            <i class="fas fa-xmark"></i>
-            {{localize
-                "COMPENDIUM_CURATOR.TableDefaultsCancel"
-            }}
-        </button>
-
-        <button
-            type="button"
-            data-action="save"
-            {{#unless exists}}disabled{{/unless}}
-        >
-            <i class="fas fa-check"></i>
-            {{localize
-                "COMPENDIUM_CURATOR.Save"
-            }}
-        </button>
+        <button type="button" data-action="cancel"><i class="fas fa-xmark"></i> {{localize "COMPENDIUM_CURATOR.TableDefaultsCancel"}}</button>
+        <button type="button" data-action="save" {{#unless exists}}disabled{{/unless}}><i class="fas fa-check"></i> {{localize "COMPENDIUM_CURATOR.Save"}}</button>
     </footer>
-
 </div>

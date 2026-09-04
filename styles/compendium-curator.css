@@ -181,6 +181,58 @@
     display: none;
 }
 
+/* Table content workspace: native disclosures and shared inclusion lists. */
+.cc-table-section-summary .cc-manage-content-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    min-height: 0;
+    padding: 0;
+    margin-left: 0.3rem;
+    vertical-align: middle;
+}
+
+.cc-table-content-workspace .cc-table-filter-group-content {
+    overflow-y: auto;
+}
+.cc-table-content-workspace .cc-table-profile-editor-section {
+    margin: 0.6rem 0;
+    padding: 0;
+}
+.cc-table-content-workspace .cc-content-section-body {
+    padding: 0.5rem;
+}
+.cc-table-content-workspace .cc-content-source-preview {
+    margin: 0.35rem 0;
+    border: 1px solid var(--color-border-light-primary);
+    border-radius: 4px;
+}
+.cc-table-content-workspace .cc-content-source-preview summary > span {
+    flex: 1;
+}
+.cc-table-content-workspace .cc-content-preview .item-list {
+    max-height: 280px;
+    overflow-y: auto;
+}
+.cc-table-content-workspace .cc-table-profile-direct-objects {
+    height: auto;
+}
+.cc-table-content-workspace .cc-table-profile-direct-objects-workspace {
+    height: 380px;
+    flex: none;
+}
+.cc-table-content-workspace .cc-table-profile-exclusions {
+    height: auto;
+    flex: none;
+}
+.cc-table-content-workspace .cc-table-profile-exclusion-results {
+    flex: none;
+    max-height: 380px;
+    overflow-y: auto;
+}
+
 .cc-duplicate-calculating
     :is(button, input, select, filter-state):not(.cc-duplicates-button) {
     opacity: .45;

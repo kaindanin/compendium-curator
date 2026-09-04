@@ -176,67 +176,32 @@ function registerManageContentAction() {
 function configureManageContentButton(
     profileRow
 ) {
-    const menu = profileRow.querySelector(
-        ".cc-table-manager-profile-menu"
-    );
-
-    if (!menu)
+    // Content profiles render their pencil in the native Content summary.
+    if (profileRow.matches("details[data-cc-content-inspector]"))
         return;
-
-    let button = menu.querySelector(
-        '[data-action="manageContent"], ' +
-        "[data-cc-manage-content]"
-    );
-
-    if (!button) {
-        button = document.createElement("button");
-
-        const renameButton = menu.querySelector(
-            '[data-action="renameProfile"]'
-        );
-
-        menu.insertBefore(
-            button,
-            renameButton ?? null
-        );
-
-        const separator =
-            document.createElement("div");
-        separator.className =
-            "cc-table-manager-profile-menu-separator";
-        separator.dataset.ccManageContentSeparator =
-            "";
-
-        menu.insertBefore(
-            separator,
-            renameButton ?? null
-        );
-    }
-
-    button.dataset.action =
-        MANAGE_CONTENT_ACTION;
+    // Preserve access for legacy nested-only tables without reviving the menu.
+    profileRow.querySelector("[data-cc-legacy-content]")?.remove();
+    const details = document.createElement("details");
+    details.dataset.ccLegacyContent = "";
+    const summary = document.createElement("summary");
+    summary.className = "cc-table-section-summary";
+    const label = document.createElement("span");
+    label.textContent = game.i18n.localize("COMPENDIUM_CURATOR.TableManagerTabContent");
+    const button = document.createElement("button");
+    button.dataset.action = MANAGE_CONTENT_ACTION;
     button.dataset.ccManageContent = "";
     button.type = "button";
-
+    button.className = "unbutton cc-manage-content-button";
     const icon = document.createElement("i");
-    icon.className = "fas fa-layer-group";
-    icon.setAttribute(
-        "aria-hidden",
-        "true"
-    );
-
-    const label = text(
-        "Gestionar contenido",
-        "Manage content"
-    );
-
-    button.replaceChildren(
-        icon,
-        document.createTextNode(
-            ` ${label}`
-        )
-    );
-    button.title = label;
+    icon.className = "fas fa-pen";
+    icon.setAttribute("aria-hidden", "true");
+    button.title = text("Gestionar contenido", "Manage content");
+    button.setAttribute("aria-label", button.title);
+    button.append(icon);
+    label.append(button);
+    summary.append(label);
+    details.append(summary);
+    profileRow.append(details);
 }
 
 function augmentUnifiedTableRelations(

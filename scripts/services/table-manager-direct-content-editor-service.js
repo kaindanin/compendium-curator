@@ -2776,6 +2776,12 @@ function renderEditor(
                         ${esc(game.i18n.localize(
                             "COMPENDIUM_CURATOR.TableManagerTabContent"
                         ))}
+                        <button type="button" class="unbutton cc-manage-content-button"
+                            data-action="manageContent" data-cc-manage-content
+                            aria-label="${esc(game.i18n.localize("COMPENDIUM_CURATOR.ManageContent"))}"
+                            title="${esc(game.i18n.localize("COMPENDIUM_CURATOR.ManageContent"))}">
+                            <i class="fas fa-pen" aria-hidden="true"></i>
+                        </button>
                     </span>
                     <span class="cc-table-content-summary-controls">
                         <span class="hint">
@@ -2928,7 +2934,10 @@ function activateEditor(
             "summary input, summary select, summary button"
         )
     ) {
-        stopSummaryToggle(control);
+        // Let ApplicationV2 dispatch this action; its handler prevents the
+        // summary's default toggle. Other editor controls handle their own events.
+        if (!control.matches("[data-cc-manage-content]"))
+            stopSummaryToggle(control);
     }
 
     const localModeSelect = wrapper.querySelector(
