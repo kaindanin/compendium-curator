@@ -11,6 +11,9 @@ import {
 import {
     projectCompendiumBrowserResults
 } from "../overrides/object-override-projection.js";
+import {
+    CompendiumBrowserContextMenuController
+} from "../services/compendium-context-menu-service.js";
 
 const openCompendiumBrowsers = new Set();
 const duplicateIdentityCache = new Map();
@@ -86,6 +89,8 @@ export function registerCompendiumBrowserHooks() {
 
         app._ccResultsObserver?.disconnect();
         app._ccResultsObserver = null;
+        app._ccContextMenuController?.dispose();
+        app._ccContextMenuController = null;
 
         if (app._ccProfileMenuOutsideHandler) {
 
@@ -264,6 +269,10 @@ function onRenderCompendiumBrowser(app) {
     }
 
     clearSelection(app);
+
+    app._ccContextMenuController ??=
+        new CompendiumBrowserContextMenuController(app);
+    app._ccContextMenuController.bind(app.element);
 
     observeCompendiumResults(app);
     projectCompendiumBrowserResults(app.element);
