@@ -2833,19 +2833,25 @@ function createModeToolbar(app) {
                 ${localize("Curator")}
             </button>
 
-            <button type="button" class="cc-duplicates-button">
+            <button
+                type="button"
+                class="cc-duplicates-button cc-compact-toolbar-button"
+                aria-label="${localize("Duplicates")}" title="${localize("Duplicates")}">
                 <i class="fa-solid fa-copy"></i>
-                ${localize("Duplicates")}
             </button>
 
-            <button type="button" class="cc-table-manager-button">
+            <button
+                type="button"
+                class="cc-table-manager-button cc-compact-toolbar-button"
+                aria-label="${localize("ManageTables")}" title="${localize("ManageTables")}">
                 <i class="fa-solid fa-table-list"></i>
-                ${localize("ManageTables")}
             </button>
 
-            <button type="button" class="cc-modified-objects-button" title="${localize("ModifiedObjectsTitle")}">
+            <button
+                type="button"
+                class="cc-modified-objects-button cc-compact-toolbar-button"
+                aria-label="${localize("ModifiedObjectsTitle")}" title="${localize("ModifiedObjectsTitle")}">
                 <i class="fa-solid fa-file-pen"></i>
-                ${localize("ModifiedObjectsButton")}
             </button>
 
         </div>
@@ -4214,21 +4220,18 @@ function refreshDuplicatesButton(app) {
         app._ccDuplicatesOnly
     );
 
-    button.innerHTML =
+    const label =
         app._ccCalculatingDuplicates
-            ? `
-                <i class="fa-solid fa-xmark"></i>
-                ${localize("CancelDuplicateCalculation")}
-            `
+            ? localize("CancelDuplicateCalculation")
             : app._ccDuplicatesOnly
-            ? `
-                <i class="fa-solid fa-copy"></i>
-                ${localize("DuplicatesActive")}
-            `
-            : `
-                <i class="fa-solid fa-copy"></i>
-                ${localize("Duplicates")}
-            `;
+            ? localize("DuplicatesActive")
+            : localize("Duplicates");
+
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    button.innerHTML = app._ccCalculatingDuplicates
+        ? '<i class="fa-solid fa-xmark"></i>'
+        : '<i class="fa-solid fa-copy"></i>';
 
 }
 
