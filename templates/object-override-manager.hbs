@@ -1,0 +1,57 @@
+<section class="cc-modified-manager">
+    <p class="hint">{{localize "COMPENDIUM_CURATOR.ModifiedWorldHint"}}</p>
+    <div class="cc-modified-filters">
+        <input type="search" name="search" data-cc-modified-filter value="{{filters.search}}"
+               placeholder="{{localize 'COMPENDIUM_CURATOR.ModifiedSearch'}}" aria-label="{{localize 'COMPENDIUM_CURATOR.ModifiedSearch'}}">
+        <select name="type" data-cc-modified-filter aria-label="{{localize 'COMPENDIUM_CURATOR.ModifiedTypeFilter'}}">
+            <option value="">{{localize "COMPENDIUM_CURATOR.ModifiedAllTypes"}}</option>
+            {{#each types}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+        <select name="packId" data-cc-modified-filter aria-label="{{localize 'COMPENDIUM_CURATOR.ModifiedPackFilter'}}">
+            <option value="">{{localize "COMPENDIUM_CURATOR.ModifiedAllPacks"}}</option>
+            {{#each packs}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+    </div>
+    <div class="cc-modified-selection">
+        <span aria-live="polite">{{count}} · {{selectedCount}}</span>
+        <button type="button" data-action="selectVisible">{{localize "COMPENDIUM_CURATOR.ModifiedSelectVisible"}}</button>
+        <button type="button" data-action="clearSelection">{{localize "COMPENDIUM_CURATOR.ClearSelection"}}</button>
+    </div>
+    <div class="cc-modified-list">
+        {{#each rows}}
+        <details class="cc-modified-entry" data-uuid="{{uuid}}" {{#if expanded}}open{{/if}}>
+            <summary aria-label="{{localize 'COMPENDIUM_CURATOR.ModifiedViewChanges'}}: {{name}}">
+                <input type="checkbox" data-cc-modified-select value="{{uuid}}" {{#if selected}}checked{{/if}}
+                       aria-label="{{localize 'COMPENDIUM_CURATOR.ModifiedSelect'}}: {{name}}">
+                <img src="{{img}}" alt="" loading="lazy">
+                <span class="cc-modified-identity">
+                    <button type="button" class="unbutton cc-modified-name" data-action="openItem" data-uuid="{{uuid}}"
+                            {{#unless available}}disabled{{/unless}}>{{name}}</button>
+                    {{#if renamed}}<small>{{localize "COMPENDIUM_CURATOR.ObjectOverrideOriginal"}}: {{originalName}}</small>{{/if}}
+                    <small>{{typeLabel}} · {{packLabel}}{{#if source}} · {{source}}{{/if}}</small>
+                    {{#unless available}}<small>{{localize "COMPENDIUM_CURATOR.ModifiedSourceUnavailable"}}</small>{{/unless}}
+                </span>
+                <span class="cc-modified-change-count">{{changes.length}} <i class="fa-solid fa-pen" aria-hidden="true"></i></span>
+                <button type="button" class="unbutton" data-action="resetItem" data-uuid="{{uuid}}"
+                        data-tooltip="{{localize 'COMPENDIUM_CURATOR.ModifiedReset'}}" aria-label="{{localize 'COMPENDIUM_CURATOR.ModifiedReset'}}: {{name}}" {{#if ../busy}}disabled{{/if}}>
+                    <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                </button>
+            </summary>
+            <div class="cc-modified-comparison">
+                {{#each changes}}
+                <section>
+                    <h4>{{label}}</h4>
+                    <div><strong>{{localize "COMPENDIUM_CURATOR.ObjectOverrideOriginal"}}</strong><p>{{before}}</p></div>
+                    <div><strong>{{localize "COMPENDIUM_CURATOR.ObjectOverrideModified"}}</strong><p>{{after}}</p></div>
+                </section>
+                {{else}}<p class="hint">{{localize "COMPENDIUM_CURATOR.ModifiedNoDifferences"}}</p>{{/each}}
+            </div>
+        </details>
+        {{else}}<p class="hint cc-modified-empty">{{emptyMessage}}</p>{{/each}}
+    </div>
+    <footer class="form-footer">
+        <button type="button" data-action="resetSelected" {{#if resetDisabled}}disabled{{/if}}>
+            <i class="fa-solid fa-rotate-left" aria-hidden="true"></i> {{localize "COMPENDIUM_CURATOR.ModifiedResetSelected"}}
+        </button>
+    </footer>
+</section>

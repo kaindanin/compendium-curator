@@ -2,6 +2,7 @@ import {
     MODULE_ID,
     OBJECT_OVERRIDES_SETTING
 } from "../settings.js";
+import { ObjectOverridePatchEngine } from "./object-override-patch-engine.js";
 
 
 const STORAGE_VERSION = 1;
@@ -239,6 +240,27 @@ export class ObjectOverrideStorageService {
             storage
         );
         return true;
+    }
+
+
+    /** One settings write for a confirmed selection; preserve edits made during confirmation. */
+    static async removeMany(sourceUuids, { expectedRecords } = {}) {
+        const storage = this.getStorage();
+        const removed = [];
+        for (const uuid of new Set(sourceUuids)) {
+            if (!Object.hasOwn(storage.overrides, uuid))
+                continue;
+            if (expectedRecords && !ObjectOverridePatchEngine.equals(
+                storage.overrides[uuid], expectedRecords[uuid]
+            ))
+                continue;
+            delete storage.overrides[uuid];
+            removed.push(uuid);
+        }
+        if (removed.length) {
+            await game.settings.set(MODULE_ID, OBJECT_OVERRIDES_SETTING, storage);
+        }
+        return removed;
     }
 }
 

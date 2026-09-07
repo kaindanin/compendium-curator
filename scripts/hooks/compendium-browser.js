@@ -3,6 +3,7 @@ import { CuratorState } from "../state/curator-state.js";
 import { StorageService } from "../services/storage-service.js";
 import { MODULE_ID, DUPLICATE_PRIORITY_SETTING, STORAGE_CHANGED_HOOK } from "../settings.js";
 import { TableManagerApplication } from "../applications/table-manager-application.js";
+import { ObjectOverrideManagerApplication } from "../applications/object-override-manager-application.js";
 import { ensureDnd5eDistributionIndexes } from "../ui/dnd5e-document-list.js";
 import {
     OBJECT_OVERRIDES_CHANGED_HOOK
@@ -2826,6 +2827,11 @@ function createModeToolbar(app) {
                 ${localize("ManageTables")}
             </button>
 
+            <button type="button" class="cc-modified-objects-button" title="${localize("ModifiedObjectsTitle")}">
+                <i class="fa-solid fa-file-pen"></i>
+                ${localize("ModifiedObjectsButton")}
+            </button>
+
         </div>
 
         <span class="cc-loading-indicator" hidden>
@@ -2838,6 +2844,13 @@ function createModeToolbar(app) {
     const duplicatesButton = toolbar.querySelector(".cc-duplicates-button");
     const tableManagerButton = toolbar.querySelector(".cc-table-manager-button");
     const publicProfileButton = toolbar.querySelector(".cc-profile-public");
+
+    toolbar.querySelector(".cc-modified-objects-button").addEventListener("click", () => {
+        void ObjectOverrideManagerApplication.open().catch(error => {
+            console.error(`${MODULE_ID} | Object override manager`, error);
+            ui.notifications.error(localize("ModifiedOperationFailed"));
+        });
+    });
 
     curatorButton.addEventListener("click", () => {
 

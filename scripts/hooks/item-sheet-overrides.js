@@ -10,6 +10,7 @@ import {
 import {
     ObjectOverrideResolver
 } from "../overrides/object-override-resolver.js";
+import { OBJECT_OVERRIDES_CHANGED_HOOK } from "../settings.js";
 
 
 const PLAY_MODE = 1;
@@ -503,6 +504,33 @@ class ItemSheetOverrideController {
 
         controllers.set(originalSheet, this);
         originalSheet._ccOverrideController = this;
+        this._storageHook = Hooks.on(OBJECT_OVERRIDES_CHANGED_HOOK, storage => {
+            if (this.disposed || this._writingOverride ||
+                storage?.overrides?.[this.originalDocument.uuid] ||
+                !this.session.appliedPatch.length) return;
+            void this.resetRemovedOverride().catch(error => {
+                console.error(`${MODULE_ID} | Refresh removed override`, error);
+                ui.notifications.error(error.message);
+            });
+        });
+    }
+
+
+    async resetRemovedOverride() {
+        await this._closeStructureEditors();
+        if (this.disposed) return;
+        this.session.resetAll();
+        this.session.apply();
+        this._dirtyControlPaths.clear();
+        if (!this.syntheticDocument) return;
+        this._replaceSyntheticSource(this.session.workingSource);
+        this.syntheticSheet.editingDescriptionTarget = null;
+        this.syntheticSheet._mode = PLAY_MODE;
+        if (this.syntheticSheet.rendered) {
+            const state = captureViewState(this.syntheticSheet);
+            await this.syntheticSheet.render({ force: true, mode: PLAY_MODE });
+            restoreViewState(this.syntheticSheet, state);
+        }
     }
 
 
@@ -1194,15 +1222,19 @@ class ItemSheetOverrideController {
             this._suppressLocalRender = false;
         }
 
-        await ObjectOverrideStorageService.save(
-            this.originalDocument.uuid,
-            this.session.patch,
-            {
-                documentName:
-                    this.originalDocument.documentName,
-                documentType: this.originalDocument.type
-            }
-        );
+        this._writingOverride = true;
+        try {
+            await ObjectOverrideStorageService.save(
+                this.originalDocument.uuid,
+                this.session.patch,
+                {
+                    documentName:
+                        this.originalDocument.documentName,
+                    documentType: this.originalDocument.type
+                }
+            );
+        }
+        finally { this._writingOverride = false; }
         this.session.apply();
         this._dirtyControlPaths.clear();
         this.syntheticSheet.editingDescriptionTarget = null;
@@ -1295,9 +1327,11 @@ class ItemSheetOverrideController {
             await this._closeStructureEditors();
 
         if (!editing) {
-            await ObjectOverrideStorageService.remove(
-                this.originalDocument.uuid
-            );
+            this._writingOverride = true;
+            try {
+                await ObjectOverrideStorageService.remove(this.originalDocument.uuid);
+            }
+            finally { this._writingOverride = false; }
         }
 
         this.session.resetAll();
@@ -2208,6 +2242,7 @@ class ItemSheetOverrideController {
             return;
 
         this.disposed = true;
+        Hooks.off(OBJECT_OVERRIDES_CHANGED_HOOK, this._storageHook);
         controllers.delete(this.originalSheet);
         controllers.delete(this.syntheticSheet);
         clearApplicationEditable(this.originalSheet);

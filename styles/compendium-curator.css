@@ -25,6 +25,7 @@
 
 .cc-mode-toolbar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
 
@@ -162,6 +163,7 @@
 
 .cc-mode-controls {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
 }
@@ -2364,6 +2366,79 @@
     flex: 0 0 auto;
 }
 
+
+/* Global object override manager */
+.cc-object-overrides-app .window-content {
+    padding: 12px;
+    overflow: hidden;
+}
+.cc-modified-manager {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+    min-height: 0;
+}
+.cc-modified-manager > .hint { margin: 0; }
+.cc-modified-filters {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1.5fr;
+    gap: 8px;
+}
+.cc-modified-filters > * { min-width: 0; }
+.cc-modified-selection {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: var(--font-size-12);
+}
+.cc-modified-selection > span { margin-right: auto; }
+.cc-modified-selection button { width: auto; flex: 0 0 auto; }
+.cc-modified-list { flex: 1; min-height: 0; overflow: auto; }
+.cc-modified-entry {
+    border-bottom: 1px solid var(--color-border-light-primary);
+}
+.cc-modified-entry > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 2px;
+    cursor: pointer;
+}
+.cc-modified-entry > summary::before { content: "\25B8"; }
+.cc-modified-entry[open] > summary::before { content: "\25BE"; }
+.cc-modified-entry > summary > input { flex: 0 0 auto; margin: 0; }
+.cc-modified-entry > summary > img { width: 36px; height: 36px; object-fit: contain; border: 0; }
+.cc-modified-identity { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cc-modified-entry .cc-modified-name {
+    display: block;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-weight: bold;
+    height: auto;
+    line-height: normal;
+    padding: 0;
+    margin: 0;
+    width: fit-content;
+}
+.cc-modified-identity small { font-size: var(--font-size-11); opacity: .8; overflow-wrap: anywhere; }
+.cc-modified-entry > summary > button { flex: 0 0 28px; width: 28px; margin: 0; }
+.cc-modified-change-count { white-space: nowrap; font-size: var(--font-size-12); }
+.cc-modified-comparison { padding: 4px 12px 10px 34px; }
+.cc-modified-comparison section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+    margin-bottom: 10px;
+}
+.cc-modified-comparison h4 { grid-column: 1 / -1; margin: 0; }
+.cc-modified-comparison strong { font-size: var(--font-size-11); opacity: .8; }
+.cc-modified-comparison p { margin: 2px 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; }
+.cc-modified-comparison section > div { min-width: 0; }
+.cc-modified-empty { text-align: center; padding: 20px; }
+.cc-modified-manager .form-footer { flex: 0 0 auto; }
 
 /* ==========================================================================
    Manual Inclusions
