@@ -34,6 +34,9 @@ function storageSnapshot(storage = ObjectOverrideStorageService) {
     return {
         get(uuid) {
             return records[uuid] ?? null;
+        },
+        getStorage() {
+            return { overrides: records };
         }
     };
 }

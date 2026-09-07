@@ -351,14 +351,20 @@ export function getDnd5eDistributionIndexEntry(
         const documentId =
             parts.at(-1);
 
-        const cached =
-            distributionIndexCache
-                .get(collection)
-                ?.index
-                ?.get(documentId);
+        const cache =
+            distributionIndexCache.get(collection);
+        const cached = cache?.index?.get(documentId);
 
-        if (cached)
-            return cached;
+        if (cached) {
+            const resolved = ObjectOverrideResolver.resolveDocument({
+                uuid: value,
+                documentName: cache.documentName,
+                type: cached.type,
+                toObject: () => cached
+            });
+
+            return resolved.source;
+        }
 
     }
 
@@ -413,8 +419,6 @@ function buildDocumentEntry(
 
     }
 
-    // Project only the presentation. Keep the distribution cache and the
-    // original eligibility metadata intact, including the zero-price rule.
     let displayDocument = document;
     let baselineDocument = document;
     if (uuid.startsWith("Compendium.") && storage.get(uuid)) {
@@ -468,11 +472,11 @@ function buildDocumentEntry(
         hasPositivePrice:
             documentClass === "Item" &&
             Number(
-                document.system?.price?.value
+                displayDocument.system?.price?.value
             ) > 0 &&
             Boolean(
                 String(
-                    document.system?.price
+                    displayDocument.system?.price
                         ?.denomination ?? ""
                 ).trim()
             ),

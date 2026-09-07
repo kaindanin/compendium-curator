@@ -232,10 +232,12 @@ export function registerTableManagerSynchronization() {
         }
     );
 
-    // Overrides change presentation, not the saved inclusion criteria.
-    // Refresh open tables and categories without rewriting their matches.
+    /*
+     * Overrides alter the effective document used by every saved criterion.
+     * Re-evaluate category membership so Curator and D&D5e's Browser agree.
+     */
     Hooks.on(OBJECT_OVERRIDES_CHANGED_HOOK, () => {
-        refreshOpenManagers({ delay: 0, synchronize: false });
+        refreshOpenManagers({ delay: 0, synchronize: true });
     });
 
     /*

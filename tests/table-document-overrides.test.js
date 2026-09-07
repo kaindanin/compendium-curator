@@ -68,7 +68,7 @@ function fixture() {
     return { uuid, source, original, pack, state };
 }
 
-test("table rows project overrides from an index without changing originals or eligibility", () => {
+test("table rows project overrides from an index without changing originals", () => {
     const { uuid, source, pack, state } = fixture();
     const snapshot = structuredClone([...pack.index.entries()]);
     pack.index.set("other", { ...source, _id: "other", name: "Other" });
@@ -81,17 +81,17 @@ test("table rows project overrides from an index without changing originals or e
     assert.equal(row.img, "icons/modified.webp");
     assert.equal(row.source, "Custom book");
     assert.equal(row.subtitle, "Loot");
-    assert.equal(row.hasPositivePrice, true);
+    assert.equal(row.hasPositivePrice, false);
     assert.equal(row.available, true);
     assert.equal(state.reads, 1, "one override snapshot for the whole list");
     assert.equal(state.loads, 0, "list projection must remain index-only");
     assert.deepEqual(pack.index.get("abacus"), snapshot[0][1]);
 });
 
-test("category rows project the private cache and return to original after override removal", async () => {
-    const { uuid, pack, state } = fixture();
+test("category indexes and rows project overrides and return to original after removal", async () => {
+    const { uuid, source, pack, state } = fixture();
     assert.equal(await ensureDnd5eDistributionIndexes({ force: true }), true);
-    const baseline = structuredClone(getDnd5eDistributionIndexEntry(uuid));
+    const baseline = structuredClone(source);
     pack.index.clear(); // Browser rebuilding its index must not break the list.
 
     assert.equal(prepareDnd5eIndexedEntries([uuid])[0].name, "Z modified abacus");
@@ -99,7 +99,8 @@ test("category rows project the private cache and return to original after overr
         op: "set", path: "/system/source/custom", value: "My source"
     });
     assert.equal(prepareDnd5eIndexedEntries([uuid])[0].source, "My source");
-    assert.deepEqual(getDnd5eDistributionIndexEntry(uuid), baseline);
+    assert.equal(getDnd5eDistributionIndexEntry(uuid).name, "Z modified abacus");
+    assert.equal(getDnd5eDistributionIndexEntry(uuid).system.price.value, 0);
 
     delete state.overrides[uuid];
     const restored = prepareDnd5eIndexedEntries([uuid])[0];
@@ -195,7 +196,7 @@ test("modified native tooltips attach only to the name, never the weight or row"
     assert.equal(opened, true);
 });
 
-test("an override change refreshes open managers without re-evaluating saved filters", async t => {
+test("an override change coalesces and re-evaluates saved filters in open managers", async t => {
     fixture();
     const hooks = new Map();
     globalThis.Hooks = { on: (name, handler) => hooks.set(name, handler) };
@@ -214,9 +215,6 @@ test("an override change refreshes open managers without re-evaluating saved fil
         render() { this.renders++; }
     }
     const manager = new TableManagerApplication();
-    Object.defineProperty(manager, "_ccFilterGroupSyncPromise", {
-        get() { throw new Error("Display refresh must not synchronize filters"); }
-    });
     registerTableManagerSynchronization();
     hooks.get("renderApplicationV2")(manager);
     hooks.get(OBJECT_OVERRIDES_CHANGED_HOOK)();
@@ -229,8 +227,10 @@ test("an override change refreshes open managers without re-evaluating saved fil
     hooks.get("updateItem")();
     const pendingSync = [...timers.entries()];
     hooks.get(OBJECT_OVERRIDES_CHANGED_HOOK)();
-    assert.deepEqual([...timers.entries()], pendingSync,
-        "an override must not cancel a pending native document sync");
+    assert.equal(timers.size, 1,
+        "an override coalesces with a pending native document sync");
+    assert.notDeepEqual([...timers.entries()], pendingSync,
+        "the most recent effective source schedules the final synchronization");
 
     manager.rendered = false;
     timers.clear();

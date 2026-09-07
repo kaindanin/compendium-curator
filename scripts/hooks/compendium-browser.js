@@ -14,6 +14,9 @@ import {
 import {
     CompendiumBrowserContextMenuController
 } from "../services/compendium-context-menu-service.js";
+import {
+    installCompendiumBrowserOverrideFiltering
+} from "../overrides/object-override-filter-projection.js";
 
 const openCompendiumBrowsers = new Set();
 const duplicateIdentityCache = new Map();
@@ -52,6 +55,10 @@ function format(key, data) {
 }
 
 export function registerCompendiumBrowserHooks() {
+
+    Hooks.once("ready", () => {
+        installCompendiumBrowserOverrideFiltering();
+    });
 
     for (const documentName of [ "Item", "Actor" ]) {
 
@@ -132,7 +139,7 @@ export function registerCompendiumBrowserHooks() {
     Hooks.on(OBJECT_OVERRIDES_CHANGED_HOOK, () => {
         for (const app of openCompendiumBrowsers) {
             void app.render({
-                parts: ["results"]
+                parts: ["filters", "results"]
             });
         }
     });
