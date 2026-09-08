@@ -2,8 +2,15 @@
 
 ## Unreleased
 
+## 0.5.0
+
 ### New
 
+- Added persistent global Item overrides that preserve official compendium documents and reuse the native D&D5e sheet for editing.
+- Added Original and Modified views, per-field and complete reset controls, and local editing for Activities and Active Effects.
+- Added a global Modified Objects manager with filtering, side-by-side comparisons, rich descriptions and bulk reset actions.
+- Added live compendium entry refresh plus bulk move and delete actions in compendium folders.
+- Added official Foundry/D&D5e context menus to Compendium Browser results for every supported document type.
 - Added reusable manual inclusions to Categories and table Item rules.
 - Added a flat “No grouping” distribution that writes objects directly into the generated table branch.
 - Added a table-level “No grouping / By groups” mode that either merges Categories and manual inclusions into one deduplicated local branch or keeps them separate, while linked tables remain independent.
@@ -13,6 +20,10 @@
 
 ### Improvements
 
+- Projected overrides into the Compendium Browser, normal compendium lists, Category and Table Manager previews, tooltips and filtering.
+- Materialized the resolved original-plus-override source when importing a compendium Item into an Actor, after which the embedded Item remains independent.
+- Expanded native Item editing across item types and scalar system fields while keeping the original compendium document untouched.
+- Simplified and reorganized Curator toolbars, table content management and the Modified Objects comparison layout.
 - Renamed reusable filter groups to categories throughout the interface while preserving the existing storage format for compatibility.
 - Moved the hidden-entry control into the native Compendium Browser filters as a three-state include, ignore, or exclude filter.
 - Simplified the Curator toolbar and removed the duplicate defaults shortcut from the Table Manager.
@@ -31,6 +42,9 @@
 
 ### Reliability
 
+- Centralized override resolution, storage, index projection and Foundry 14 import materialization with fail-closed validation.
+- Kept compendium directories synchronized after moving or deleting entries and folder contents without requiring a Foundry reload.
+- Added regression coverage for override sessions, patch persistence, projected filtering, Actor imports, embedded structures and manager rendering.
 - Added cancellation checks between duplicate-loading and document-resolution batches.
 - Added automated coverage for dormant restrictions, manual inclusions, local-source unions, and linked-table boundaries.
 - Added an explicit v6-to-v7 migration that preserves existing category identifiers and converts every flat category into one same-named group without merging data.
