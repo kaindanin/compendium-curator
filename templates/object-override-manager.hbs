@@ -38,13 +38,26 @@
                 </button>
             </summary>
             <div class="cc-modified-comparison">
-                {{#each changes}}
-                <section>
-                    <h4>{{label}}</h4>
-                    <div><strong>{{localize "COMPENDIUM_CURATOR.ObjectOverrideOriginal"}}</strong><p>{{before}}</p></div>
-                    <div><strong>{{localize "COMPENDIUM_CURATOR.ObjectOverrideModified"}}</strong><p>{{after}}</p></div>
+                {{#if changes.length}}
+                <section class="cc-modified-comparison-block cc-modified-comparison-original">
+                    <h3>{{localize "COMPENDIUM_CURATOR.ObjectOverrideOriginal"}}</h3>
+                    {{#each changes}}
+                    <div class="cc-modified-comparison-field">
+                        <h4>{{label}}</h4>
+                        <p>{{before}}</p>
+                    </div>
+                    {{/each}}
                 </section>
-                {{else}}<p class="hint">{{localize "COMPENDIUM_CURATOR.ModifiedNoDifferences"}}</p>{{/each}}
+                <section class="cc-modified-comparison-block cc-modified-comparison-updated">
+                    <h3>{{localize "COMPENDIUM_CURATOR.ObjectOverrideModified"}}</h3>
+                    {{#each changes}}
+                    <div class="cc-modified-comparison-field">
+                        <h4>{{label}}</h4>
+                        <p>{{after}}</p>
+                    </div>
+                    {{/each}}
+                </section>
+                {{else}}<p class="hint">{{localize "COMPENDIUM_CURATOR.ModifiedNoDifferences"}}</p>{{/if}}
             </div>
         </details>
         {{else}}<p class="hint cc-modified-empty">{{emptyMessage}}</p>{{/each}}

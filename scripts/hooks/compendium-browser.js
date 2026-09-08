@@ -2749,8 +2749,9 @@ function createModeToolbar(app) {
 
                 <button
                     type="button"
-                    class="cc-profile-menu-toggle"
+                    class="cc-profile-menu-toggle cc-compact-toolbar-button"
                     title="${localize("Profile")}"
+                    aria-label="${localize("Profile")}"
                 >
                     <i class="fa-solid fa-gear"></i>
                 </button>
@@ -3946,14 +3947,6 @@ function createToolbar(app) {
     toolbar.className = "cc-toolbar";
 
     toolbar.innerHTML = `
-        <div class="cc-selection-tools">
-
-            <span class="cc-selection-count">
-                ${format("SelectedMany", { count: 0 })}
-            </span>
-
-        </div>
-
         <div
             class="cc-duplicate-tools"
             hidden
@@ -3961,41 +3954,53 @@ function createToolbar(app) {
 
             <button
                 type="button"
-                class="cc-duplicate-priority"
-            >
+                class="cc-duplicate-priority cc-compact-toolbar-button"
+                aria-label="${localize("DuplicatePriority")}"
+                title="${localize("DuplicatePriority")}">
                 <i class="fa-solid fa-arrow-down-wide-short"></i>
-                ${localize("DuplicatePriority")}
             </button>
 
             <button
                 type="button"
-                class="cc-duplicate-apply-priority"
-            >
+                class="cc-duplicate-apply-priority cc-compact-toolbar-button"
+                aria-label="${localize("ApplyDuplicatePriority")}"
+                title="${localize("ApplyDuplicatePriority")}">
                 <i class="fa-solid fa-check-double"></i>
-                ${localize("ApplyDuplicatePriority")}
             </button>
 
             <button
                 type="button"
-                class="cc-duplicate-translations"
-            >
+                class="cc-duplicate-translations cc-compact-toolbar-button"
+                aria-label="${localize("TranslationConflicts")}"
+                title="${localize("TranslationConflicts")}">
                 <i class="fa-solid fa-language"></i>
-                ${localize("TranslationConflicts")}
             </button>
 
         </div>
 
-        <div class="cc-toolbar-buttons">
+        <div class="cc-toolbar-selection-actions">
 
-            <button type="button" class="cc-hide">
-                <i class="fa-solid fa-eye-slash"></i>
-                ${localize("Hide")}
-            </button>
+            <div class="cc-selection-tools">
 
-            <button type="button" class="cc-show">
-                <i class="fa-solid fa-eye"></i>
-                ${localize("Show")}
-            </button>
+                <span class="cc-selection-count">
+                    ${format("SelectedMany", { count: 0 })}
+                </span>
+
+            </div>
+
+            <div class="cc-toolbar-buttons">
+
+                <button type="button" class="cc-hide">
+                    <i class="fa-solid fa-eye-slash"></i>
+                    ${localize("Hide")}
+                </button>
+
+                <button type="button" class="cc-show">
+                    <i class="fa-solid fa-eye"></i>
+                    ${localize("Show")}
+                </button>
+
+            </div>
 
         </div>
     `;
@@ -4358,16 +4363,14 @@ function refreshDuplicateActions(app) {
         app._ccTranslationConflictsOnly
     );
 
+    const label = app._ccTranslationConflictsOnly
+        ? localize("TranslationConflictsActive")
+        : localize("TranslationConflicts");
+
+    translationsButton.title = label;
+    translationsButton.setAttribute("aria-label", label);
     translationsButton.innerHTML =
-        app._ccTranslationConflictsOnly
-            ? `
-                <i class="fa-solid fa-language"></i>
-                ${localize("TranslationConflictsActive")}
-            `
-            : `
-                <i class="fa-solid fa-language"></i>
-                ${localize("TranslationConflicts")}
-            `;
+        '<i class="fa-solid fa-language"></i>';
 
 }
 
