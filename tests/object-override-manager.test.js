@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
-import { filterOverrideRows, loadOverrideRows, prepareOverrideRow } from "../scripts/overrides/object-override-manager-model.js";
+import { describeEmbeddedChanges, filterOverrideRows, loadOverrideRows, organizeOverrideChanges, prepareOverrideRow } from "../scripts/overrides/object-override-manager-model.js";
 import { ObjectOverridePatchEngine } from "../scripts/overrides/object-override-patch-engine.js";
 import { ObjectOverrideStorageService } from "../scripts/overrides/object-override-storage-service.js";
 import { ItemSheetOverrideController } from "../scripts/hooks/item-sheet-overrides.js";
@@ -53,6 +54,87 @@ test("search matches original and modified names, ignores accents and combines f
     assert.equal(filterOverrideRows(rows, { search: "abaco", type: "weapon" }).length, 0);
     assert.equal(filterOverrideRows(rows, { packId: "other.pack" }).length, 0);
     assert.equal(filterOverrideRows(rows, { search: "missing" }).length, 0);
+});
+
+test("manager organizes changed fields in native item-sheet section order", () => {
+    const change = path => ({ path });
+    const organized = organizeOverrideChanges([
+        change("/system/uses/spent"), change("/effects"), change("/system/description/chat"),
+        change("/system/weight/value"), change("/system/activities"), change("/name"),
+        change("/system/type/value"), change("/system/rarity"), change("/system/advancement"),
+        change("/system/description/value"), change("/system/price/value"), change("/system/properties")
+    ]);
+    assert.deepEqual(organized.summary.map(entry => entry.path), [
+        "/name", "/system/rarity", "/system/weight/value", "/system/price/value"
+    ]);
+    assert.deepEqual(organized.sections.map(section => section.id), [
+        "description", "details", "activities", "effects", "advancement"
+    ]);
+    assert.deepEqual(organized.sections[0].changes.map(entry => entry.path), [
+        "/system/description/value", "/system/description/chat"
+    ]);
+    assert.deepEqual(organized.sections[1].changes.map(entry => entry.path), [
+        "/system/type/value", "/system/properties", "/system/uses/spent"
+    ]);
+});
+
+test("manager describes changed leaves within activities and effects", () => {
+    const before = { exists: true, value: [{ _id: "activity", name: "Ataque", activation: { type: "action" }, damage: 4 }] };
+    const after = { exists: true, value: [
+        { _id: "activity", name: "Ataque mejorado", activation: { type: "bonus" }, damage: 6 },
+        { _id: "new", name: "Nueva actividad", uses: { max: 1 } }
+    ] };
+    const changes = describeEmbeddedChanges(before, after);
+    assert.deepEqual(changes.map(entry => [entry.beforeName, entry.afterName]), [
+        ["Ataque", "Ataque mejorado"], ["Nueva actividad", "Nueva actividad"]
+    ]);
+    assert.deepEqual(changes[0].fields.map(field => field.path.join(".")), ["activation.type", "damage"]);
+    assert.deepEqual(changes[1].fields.map(field => field.path.join(".")), ["uses.max"]);
+});
+
+test("manager does not discard embedded changes stored in Set values", () => {
+    const before = { exists: true, value: {
+        activity: { _id: "activity", name: "Ataque", properties: new Set(["mgc"]) }
+    } };
+    const after = { exists: true, value: {
+        activity: { _id: "activity", name: "Ataque", properties: new Set(["mgc", "fin"]) }
+    } };
+    const changes = describeEmbeddedChanges(before, after);
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].beforeName, "Ataque");
+    assert.equal(changes[0].afterName, "Ataque");
+    assert.deepEqual(changes[0].fields.map(field => field.path.join(".")), ["properties"]);
+});
+
+test("manager uses paired titles for an embedded name-only change", () => {
+    const before = { exists: true, value: [{ _id: "effect", name: "Original" }] };
+    const after = { exists: true, value: [{ _id: "effect", name: "Modificado" }] };
+    const changes = describeEmbeddedChanges(before, after);
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].beforeName, "Original");
+    assert.equal(changes[0].afterName, "Modificado");
+    assert.deepEqual(changes[0].fields, []);
+});
+
+test("manager expands changed leaves inside nested activity arrays", () => {
+    const before = { exists: true, value: [{
+        _id: "activity", name: "Ataque", effects: [{ _id: "rider", name: "Apresado", duration: { rounds: 1 } }]
+    }] };
+    const after = { exists: true, value: [{
+        _id: "activity", name: "Ataque", effects: [{ _id: "rider", name: "Apresado", duration: { rounds: 2 } }]
+    }] };
+    const changes = describeEmbeddedChanges(before, after);
+    assert.equal(changes.length, 1);
+    assert.deepEqual(changes[0].fields.map(field => field.path.join(".")), ["effects.0.duration.rounds"]);
+    assert.equal(changes[0].fields[0].before, 1);
+    assert.equal(changes[0].fields[0].after, 2);
+});
+
+test("comparison template renders embedded details in both summary and section rows", () => {
+    const template = readFileSync(new URL("../templates/object-override-manager.hbs", import.meta.url), "utf8");
+    assert.equal(template.match(/#if beforeStructure/g)?.length, 2);
+    assert.equal(template.match(/#if afterStructure/g)?.length, 2);
+    assert.equal(template.match(/#if html/g)?.length, 4);
 });
 
 test("only persisted patches are loaded and unavailable sources remain visible", async () => {

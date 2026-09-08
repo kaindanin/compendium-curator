@@ -1,8 +1,9 @@
 import { ObjectOverrideStorageService } from "../overrides/object-override-storage-service.js";
-import { filterOverrideRows, loadOverrideRows } from "../overrides/object-override-manager-model.js";
+import { describeEmbeddedChanges, filterOverrideRows, loadOverrideRows, organizeOverrideChanges } from "../overrides/object-override-manager-model.js";
 import { OBJECT_OVERRIDES_CHANGED_HOOK } from "../settings.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
+const TextEditorImplementation = foundry.applications.ux?.TextEditor?.implementation ?? globalThis.TextEditor;
 const localize = key => game.i18n.localize(`COMPENDIUM_CURATOR.${key}`);
 const format = (key, data) => game.i18n.format(`COMPENDIUM_CURATOR.${key}`, data);
 const FIELD_LABELS = {
@@ -69,6 +70,93 @@ export function displayOverrideValue(state, path = "", type = "") {
 function typeLabel(type) {
     const label = CONFIG.Item?.typeLabels?.[type];
     return label ? game.i18n.localize(label) : type;
+}
+
+function sectionLabel(id) {
+    return localize({
+        description: "ModifiedFieldDescription",
+        details: "ModifiedSectionDetails",
+        activities: "ModifiedFieldActivities",
+        effects: "ModifiedFieldEffects",
+        advancement: "ModifiedFieldAdvancement"
+    }[id]);
+}
+
+function isDescriptionPath(path) {
+    return String(path).includes("description");
+}
+
+function embeddedFieldLabel(path) {
+    if (!path.length) return localize("ModifiedValueUnknown");
+    const [first, ...rest] = path;
+    if (first === "name") return localize("ModifiedFieldName");
+    return [first, ...rest].filter(part => !/^\d+$/.test(part)).map(part =>
+        String(part).replaceAll(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, char => char.toUpperCase())
+    ).join(" · ");
+}
+
+function embeddedValue(value) {
+    if (value === undefined) return localize("ModifiedValueAbsent");
+    if (value === null || value === "") return "—";
+    if (typeof value === "boolean") return localize(value ? "ModifiedValueYes" : "ModifiedValueNo");
+    if (value instanceof Set) return [...value].join(", ") || "—";
+    if (value instanceof Map) return [...value.entries()].map(([key, entry]) => `${key}: ${embeddedValue(entry)}`).join(", ") || "—";
+    if (Array.isArray(value) && value.every(entry => entry === null || typeof entry !== "object"))
+        return value.map(entry => embeddedValue(entry)).join(", ") || "—";
+    if (typeof value === "object") return Array.isArray(value)
+        ? format("ModifiedStructureCount", { count: value.length })
+        : format("ModifiedStructureCount", { count: Object.keys(value).length });
+    return String(value);
+}
+
+async function presentEmbeddedChanges(before, after, side, relativeTo) {
+    return Promise.all(describeEmbeddedChanges(before, after).map(async entry => ({
+        name: side === "before" ? entry.beforeName : entry.afterName,
+        fields: await Promise.all(entry.fields.map(async field => {
+            const rawValue = side === "before" ? field.before : field.after;
+            const rich = field.path.some(part => /description|chatFlavor/i.test(String(part)));
+            const html = rich && rawValue !== undefined && rawValue !== null && rawValue !== ""
+                ? await TextEditorImplementation.enrichHTML(String(rawValue), {
+                    async: true,
+                    relativeTo,
+                    rollData: relativeTo?.getRollData?.()
+                })
+                : undefined;
+            return {
+                label: embeddedFieldLabel(field.path),
+                value: embeddedValue(rawValue),
+                html
+            };
+        }))
+    })));
+}
+
+async function presentChange(change, type, relativeTo) {
+    const rich = isDescriptionPath(change.path);
+    const enrich = async state => {
+        if (!rich || !state?.exists || state.value === null || state.value === "") return undefined;
+        return TextEditorImplementation.enrichHTML(String(state.value), {
+            async: true,
+            relativeTo,
+            rollData: relativeTo?.getRollData?.()
+        });
+    };
+    const embedded = change.path === "/system/activities" || change.path === "/effects";
+    const [beforeStructure, afterStructure] = embedded
+        ? await Promise.all([
+            presentEmbeddedChanges(change.before, change.after, "before", relativeTo),
+            presentEmbeddedChanges(change.before, change.after, "after", relativeTo)
+        ])
+        : [undefined, undefined];
+    return {
+        label: fieldLabel(change.path, change.nativeLabel),
+        before: displayOverrideValue(change.before, change.path, type),
+        after: displayOverrideValue(change.after, change.path, type),
+        beforeStructure,
+        afterStructure,
+        beforeHtml: await enrich(change.before),
+        afterHtml: await enrich(change.after)
+    };
 }
 
 export class ObjectOverrideManagerApplication extends HandlebarsApplicationMixin(ApplicationV2) {
@@ -166,14 +254,18 @@ export class ObjectOverrideManagerApplication extends HandlebarsApplicationMixin
             packs: [...packLabels].map(([value, label]) => ({
                 value, label, selected: this.filters.packId === value
             })).sort((a, b) => a.label.localeCompare(b.label)),
-            rows: visible.map(row => ({
-                ...row, packLabel: packLabels.get(row.packId), typeLabel: typeLabel(row.type),
-                selected: this.selected.has(row.uuid), expanded: this.expanded.has(row.uuid),
-                changes: row.changes.map(change => ({
-                    label: fieldLabel(change.path, change.nativeLabel),
-                    before: displayOverrideValue(change.before, change.path, row.type),
-                    after: displayOverrideValue(change.after, change.path, row.type)
-                }))
+            rows: await Promise.all(visible.map(async row => {
+                const organized = organizeOverrideChanges(row.changes);
+                return {
+                    ...row, packLabel: packLabels.get(row.packId), typeLabel: typeLabel(row.type),
+                    selected: this.selected.has(row.uuid), expanded: this.expanded.has(row.uuid),
+                    summaryChanges: await Promise.all(organized.summary.map(change => presentChange(change, row.type, row.document))),
+                    sections: await Promise.all(organized.sections.map(async section => ({
+                        id: section.id,
+                        label: sectionLabel(section.id),
+                        changes: await Promise.all(section.changes.map(change => presentChange(change, row.type, row.document)))
+                    })))
+                };
             })),
             count: format("ModifiedObjectCount", { visible: visible.length, total: rows.length }),
             selectedCount: format("ModifiedSelectedCount", { count: this.selected.size }),
@@ -205,6 +297,17 @@ export class ObjectOverrideManagerApplication extends HandlebarsApplicationMixin
                 if (details.open) this.expanded.add(details.dataset.uuid);
                 else this.expanded.delete(details.dataset.uuid);
             });
+        }
+        for (const comparison of this.element.querySelectorAll(".cc-modified-comparison")) {
+            for (const section of comparison.querySelectorAll("details[data-cc-section]")) {
+                section.addEventListener("toggle", () => {
+                    const selector = `[data-cc-section="${CSS.escape(section.dataset.ccSection)}"]`;
+                    for (const counterpart of comparison.querySelectorAll(selector)) {
+                        if (counterpart !== section && counterpart.open !== section.open)
+                            counterpart.open = section.open;
+                    }
+                });
+            }
         }
         const list = this.element.querySelector(".cc-modified-list");
         if (list) list.scrollTop = this._scrollTop ?? 0;

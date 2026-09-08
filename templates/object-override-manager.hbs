@@ -41,11 +41,26 @@
                 {{#if changes.length}}
                 <section class="cc-modified-comparison-block cc-modified-comparison-original">
                     <h3>{{localize "COMPENDIUM_CURATOR.ObjectOverrideOriginal"}}</h3>
-                    {{#each changes}}
-                    <div class="cc-modified-comparison-field">
-                        <h4>{{label}}</h4>
-                        <p>{{before}}</p>
+                    {{#each summaryChanges}}
+                        <div class="cc-modified-comparison-field">
+                        {{#unless beforeStructure}}<h5>{{label}}</h5>{{/unless}}
+                            {{#if beforeStructure}}<div class="cc-modified-embedded-changes">{{#each beforeStructure}}<div class="cc-modified-embedded-entry"><h6>{{name}}</h6>{{#each fields}}<div class="cc-modified-embedded-field"><strong>{{label}}</strong>{{#if html}}<div class="cc-modified-rich-value">{{{html}}}</div>{{else}}<span>: {{value}}</span>{{/if}}</div>{{/each}}</div>{{/each}}</div>{{else if beforeHtml}}<div class="cc-modified-rich-value">{{{beforeHtml}}}</div>{{else}}
+                            <p>{{before}}</p>
+                            {{/if}}
                     </div>
+                    {{/each}}
+                    {{#each sections}}
+                    <details class="cc-modified-comparison-section" data-cc-section="{{id}}">
+                        <summary><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><h4>{{label}}</h4></summary>
+                        {{#each changes}}
+                        <div class="cc-modified-comparison-field">
+                            {{#unless beforeStructure}}<h5>{{label}}</h5>{{/unless}}
+                            {{#if beforeStructure}}<div class="cc-modified-embedded-changes">{{#each beforeStructure}}<div class="cc-modified-embedded-entry"><h6>{{name}}</h6>{{#each fields}}<div class="cc-modified-embedded-field"><strong>{{label}}</strong>{{#if html}}<div class="cc-modified-rich-value">{{{html}}}</div>{{else}}<span>: {{value}}</span>{{/if}}</div>{{/each}}</div>{{/each}}</div>{{else if beforeHtml}}<div class="cc-modified-rich-value">{{{beforeHtml}}}</div>{{else}}
+                            <p>{{before}}</p>
+                            {{/if}}
+                        </div>
+                        {{/each}}
+                    </details>
                     {{/each}}
                 </section>
                 <div class="cc-modified-comparison-arrow" aria-hidden="true">
@@ -53,11 +68,26 @@
                 </div>
                 <section class="cc-modified-comparison-block cc-modified-comparison-updated">
                     <h3>{{localize "COMPENDIUM_CURATOR.ObjectOverrideModified"}}</h3>
-                    {{#each changes}}
-                    <div class="cc-modified-comparison-field">
-                        <h4>{{label}}</h4>
-                        <p>{{after}}</p>
+                    {{#each summaryChanges}}
+                        <div class="cc-modified-comparison-field">
+                        {{#unless afterStructure}}<h5>{{label}}</h5>{{/unless}}
+                            {{#if afterStructure}}<div class="cc-modified-embedded-changes">{{#each afterStructure}}<div class="cc-modified-embedded-entry"><h6>{{name}}</h6>{{#each fields}}<div class="cc-modified-embedded-field"><strong>{{label}}</strong>{{#if html}}<div class="cc-modified-rich-value">{{{html}}}</div>{{else}}<span>: {{value}}</span>{{/if}}</div>{{/each}}</div>{{/each}}</div>{{else if afterHtml}}<div class="cc-modified-rich-value">{{{afterHtml}}}</div>{{else}}
+                            <p>{{after}}</p>
+                            {{/if}}
                     </div>
+                    {{/each}}
+                    {{#each sections}}
+                    <details class="cc-modified-comparison-section" data-cc-section="{{id}}">
+                        <summary><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><h4>{{label}}</h4></summary>
+                        {{#each changes}}
+                        <div class="cc-modified-comparison-field">
+                            {{#unless afterStructure}}<h5>{{label}}</h5>{{/unless}}
+                            {{#if afterStructure}}<div class="cc-modified-embedded-changes">{{#each afterStructure}}<div class="cc-modified-embedded-entry"><h6>{{name}}</h6>{{#each fields}}<div class="cc-modified-embedded-field"><strong>{{label}}</strong>{{#if html}}<div class="cc-modified-rich-value">{{{html}}}</div>{{else}}<span>: {{value}}</span>{{/if}}</div>{{/each}}</div>{{/each}}</div>{{else if afterHtml}}<div class="cc-modified-rich-value">{{{afterHtml}}}</div>{{else}}
+                            <p>{{after}}</p>
+                            {{/if}}
+                        </div>
+                        {{/each}}
+                    </details>
                     {{/each}}
                 </section>
                 {{else}}<p class="hint">{{localize "COMPENDIUM_CURATOR.ModifiedNoDifferences"}}</p>{{/if}}

@@ -20,7 +20,7 @@
 
 .cc-toolbar-selection-actions {
     display: flex;
-    align-items: center;
+    align-items: start;
     gap: 12px;
 
     margin-left: auto;
@@ -2491,7 +2491,9 @@
     margin: 0;
     padding: 5px 8px;
 
-    font-size: var(--font-size-12);
+    text-align: center;
+    font-size: var(--font-size-16);
+    font-weight: 700;
 
     background: rgb(255 255 255 / 5%);
     border-bottom: 1px solid var(--color-border-light-primary);
@@ -2501,12 +2503,60 @@
     border-bottom: 1px solid rgb(255 255 255 / 8%);
 }
 .cc-modified-comparison-field:last-child { border-bottom: 0; }
-.cc-modified-comparison h4 {
-    margin: 0;
-    font-size: var(--font-size-13);
-    opacity: .9;
+.cc-modified-comparison-section {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-light-2);
+}
+
+.cc-modified-comparison-section > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.cc-modified-comparison-section > summary::-webkit-details-marker { display: none; }
+
+.cc-modified-comparison-section > summary > i {
+  width: 12px;
+  transition: transform 120ms ease;
+}
+
+.cc-modified-comparison-section[open] > summary > i { transform: rotate(90deg); }
+
+.cc-modified-comparison-section h4 {
+  display: block;
+  margin: 0;
+  font-size: var(--font-size-14);
+  font-weight: 600;
+}
+
+.cc-modified-comparison h5 {
+  margin: 0;
+  font-size: var(--font-size-13);
+  opacity: .9;
 }
 .cc-modified-comparison p { margin: 3px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; }
+.cc-modified-rich-value { margin-top: 3px; max-height: 180px; overflow: auto; overflow-wrap: anywhere; }
+.cc-modified-rich-value > :first-child { margin-top: 0; }
+.cc-modified-rich-value > :last-child { margin-bottom: 0; }
+.cc-modified-embedded-entry + .cc-modified-embedded-entry {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+}
+.cc-modified-embedded-entry h6 {
+  margin: 0;
+  font-size: var(--font-size-13);
+  font-weight: 600;
+}
+.cc-modified-embedded-field {
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+.cc-modified-embedded-field > .cc-modified-rich-value { margin-top: 2px; }
 
 @media (max-width: 560px) {
     .cc-modified-comparison { grid-template-columns: 1fr; padding-left: 12px; }

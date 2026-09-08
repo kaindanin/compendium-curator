@@ -50,6 +50,7 @@
     "ModifiedFieldUses": "Uses",
     "ModifiedFieldType": "Type",
     "ModifiedFieldIdentifier": "Identifier",
+    "ModifiedSectionDetails": "Details",
     "FilterGroupDetails": "Category details",
     "GeneralInformation": "General information",
     "ObjectOverrideView": "Compendium Curator view",
