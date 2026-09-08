@@ -2828,9 +2828,12 @@ function createModeToolbar(app) {
 
         <div class="cc-mode-controls">
 
-            <button type="button" class="cc-curator-button">
-                <i class="fa-solid fa-eye-slash"></i>
-                ${localize("Curator")}
+            <button
+                type="button"
+                class="cc-curator-button cc-compact-toolbar-button"
+                aria-label="${localize("Curator")}"
+                title="${localize("Curator")}">
+                <i class="fa-solid fa-heart-pulse"></i>
             </button>
 
             <button
@@ -2839,6 +2842,10 @@ function createModeToolbar(app) {
                 aria-label="${localize("Duplicates")}" title="${localize("Duplicates")}">
                 <i class="fa-solid fa-copy"></i>
             </button>
+
+        </div>
+
+        <div class="cc-mode-actions">
 
             <button
                 type="button"
@@ -4191,15 +4198,14 @@ function refreshCuratorButton(button, app) {
         app._ccCuratorMode
     );
 
-    button.innerHTML = app._ccCuratorMode
-        ? `
-            <i class="fa-solid fa-pen-to-square"></i>
-            ${localize("CuratorActive")}
-        `
-        : `
-            <i class="fa-solid fa-eye-slash"></i>
-            ${localize("Curator")}
-        `;
+    const label = app._ccCuratorMode
+        ? localize("CuratorActive")
+        : localize("Curator");
+
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    button.innerHTML =
+        '<i class="fa-solid fa-heart-pulse"></i>';
 
 }
 
